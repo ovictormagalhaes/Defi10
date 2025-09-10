@@ -12,7 +12,7 @@ public class WalletService : IWalletService
         _blockchainServices = blockchainServices;
     }
 
-    public async Task<WalletInfo> GetWalletInfoAsync(string account)
+    public async Task<WalletResponse> GetWalletInfoAsync(string account)
     {
         var blockchainService = _blockchainServices.FirstOrDefault(s => s.IsValidAddress(account));
         

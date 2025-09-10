@@ -26,12 +26,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<IWalletService, WalletService>();
 builder.Services.AddScoped<IBlockchainService, EthereumService>();
 builder.Services.AddScoped<IMoralisService, MoralisService>();
-// Register AlchemyService
-builder.Services.AddScoped<IAlchemyService, AlchemyService>();
 // Add HTTP clients
 builder.Services.AddHttpClient<EthereumService>();
 builder.Services.AddHttpClient<MoralisService>();
-builder.Services.AddHttpClient<AlchemyService>();
 
 var app = builder.Build();
 

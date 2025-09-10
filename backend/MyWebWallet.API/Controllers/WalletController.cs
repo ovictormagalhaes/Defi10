@@ -25,8 +25,9 @@ public class WalletController : ControllerBase
     {
         try
         {
-            var walletInfo = await _walletService.GetWalletInfoAsync(account);
-            return Ok(walletInfo);
+            var result = await _walletService.GetWalletInfoAsync(account);
+
+            return Ok(result);
         }
         catch (ArgumentException ex)
         {

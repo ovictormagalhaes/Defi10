@@ -1,6 +1,7 @@
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
+using System.Reflection.Emit;
 using System.Text.RegularExpressions;
 
 namespace MyWebWallet.API.Services;
@@ -24,99 +25,133 @@ public class EthereumService : IBlockchainService
         return Regex.IsMatch(account, @"^0x[a-fA-F0-9]{40}$");
     }
 
-    public async Task<WalletInfo> GetWalletTokensAsync(string account)
+    public async Task<WalletResponse> GetWalletTokensAsync(string account)
     {
         if (!IsValidAddress(account))
         {
             throw new ArgumentException("Invalid Ethereum address");
         }
 
-
-        var walletInfo = new WalletInfo {
-            Account = account,
-            Network = NetworkName,
-        };
-        var tokensMapped = new List<WalletTokenInfo>();
-
         try
         {
             Console.WriteLine($"Fetching tokens for wallet: {account} on Base chain");
 
-            // Fetch tokens using Moralis for the Base chain
+            // Fetch tokens and map them
             var baseChainId = "base"; // Hardcoded for now
             var tokens = await _moralisService.GetERC20TokenBalanceAsync(account, baseChainId);
+            Console.WriteLine($"Tokens fetched: {tokens.Result?.Count}"); // Debugging
+            var items = new List<WalletItem>();
+            items.AddRange(MapTokens(tokens.Result, baseChainId));
 
-            tokensMapped = tokens.Result?.Select(token =>
-            {
-                decimal.TryParse(token.Balance, out var balance);
-
-                return new WalletTokenInfo(
-                    tokenAddress: token.TokenAddress,
-                    chain: baseChainId,
-                    name: token.Name,
-                    symbol: token.Symbol,
-                    logo: token.Logo,
-                    thumbnail: token.Thumbnail,
-                    balance: balance,
-                    usdPrice: token.UsdPrice,
-                    native: token.NativeToken,
-                    possibleSpam: token.PossibleSpam,
-                    decimalPlaces: token.Decimals ?? 1
-                );
-            })?.ToList() ?? new List<WalletTokenInfo>();
-
+            // Fetch DeFi positions and map them
             var defi = await _moralisService.GetDeFiPositionsAsync(account, baseChainId);
-            
-            var defiMapped = defi.Select(d =>
+            Console.WriteLine($"DeFi positions fetched: {defi?.Count}"); // Debugging
+            items.AddRange(MapDeFiPositions(defi, baseChainId));
+
+            return new WalletResponse
             {
-                return new WalletDefiInfo
-                {
-                    Protocol = new Protocol
-                    {
-                        Name = d.ProtocolName,
-                        Chain = baseChainId,
-                        Id = d.ProtocolId,
-                        Url = d.ProtocolUrl,
-                        Logo = d.ProtocolLogo
-                    },
-                    Position = new Position
-                    {
-                        Label = d.Position.Label,
-                        Balance = d.Position.BalanceUsd,
-                        TotalUnclaimed = d.Position.TotalUnclaimedUsdValue,
-                        Tokens = d.Position.Tokens.Select(t => new PositionToken
-                        {
-                            Type = t.TokenType,
-                            Name = t.Name,
-                            Symbol = t.Symbol,
-                            ContractAddress = t.ContractAddress,
-                            DecimalPlaces = int.TryParse(t.Decimals, out var decimals) ? decimals : 0,
-                            Logo = t.Logo,
-                            Thumbnail = t.Thumbnail,
-                            Balance = t.Balance != null ? decimal.Parse(t.Balance) : null,
-                            UnitPrice = t.UsdPrice,
-                            TotalPrice = t.UsdValue
-                        }).ToList()
-                    },
-                    AdditionalData = new AdditionalData
-                    {
-                       HealthFactor = d.AccountData?.HealthFactory
-                    }
-                };
-            })?.ToList() ?? new List<WalletDefiInfo>();
-
-
-            walletInfo.Tokens = tokensMapped;
-            walletInfo.DeFi = defiMapped;
-
-            Console.WriteLine($"Total tokens fetched: {tokensMapped.Count}");
+                Account = account,
+                Items = items,
+                Network = NetworkName,
+                LastUpdated = DateTime.UtcNow
+            };
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error fetching wallet data from Base chain: {ex.Message}");
             throw;
         }
+    }
 
-        return walletInfo;
+    private List<WalletItem> MapTokens(IEnumerable<TokenDetail> items, string chain)
+    {
+        return items?.Select(token =>
+        {
+            decimal.TryParse(token.Balance, out var balance);
+
+            var decimals = token.Decimals ?? 1;
+            var balanceFormatted = balance / (decimal)Math.Pow(10, token.Decimals ?? 1);
+            return new WalletItem()
+            {
+
+                Type = WalletItemType.Wallet,
+                Token = new Token
+                {
+                    Name = token.Name,
+                    Chain = chain,
+                    Symbol = token.Symbol,
+                    ContractAddress = token.TokenAddress,
+                    Logo = string.IsNullOrEmpty(token.Logo) ? token.Thumbnail : token.Logo,
+                    Thumbnail = token.Thumbnail,
+                    Balance = balance,
+                    DecimalPlaces = decimals,
+                    BalanceFormatted = balanceFormatted,
+                    Price = (decimal?)token.UsdPrice,
+                    TotalPrice = (decimal?)token.UsdPrice * balanceFormatted,
+                    Native = token.VerifiedContract ? false : (bool?)null,
+                    PossibleSpam = token.PossibleSpam
+                }
+            };
+        })?.ToList() ?? [];
+    }
+
+    private List<WalletItem> MapDeFiPositions(IEnumerable<GetDeFiPositionsMoralisInfo> items, string chain)
+    {
+        return items?.Select(d =>
+        {
+            var label = d.Position?.Label?.ToLowerInvariant();
+
+            var walletItemType = label switch
+            {
+                "liquidity" => WalletItemType.LiquidityPool,
+                "supplied" or "borrowed" => WalletItemType.LendingAndBorrowing,
+                "staking" => WalletItemType.Staking,
+                _ => WalletItemType.Other,
+            };
+
+            return new WalletItem
+            {
+                Type = walletItemType,
+                Protocol = new Protocol
+                {
+                    Name = d.ProtocolName,
+                    Chain = chain,
+                    Id = d.ProtocolId,
+                    Url = d.ProtocolUrl,
+                    Logo = d.ProtocolLogo
+                },
+                Position = new Position
+                {
+                    Label = d.Position.Label,
+                    Balance = d.Position.BalanceUsd,
+                    TotalUnclaimed = d.Position.TotalUnclaimedUsdValue,
+                    Tokens = d.Position.Tokens.Select(t =>
+                    {
+                        var balance = t.Balance != null ? decimal.Parse(t.Balance) : 0;
+                        var decimalPlaces = int.TryParse(t.Decimals, out var decimals) ? decimals : 0;
+                        var balanceFormatted = balance / (decimal)Math.Pow(10, decimalPlaces);
+
+                        return new Token
+                        {
+                            Type = t.TokenType,
+                            Name = t.Name,
+                            Symbol = t.Symbol,
+                            ContractAddress = t.ContractAddress,
+                            DecimalPlaces = decimalPlaces,
+                            Logo = t.Logo,
+                            Thumbnail = t.Thumbnail,
+                            Balance = balance,
+                            BalanceFormatted = balanceFormatted,
+                            Price = t.UsdPrice,
+                            TotalPrice = t.UsdValue
+                        };
+                    }).ToList()
+                },
+                AdditionalData = new AdditionalData
+                {
+                    //HealthFactor = d.AccountData?.HealthFactory != null && decimal.TryParse(d.AccountData.HealthFactory, out var healthFactor) ? healthFactor : null
+                }
+            };
+        })?.ToList() ?? [];
     }
 }

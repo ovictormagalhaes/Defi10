@@ -4,5 +4,5 @@ namespace MyWebWallet.API.Services.Interfaces;
 
 public interface IWalletService
 {
-    Task<WalletInfo> GetWalletInfoAsync(string account);
+    Task<WalletResponse> GetWalletInfoAsync(string account);
 }

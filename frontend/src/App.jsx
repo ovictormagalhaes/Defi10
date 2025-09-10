@@ -1,15 +1,27 @@
 import React, { useEffect, useState } from 'react'
 import CollapsibleMenu from './components/CollapsibleMenu'
+import TokensMenu from './components/TokensMenu'
+import DeFiMenu from './components/DeFiMenu'
 import { useWalletConnection, useWalletData, useTooltip } from './hooks/useWallet'
+import useWalletMenus from './hooks/useWalletMenus'
+import colors from './styles/colors'
+import PoolTokenCell from './components/PoolTokenCell'
+import CellsContainer from './components/CellsContainer'
 import { 
   formatBalance, 
   formatNativeBalance, 
   formatPrice, 
   groupDefiByProtocol, 
-  groupByProtocolName, 
-  separateDefiByType, 
   getFilteredTokens,
-  groupTokensByPool 
+  groupTokensByPool,
+  groupTokensByType,
+  groupStakingTokensByType,
+  ITEM_TYPES,
+  filterItemsByType,
+  getWalletTokens,
+  getLiquidityPools,
+  getLendingAndBorrowingPositions,
+  getStakingPositions
 } from './utils/walletUtils'
 import { 
   DEFAULT_COLUMN_VISIBILITY, 
@@ -29,10 +41,13 @@ export default function App() {
   
   // UI state from constants
   const [showOnlyPositiveBalance, setShowOnlyPositiveBalance] = useState(DEFAULT_FILTER_SETTINGS.showOnlyPositiveBalance)
-  const [showDefiTokens, setShowDefiTokens] = useState(false) // Hide defi-tokens by default
+  const [showLendingDefiTokens, setShowLendingDefiTokens] = useState(false) // Lending: hide internal by default
+  const [showStakingDefiTokens, setShowStakingDefiTokens] = useState(false) // Staking: hide internal by default
+  const [searchAddress, setSearchAddress] = useState('') // Address search input
   const [liquidityPoolsExpanded, setLiquidityPoolsExpanded] = useState(DEFAULT_EXPANSION_STATES.liquidityPoolsExpanded)
   const [tokensExpanded, setTokensExpanded] = useState(DEFAULT_EXPANSION_STATES.tokensExpanded)
-  const [defiPositionsExpanded, setDefiPositionsExpanded] = useState(DEFAULT_EXPANSION_STATES.defiPositionsExpanded)
+  const [lendingAndBorrowingExpanded, setLendingAndBorrowingExpanded] = useState(DEFAULT_EXPANSION_STATES.defiPositionsExpanded)
+  const [stakingExpanded, setStakingExpanded] = useState(DEFAULT_EXPANSION_STATES.stakingExpanded || false)
   
   // Column visibility states
   const [showBalanceColumn, setShowBalanceColumn] = useState(DEFAULT_COLUMN_VISIBILITY.showBalanceColumn)
@@ -57,10 +72,151 @@ export default function App() {
     refreshWalletData(account, setLoading)
   }
 
-  // Filter function for DeFi tokens
-  const getFilteredDefiTokens = (tokens) => {
-    if (!tokens) return []
-    return showDefiTokens ? tokens : tokens.filter(token => token.type !== 'defi-token')
+  // Search for wallet data by address
+  const handleSearchWallet = async () => {
+    if (!searchAddress.trim()) {
+      alert('Please enter a wallet address')
+      return
+    }
+    
+    // Basic validation for Ethereum address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(searchAddress.trim())) {
+      alert('Please enter a valid Ethereum address (0x...)')
+      return
+    }
+    
+    console.log('Searching wallet:', searchAddress.trim())
+    setLoading(true)
+    
+    try {
+      // Call the API directly and wait for the response
+      await callAccountAPI(searchAddress.trim(), setLoading)
+      console.log('Search completed, walletData should be updated')
+    } catch (error) {
+      console.error('Error searching wallet:', error)
+      alert('Error searching wallet data. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  // Filters specific to each section
+  const filterLendingDefiTokens = (tokens, showInternal) => {
+    if (!Array.isArray(tokens)) return []
+    // Hide tokens flagged as protocol/internal tokens by default
+    return showInternal ? tokens : tokens.filter(t => (t.type || '').toLowerCase() !== 'defi-token')
+  }
+
+  const filterStakingDefiTokens = (tokens, showInternal) => {
+    if (!Array.isArray(tokens)) return []
+    if (showInternal) return tokens
+    // Hide reward tokens by default (and any defi-token just in case)
+    return tokens.filter(t => {
+      const ty = (t.type || '').toLowerCase()
+      return ty !== 'reward' && ty !== 'rewards' && ty !== 'defi-token'
+    })
+  }
+
+  // Calculate total portfolio value
+  const getTotalPortfolioValue = () => {
+    if (!walletData) return 0
+    
+    let total = 0
+    
+    // Use helper functions that handle both new unified structure (items) and legacy structures
+    // Wallet tokens
+    total += getFilteredTokens(getWalletTokensData(), showOnlyPositiveBalance)
+      .reduce((sum, tokenData) => {
+        const token = tokenData.token || tokenData
+        return sum + parseFloat(token.totalPrice || 0)
+      }, 0)
+    
+    // Liquidity pools - use position.balance directly
+    total += getLiquidityPoolsData().reduce((sum, defi) => {
+      const balance = parseFloat(defi.position?.balance) || 0
+      return sum + (isNaN(balance) ? 0 : balance)
+    }, 0)
+    
+  // Lending & Borrowing positions (net: supplied - borrowed)
+  total += groupDefiByProtocol(getLendingAndBorrowingData()).reduce((grand, group) => {
+      const groupSum = group.positions.reduce((sum, pos) => {
+    const tokens = Array.isArray(pos.tokens) ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens) : []
+        const net = tokens.reduce((s, t) => {
+          const ty = (t.type || '').toLowerCase()
+          const val = parseFloat(t.totalPrice) || 0
+          const signed = (ty === 'borrowed' || ty === 'borrow' || ty === 'debt') ? -Math.abs(val) : val
+          return s + signed
+        }, 0)
+        return sum + net
+      }, 0)
+      return grand + groupSum
+    }, 0)
+    
+    // Staking positions (sum tokens totalPrice honoring staking internal toggle)
+  total += groupDefiByProtocol(getStakingData()).reduce((grand, group) => {
+      const groupSum = group.positions.reduce((sum, pos) => {
+    const tokens = Array.isArray(pos.tokens) ? filterStakingDefiTokens(pos.tokens, showStakingDefiTokens) : []
+        return sum + tokens.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0)
+      }, 0)
+      return grand + groupSum
+    }, 0)
+    
+    return total
+  }
+
+  // Helper functions to get data based on structure
+  const getWalletTokensData = () => {
+    // New unified structure with items array
+    if (walletData.items && Array.isArray(walletData.items)) {
+      return filterItemsByType(walletData.items, ITEM_TYPES.WALLET)
+    }
+    // Legacy structure support
+    if (walletData.data && Array.isArray(walletData.data)) {
+      return getWalletTokens(walletData.data)
+    }
+    return walletData.tokens || []
+  }
+
+  const getLiquidityPoolsData = () => {
+    // New unified structure with items array
+    if (walletData.items && Array.isArray(walletData.items)) {
+      return filterItemsByType(walletData.items, ITEM_TYPES.LIQUIDITY_POOL)
+    }
+    // Legacy structure support
+    if (walletData.data && Array.isArray(walletData.data)) {
+      return getLiquidityPools(walletData.data)
+    }
+    return walletData.liquidityPools || []
+  }
+
+  const getLendingAndBorrowingData = () => {
+    // New unified structure with items array
+    if (walletData.items && Array.isArray(walletData.items)) {
+      return filterItemsByType(walletData.items, ITEM_TYPES.LENDING_AND_BORROWING)
+    }
+    // Legacy structure support
+    if (walletData.data && Array.isArray(walletData.data)) {
+      return getLendingAndBorrowingPositions(walletData.data)
+    }
+    return walletData.lendingAndBorrowing || []
+  }
+
+  const getStakingData = () => {
+    // New unified structure with items array
+    if (walletData.items && Array.isArray(walletData.items)) {
+      return filterItemsByType(walletData.items, ITEM_TYPES.STAKING)
+    }
+    // Legacy structure support
+    if (walletData.data && Array.isArray(walletData.data)) {
+      return getStakingPositions(walletData.data)
+    }
+    return walletData.staking || []
+  }
+
+  // Calculate percentage of total
+  const calculatePercentage = (value, total) => {
+    if (total === 0 || isNaN(total) || isNaN(value)) return "0%"
+    const percentage = (value / total) * 100
+    return `${percentage.toFixed(1)}%`
   }
 
   // Call API when account changes
@@ -69,6 +225,11 @@ export default function App() {
       callAccountAPI(account, setLoading)
     }
   }, [account, callAccountAPI])
+
+  // Debug: Monitor walletData changes
+  useEffect(() => {
+    console.log('WalletData updated:', walletData)
+  }, [walletData])
 
   return (
     <div style={{ 
@@ -132,34 +293,101 @@ export default function App() {
 
           {/* Account Info and Actions */}
           {!account ? (
-            <button 
-              onClick={connectWallet} 
-              style={{ 
-                background: 'rgba(255,255,255,0.2)',
-                border: '1px solid rgba(255,255,255,0.3)',
-                color: 'white',
-                padding: '12px 24px',
-                borderRadius: '12px',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                backdropFilter: 'blur(10px)',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = 'rgba(255,255,255,0.3)'
-                e.target.style.transform = 'translateY(-2px)'
-                e.target.style.boxShadow = '0 6px 20px rgba(0,0,0,0.15)'
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = 'rgba(255,255,255,0.2)'
-                e.target.style.transform = 'translateY(0)'
-                e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'
-              }}
-            >
-              Connect Wallet
-            </button>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Search Address Input */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input 
+                  type="text"
+                  value={searchAddress}
+                  onChange={(e) => setSearchAddress(e.target.value)}
+                  placeholder="Enter wallet address (0x...)"
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    background: 'rgba(255,255,255,0.1)',
+                    color: 'white',
+                    fontSize: '14px',
+                    width: '300px',
+                    backdropFilter: 'blur(10px)',
+                    outline: 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.background = 'rgba(255,255,255,0.15)'
+                    e.target.style.borderColor = 'rgba(255,255,255,0.5)'
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.background = 'rgba(255,255,255,0.1)'
+                    e.target.style.borderColor = 'rgba(255,255,255,0.3)'
+                  }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearchWallet()
+                    }
+                  }}
+                />
+                <button 
+                  onClick={handleSearchWallet}
+                  disabled={!searchAddress.trim()}
+                  style={{ 
+                    background: searchAddress.trim() ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    color: searchAddress.trim() ? 'white' : 'rgba(255,255,255,0.5)',
+                    padding: '12px 20px',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: searchAddress.trim() ? 'pointer' : 'not-allowed',
+                    backdropFilter: 'blur(10px)',
+                    transition: 'all 0.2s ease',
+                    minWidth: '80px'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (searchAddress.trim()) {
+                      e.target.style.background = 'rgba(255,255,255,0.3)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (searchAddress.trim()) {
+                      e.target.style.background = 'rgba(255,255,255,0.2)'
+                    }
+                  }}
+                >
+                  🔍 Search
+                </button>
+              </div>
+              
+              {/* Connect Wallet Button */}
+              <button 
+                onClick={connectWallet} 
+                style={{ 
+                  background: 'rgba(255,255,255,0.2)',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  color: 'white',
+                  padding: '12px 24px',
+                  borderRadius: '12px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(10px)',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = 'rgba(255,255,255,0.3)'
+                  e.target.style.transform = 'translateY(-2px)'
+                  e.target.style.boxShadow = '0 6px 20px rgba(0,0,0,0.15)'
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'rgba(255,255,255,0.2)'
+                  e.target.style.transform = 'translateY(0)'
+                  e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'
+                }}
+              >
+                Connect Wallet
+              </button>
+            </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               {/* Account Badge */}
@@ -321,20 +549,47 @@ export default function App() {
       </div>
 
       {/* Main Content */}
-      {account && (
+      {walletData && (
         <div>
           {/* Tokens Table */}
-          {walletData && walletData.tokens && walletData.tokens.length > 0 && (
+          {walletData && getWalletTokensData().length > 0 && (
             <CollapsibleMenu
               title="Wallet"
               isExpanded={tokensExpanded}
               onToggle={() => setTokensExpanded(!tokensExpanded)}
-              leftValue={getFilteredTokens(walletData.tokens, showOnlyPositiveBalance).length}
-              leftLabel="Tokens"
-              middleValue=""
-              middleLabel=""
-              rightValue={formatPrice(getFilteredTokens(walletData.tokens, showOnlyPositiveBalance).reduce((sum, token) => sum + parseFloat(token.totalPrice || 0), 0))}
-              rightLabel="Balance"
+              columns={{
+                tokens: { 
+                  label: "Tokens", 
+                  value: getFilteredTokens(getWalletTokensData(), showOnlyPositiveBalance).length,
+                  flex: 1 
+                },
+                empty: {
+                  label: "",
+                  value: "",
+                  flex: 1
+                },
+                balance: { 
+                  label: "Balance", 
+                  value: formatPrice(getFilteredTokens(getWalletTokensData(), showOnlyPositiveBalance).reduce((sum, tokenData) => {
+                    const token = tokenData.token || tokenData // Support both old and new structure
+                    return sum + parseFloat(token.totalPrice || 0)
+                  }, 0)),
+                  flex: 1,
+                  highlight: true 
+                },
+                percentage: {
+                  label: "%",
+                  value: (() => {
+                    const walletValue = getFilteredTokens(getWalletTokensData(), showOnlyPositiveBalance).reduce((sum, tokenData) => {
+                      const token = tokenData.token || tokenData // Support both old and new structure
+                      return sum + parseFloat(token.totalPrice || 0)
+                    }, 0)
+                    const totalValue = getTotalPortfolioValue()
+                    return calculatePercentage(walletValue, totalValue)
+                  })(),
+                  flex: 0.8
+                }
+              }}
               level={0}
               optionsMenu={
                 <div style={{ padding: '8px 16px' }}>
@@ -403,9 +658,11 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {getFilteredTokens(walletData.tokens, showOnlyPositiveBalance).map((token, index) => (
-                    <tr key={token.tokenAddress} style={{ 
-                      borderBottom: index < getFilteredTokens(walletData.tokens, showOnlyPositiveBalance).length - 1 ? '1px solid #f1f3f4' : 'none',
+                  {getFilteredTokens(getWalletTokensData(), showOnlyPositiveBalance).map((tokenData, index) => {
+                    const token = tokenData.token || tokenData // Support both old and new structure
+                    return (
+                    <tr key={token.contractAddress || token.tokenAddress} style={{ 
+                      borderBottom: index < getFilteredTokens(getWalletTokensData(), showOnlyPositiveBalance).length - 1 ? '1px solid #f1f3f4' : 'none',
                       transition: 'background-color 0.2s ease'
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
@@ -445,86 +702,89 @@ export default function App() {
                         {formatPrice(token.totalPrice)}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </CollapsibleMenu>
           )}
 
           {/* DeFi Tables */}
-          {walletData && walletData.deFi && walletData.deFi.length > 0 && (
+          {walletData && (getLiquidityPoolsData().length > 0 || getLendingAndBorrowingData().length > 0 || getStakingData().length > 0) && (
             <>
               {/* Liquidity Pools Table */}
-              {separateDefiByType(walletData.deFi).liquidity.length > 0 && (
+              {getLiquidityPoolsData().length > 0 && (
                 <CollapsibleMenu
                   title="Liquidity Pools"
                   isExpanded={liquidityPoolsExpanded}
                   onToggle={() => setLiquidityPoolsExpanded(!liquidityPoolsExpanded)}
                   level={0}
-                  leftValue={Object.values(groupByProtocolName(separateDefiByType(walletData.deFi).liquidity.map(defi => ({
-                    protocol: defi.protocol?.name || 'Unknown Protocol',
-                    label: defi.position?.name || 'Pool',
-                    tokens: defi.position?.tokens?.filter(token => token.type === 'supplied') || [],
-                    rewards: defi.position?.tokens?.filter(token => token.type === 'reward') || [],
-                    totalValue: defi.position?.balance || 0,
-                    protocol_id: defi.protocol?.id || '',
-                    protocol_logo: defi.protocol?.logo || null
-                  })))).flat().length}
-                  leftLabel="Pools"
-                  middleValue={formatPrice(Object.values(groupByProtocolName(separateDefiByType(walletData.deFi).liquidity.map(defi => ({
-                    protocol: defi.protocol?.name || 'Unknown Protocol',
-                    label: defi.position?.name || 'Pool',
-                    tokens: defi.position?.tokens?.filter(token => token.type === 'supplied') || [],
-                    rewards: defi.position?.tokens?.filter(token => token.type === 'reward') || [],
-                    totalValue: defi.position?.balance || 0,
-                    protocol_id: defi.protocol?.id || '',
-                    protocol_logo: defi.protocol?.logo || null
-                  })))).flat().reduce((sum, pos) => 
-                    sum + (pos.rewards?.reduce((rewardSum, reward) => rewardSum + (reward.totalPrice || 0), 0) || 0), 0
-                  ))}
-                  middleLabel="Rewards"
-                  rightValue={formatPrice(Object.values(groupByProtocolName(separateDefiByType(walletData.deFi).liquidity.map(defi => ({
-                    protocol: defi.protocol?.name || 'Unknown Protocol',
-                    label: defi.position?.name || 'Pool',
-                    tokens: defi.position?.tokens?.filter(token => token.type === 'supplied') || [],
-                    rewards: defi.position?.tokens?.filter(token => token.type === 'reward') || [],
-                    totalValue: defi.position?.balance || 0,
-                    protocol_id: defi.protocol?.id || '',
-                    protocol_logo: defi.protocol?.logo || null
-                  })))).flat().reduce((sum, pos) => 
-                    sum + (pos.tokens?.reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-                  ))}
-                  rightLabel="Balance"
+                  columns={{
+                    pools: {
+                      label: "Pools",
+                      value: groupDefiByProtocol(getLiquidityPoolsData()).reduce((total, group) => total + group.positions.length, 0),
+                      flex: 1
+                    },
+                    rewards: {
+                      label: "Rewards",
+                      value: formatPrice(groupDefiByProtocol(getLiquidityPoolsData()).reduce((total, group) => {
+                        return total + group.positions.reduce((sum, pos) => {
+                          // Sum rewards from tokens typed as reward(s) OR from position.rewards array
+                          const tokenRewards = Array.isArray(pos.tokens)
+                            ? pos.tokens.reduce((rSum, t) => {
+                                const tType = (t.type || '').toString().toLowerCase()
+                                if (tType === 'reward' || tType === 'rewards') {
+                                  return rSum + (parseFloat(t.totalPrice) || 0)
+                                }
+                                return rSum
+                              }, 0)
+                            : 0
+                          const arrayRewards = Array.isArray(pos.rewards)
+                            ? pos.rewards.reduce((rSum, r) => rSum + (parseFloat(r.totalPrice) || 0), 0)
+                            : 0
+                          return sum + tokenRewards + arrayRewards
+                        }, 0)
+                      }, 0)),
+                      flex: 1
+                    },
+                    balance: {
+                      label: "Balance",
+                      value: formatPrice(groupDefiByProtocol(getLiquidityPoolsData()).reduce((total, group) => 
+                        total + group.positions.reduce((sum, pos) => 
+                          sum + (pos.tokens?.reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
+                        ), 0
+                      )),
+                      flex: 1,
+                      highlight: true
+                    },
+                    percentage: {
+                      label: "%",
+                      value: (() => {
+                        const liquidityValue = groupDefiByProtocol(getLiquidityPoolsData()).reduce((total, group) => 
+                          total + group.positions.reduce((sum, pos) => 
+                            sum + (pos.tokens?.reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
+                          ), 0
+                        )
+                        const totalValue = getTotalPortfolioValue()
+                        return calculatePercentage(liquidityValue, totalValue)
+                      })(),
+                      flex: 0.8
+                    }
+                  }}
                 >
                   {/* Hierarchical nested structure */}
                   <div style={{ backgroundColor: 'white', borderRadius: '0 0 12px 12px', overflow: 'hidden' }}>
-                    {Object.entries(groupByProtocolName(separateDefiByType(walletData.deFi).liquidity.map(defi => ({
-                      protocol: defi.protocol?.name || 'Unknown Protocol',
-                      label: defi.position?.name || 'Pool',
-                      tokens: defi.position?.tokens?.filter(token => token.type === 'supplied') || [],
-                      rewards: defi.position?.tokens?.filter(token => token.type === 'reward') || [],
-                      totalValue: defi.position?.balance || 0,
-                      protocol_id: defi.protocol?.id || '',
-                      protocol_logo: defi.protocol?.logo || null
-                    })))).map(([protocol, positions], protocolIndex) => (
-                      <div key={protocol} style={{ 
-                        borderBottom: protocolIndex < Object.entries(groupByProtocolName(separateDefiByType(walletData.deFi).liquidity.map(defi => ({
-                          protocol: defi.protocol?.name || 'Unknown Protocol',
-                          label: defi.position?.name || 'Pool',
-                          tokens: defi.position?.tokens?.filter(token => token.type === 'supplied') || [],
-                          rewards: defi.position?.tokens?.filter(token => token.type === 'reward') || [],
-                          totalValue: defi.position?.balance || 0,
-                          protocol_id: defi.protocol?.id || '',
-                          protocol_logo: defi.protocol?.logo || null
-                        })))).length - 1 ? '1px solid #e9ecef' : 'none'
+                    {groupDefiByProtocol(getLiquidityPoolsData()).map((protocolGroup, protocolIndex) => (
+                      <div key={protocolGroup.protocol.name} style={{ 
+                        borderBottom: protocolIndex < groupDefiByProtocol(getLiquidityPoolsData()).length - 1 ? '1px solid #e9ecef' : 'none'
                       }}>
                         <CollapsibleMenu
                           title={
                             <div style={{ display: 'flex', alignItems: 'center' }}>
-                              {positions[0] && positions[0].protocol_logo && (
+                              {(protocolGroup.protocol.logoURI || protocolGroup.protocol.logo) && (
                                 <img 
-                                  src={positions[0].protocol_logo} 
-                                  alt={protocol}
+                                  src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo} 
+                                  alt={protocolGroup.protocol.name}
                                   style={{ 
                                     width: 20, 
                                     height: 20, 
@@ -534,28 +794,52 @@ export default function App() {
                                   onError={(e) => e.target.style.display = 'none'}
                                 />
                               )}
-                              {protocol}
+                              {protocolGroup.protocol.name}
                             </div>
                           }
-                          isExpanded={protocolExpansions[protocol] || false}
-                          onToggle={() => toggleProtocolExpansion(protocol)}
-                          leftValue={positions.length}
-                          leftLabel="Pools"
-                          middleValue={formatPrice(positions.reduce((sum, pos) => 
-                            sum + (pos.rewards?.reduce((rewardSum, reward) => rewardSum + (reward.totalPrice || 0), 0) || 0), 0
-                          ))}
-                          middleLabel="Rewards"
-                          rightValue={formatPrice(positions.reduce((sum, pos) => 
-                            sum + (pos.tokens?.reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-                          ))}
-                          rightLabel="Balance"
+                          isExpanded={protocolExpansions[protocolGroup.protocol.name] || false}
+                          onToggle={() => toggleProtocolExpansion(protocolGroup.protocol.name)}
+                          columns={{
+                            pools: {
+                              label: "Pools",
+                              value: protocolGroup.positions.length,
+                              flex: 1
+                            },
+                            rewards: {
+                              label: "Rewards", 
+                              value: formatPrice(protocolGroup.positions.reduce((sum, pos) => {
+                                const tokenRewards = Array.isArray(pos.tokens)
+                                  ? pos.tokens.reduce((rSum, t) => {
+                                      const tType = (t.type || '').toString().toLowerCase()
+                                      if (tType === 'reward' || tType === 'rewards') {
+                                        return rSum + (parseFloat(t.totalPrice) || 0)
+                                      }
+                                      return rSum
+                                    }, 0)
+                                  : 0
+                                const arrayRewards = Array.isArray(pos.rewards)
+                                  ? pos.rewards.reduce((rSum, r) => rSum + (parseFloat(r.totalPrice) || 0), 0)
+                                  : 0
+                                return sum + tokenRewards + arrayRewards
+                              }, 0)),
+                              flex: 1.5
+                            },
+                            balance: {
+                              label: "Balance",
+                              value: formatPrice(protocolGroup.positions.reduce((sum, pos) => 
+                                sum + (pos.tokens?.reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
+                              )),
+                              flex: 2,
+                              highlight: true
+                            }
+                          }}
                           isNested={true} // Indica que é um menu aninhado
                           level={1}
                         >
                             {/* Pool submenus within this protocol */}
-                            {Object.entries(groupTokensByPool(positions)).map(([poolName, poolData], poolIndex) => {
+                            {Object.entries(groupTokensByPool(protocolGroup.positions)).map(([poolName, poolData], poolIndex) => {
                               const poolRewardsTotal = poolData.rewards ? poolData.rewards.reduce((sum, reward) => sum + (reward?.totalPrice || 0), 0) : 0;
-                              const poolKey = `pool-${protocol}-${poolIndex}`;
+                              const poolKey = `pool-${protocolGroup.protocol.name}-${poolIndex}`;
                               
                               // Cria o título do pool com logos dos tokens
                               const poolTitle = (
@@ -593,95 +877,39 @@ export default function App() {
                                   title={poolTitle}
                                   isExpanded={defaultStates[poolKey] || false}
                                   onToggle={() => setDefaultStates(prev => ({ ...prev, [poolKey]: !prev[poolKey] }))}
-                                  leftValue={formatPrice(poolRewardsTotal)}
-                                  leftLabel="Rewards"
-                                  rightValue={formatPrice(poolData.totalValue)}
-                                  rightLabel="Balance"
+                                  columns={{
+                                    rewards: {
+                                      label: "Rewards",
+                                      value: formatPrice(poolRewardsTotal),
+                                      flex: 1
+                                    },
+                                    balance: {
+                                      label: "Balance",
+                                      value: formatPrice(poolData.totalValue),
+                                      flex: 2,
+                                      highlight: true
+                                    }
+                                  }}
                                   isNested={true}
                                   level={2}
                                 >
                                   {/* Individual token cells within this pool */}
-                                  <div style={{ 
-                                    backgroundColor: '#f8f9fa', 
-                                    padding: '16px 24px',
-                                    margin: '8px 0',
-                                    borderRadius: '8px',
-                                    border: '1px solid #e0e0e0'
-                                  }}>
+                                  <CellsContainer>
                                     {poolData.tokens.map((token, tokenIndex) => {
-                                      const tokenReward = poolData.rewards && poolData.rewards.length > tokenIndex && poolData.rewards[tokenIndex] 
-                                        ? poolData.rewards[tokenIndex].totalPrice || 0 
-                                        : 0;
-                                      
+                                      const correspondingReward = poolData.rewards?.find(reward => reward.symbol === token.symbol)
+                                      const tokenReward = correspondingReward ? correspondingReward.totalPrice || 0 : 0
+                                      const isLast = !(tokenIndex < poolData.tokens.length - 1)
                                       return (
-                                        <div key={`${protocol}-pool-${poolIndex}-token-${tokenIndex}`} 
-                                             style={{ 
-                                               display: 'flex', 
-                                               justifyContent: 'space-between', 
-                                               alignItems: 'center',
-                                               padding: '12px 16px',
-                                               backgroundColor: 'white',
-                                               borderRadius: '8px',
-                                               marginBottom: tokenIndex < poolData.tokens.length - 1 ? '6px' : '0',
-                                               border: '1px solid #e9ecef',
-                                               boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                                               transition: 'all 0.2s ease'
-                                             }}
-                                             onMouseEnter={(e) => {
-                                               e.currentTarget.style.backgroundColor = '#f8f9fa'
-                                               e.currentTarget.style.transform = 'translateY(-1px)'
-                                               e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
-                                             }}
-                                             onMouseLeave={(e) => {
-                                               e.currentTarget.style.backgroundColor = 'white'
-                                               e.currentTarget.style.transform = 'translateY(0)'
-                                               e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'
-                                             }}
-                                        >
-                                          <div style={{ display: 'flex', alignItems: 'center' }}>
-                                            {token.logo && (
-                                              <img 
-                                                src={token.logo} 
-                                                alt={token.symbol}
-                                                style={{ 
-                                                  width: 20,
-                                                  height: 20, 
-                                                  marginRight: 10,
-                                                  borderRadius: '50%',
-                                                  border: '1px solid #e0e0e0'
-                                                }}
-                                                onError={(e) => e.target.style.display = 'none'}
-                                              />
-                                            )}
-                                            <span style={{ 
-                                              fontWeight: '600', 
-                                              fontSize: '14px',
-                                              color: '#212529'
-                                            }}>{token.symbol}</span>
-                                          </div>
-                                          <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                                            <div style={{ textAlign: 'right' }}>
-                                              <div style={{ fontSize: '11px', color: '#6c757d', marginBottom: '2px' }}>Rewards</div>
-                                              <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: '500' }}>
-                                                {formatPrice(tokenReward)}
-                                              </span>
-                                            </div>
-                                            <div style={{ textAlign: 'right' }}>
-                                              <div style={{ fontSize: '11px', color: '#6c757d', marginBottom: '2px' }}>Balance</div>
-                                              <span style={{ 
-                                                fontFamily: 'monospace', 
-                                                fontSize: '14px', 
-                                                fontWeight: '600',
-                                                color: '#212529'
-                                              }}>
-                                                {formatPrice(token.totalPrice || 0)}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
+                                        <PoolTokenCell
+                                          key={`${protocolGroup.protocol.name}-pool-${poolIndex}-token-${tokenIndex}`}
+                                          token={token}
+                                          rewardText={formatPrice(tokenReward)}
+                                          balanceText={formatPrice(token.totalPrice || 0)}
+                                          isLast={isLast}
+                                        />
+                                      )
                                     })}
-                                  </div>
+                                  </CellsContainer>
                                 </CollapsibleMenu>
                               );
                             })}
@@ -692,25 +920,74 @@ export default function App() {
                 </CollapsibleMenu>
               )}
 
-              {/* Other DeFi Positions Table */}
-              {separateDefiByType(walletData.deFi).other.length > 0 && (
+              {/* Other Lending & Borrowing Table */}
+              {getLendingAndBorrowingData().length > 0 && (
                 <CollapsibleMenu
-                  title="DeFi Positions"
-                  isExpanded={defiPositionsExpanded}
-                  onToggle={() => setDefiPositionsExpanded(!defiPositionsExpanded)}
+                  title="Lending & Borrowing"
+                  isExpanded={lendingAndBorrowingExpanded}
+                  onToggle={() => setLendingAndBorrowingExpanded(!lendingAndBorrowingExpanded)}
                   level={0}
-                  leftValue={groupDefiByProtocol(separateDefiByType(walletData.deFi).other).length}
-                  leftLabel="Protocols"
-                  rightValue={formatPrice(separateDefiByType(walletData.deFi).other.reduce((total, position) => 
-                    total + position.balance, 0))}
-                  rightLabel="Balance"
+                  columns={{
+                    protocols: {
+                      label: "Protocols",
+                      value: groupDefiByProtocol(getLendingAndBorrowingData()).length,
+                      flex: 1
+                    },
+                    empty: {
+                      label: "",
+                      value: "",
+                      flex: 1
+                    },
+                    balance: {
+                      label: "Balance",
+                      value: (() => {
+                        const defiValue = groupDefiByProtocol(getLendingAndBorrowingData()).reduce((grand, group) => {
+                          const groupSum = group.positions.reduce((sum, pos) => {
+                            const tokens = Array.isArray(pos.tokens) ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens) : []
+                            const net = tokens.reduce((s, t) => {
+                              const ty = (t.type || '').toLowerCase()
+                              const val = parseFloat(t.totalPrice) || 0
+                              const signed = (ty === 'borrowed' || ty === 'borrow' || ty === 'debt') ? -Math.abs(val) : val
+                              return s + signed
+                            }, 0)
+                            return sum + net
+                          }, 0)
+                          return grand + groupSum
+                        }, 0)
+                        return formatPrice(defiValue)
+                      })(),
+                      flex: 1,
+                      highlight: true
+                    },
+                    percentage: {
+                      label: "%",
+                      value: (() => {
+                        const defiValue = groupDefiByProtocol(getLendingAndBorrowingData()).reduce((grand, group) => {
+                          const groupSum = group.positions.reduce((sum, pos) => {
+                            const tokens = Array.isArray(pos.tokens) ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens) : []
+                            const net = tokens.reduce((s, t) => {
+                              const ty = (t.type || '').toLowerCase()
+                              const val = parseFloat(t.totalPrice) || 0
+                              const signed = (ty === 'borrowed' || ty === 'borrow' || ty === 'debt') ? -Math.abs(val) : val
+                              return s + signed
+                            }, 0)
+                            return sum + net
+                          }, 0)
+                          return grand + groupSum
+                        }, 0)
+                        const totalValue = getTotalPortfolioValue()
+                        return calculatePercentage(defiValue, totalValue)
+                      })(),
+                      flex: 0.8
+                    }
+                  }}
                   optionsMenu={
                     <div style={{ padding: '8px 16px' }}>
                       <label style={{ display: 'flex', alignItems: 'center', fontSize: '14px', cursor: 'pointer', marginBottom: '8px' }}>
                         <input
                           type="checkbox"
-                          checked={showDefiTokens}
-                          onChange={(e) => setShowDefiTokens(e.target.checked)}
+                          checked={showLendingDefiTokens}
+                          onChange={(e) => setShowLendingDefiTokens(e.target.checked)}
                           style={{ marginRight: 8 }}
                         />
                         Show internal DeFi tokens
@@ -724,9 +1001,9 @@ export default function App() {
                 >
                   {/* Hierarchical nested structure for DeFi */}
                   <div style={{ backgroundColor: 'white', borderRadius: '0 0 12px 12px', overflow: 'hidden' }}>
-                    {groupDefiByProtocol(separateDefiByType(walletData.deFi).other).map((protocolGroup, protocolIndex) => (
+                    {groupDefiByProtocol(getLendingAndBorrowingData()).map((protocolGroup, protocolIndex) => (
                       <div key={protocolGroup.protocol.id} style={{ 
-                        borderBottom: protocolIndex < groupDefiByProtocol(separateDefiByType(walletData.deFi).other).length - 1 ? '1px solid #e9ecef' : 'none'
+                        borderBottom: protocolIndex < groupDefiByProtocol(getLendingAndBorrowingData()).length - 1 ? '1px solid #e9ecef' : 'none'
                       }}>
                         <CollapsibleMenu
                           title={
@@ -749,124 +1026,358 @@ export default function App() {
                           }
                           isExpanded={protocolExpansions[protocolGroup.protocol.name] || false}
                           onToggle={() => toggleProtocolExpansion(protocolGroup.protocol.name)}
-                          leftValue={protocolGroup.positions.length}
-                          leftLabel="Positions"
-                          rightValue={formatPrice(protocolGroup.positions.reduce((sum, pos) => 
-                            sum + pos.balance, 0))}
-                          rightLabel="Balance"
+                          columns={{
+                            positions: {
+                              label: "Positions",
+                              value: protocolGroup.positions.length,
+                              flex: 1
+                            },
+                            balance: {
+                              label: "Balance",
+                              value: formatPrice(protocolGroup.positions.reduce((sum, pos) => {
+                                const tokens = Array.isArray(pos.tokens) ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens) : []
+                                const net = tokens.reduce((s, t) => {
+                                  const ty = (t.type || '').toLowerCase()
+                                  const val = parseFloat(t.totalPrice) || 0
+                                  const signed = (ty === 'borrowed' || ty === 'borrow' || ty === 'debt') ? -Math.abs(val) : val
+                                  return s + signed
+                                }, 0)
+                                return sum + net
+                              }, 0)),
+                              flex: 2,
+                              highlight: true
+                            }
+                          }}
                           isNested={true}
                           level={1}
                         >
-                          {/* Individual positions within this protocol */}
-                          {protocolGroup.positions.map((position, positionIndex) => {
-                            const positionKey = `defi-${protocolGroup.protocol.id}-${positionIndex}`;
+                          {/* Group tokens by type (supplied/borrowed) within this protocol */}
+                          {(() => {
+                            const filteredPositions = protocolGroup.positions.map(p => ({
+                              ...p,
+                              tokens: Array.isArray(p.tokens) ? filterLendingDefiTokens(p.tokens, showLendingDefiTokens) : []
+                            }))
+                            const groupedTokens = groupTokensByType(filteredPositions)
                             
-                            return (
-                              <CollapsibleMenu 
-                                key={positionKey}
-                                title={
-                                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <span>{position.label}</span>
-                                    {position.additionalData?.healthFactor && (
-                                      <span 
-                                        style={{ 
-                                          marginLeft: 12,
-                                          padding: '2px 8px',
-                                          backgroundColor: position.additionalData.healthFactor > 1.5 ? '#d4edda' : 
-                                                           position.additionalData.healthFactor > 1.2 ? '#fff3cd' : '#f8d7da',
-                                          color: position.additionalData.healthFactor > 1.5 ? '#155724' : 
-                                                 position.additionalData.healthFactor > 1.2 ? '#856404' : '#721c24',
-                                          borderRadius: '12px',
-                                          fontSize: '11px',
-                                          fontWeight: '600',
-                                          cursor: 'help'
-                                        }}
-                                        title={`Health Factor: ${parseFloat(position.additionalData.healthFactor).toFixed(2)}`}
-                                      >
-                                        {parseFloat(position.additionalData.healthFactor).toFixed(2)}
+                            return Object.entries(groupedTokens).map(([tokenType, tokens], typeIndex) => {
+                              if (tokens.length === 0) return null
+                              
+                              const typeKey = `${protocolGroup.protocol.id}-${tokenType}`
+                              const typeLabel = tokenType === 'supplied' ? 'Supplied' : 'Borrowed'
+                              const totalValue = tokens.reduce((sum, token) => sum + (parseFloat(token.totalPrice) || 0), 0)
+                              const displayTotal = tokenType === 'borrowed' ? -Math.abs(totalValue) : totalValue
+                              
+                              return (
+                                <CollapsibleMenu 
+                                  key={typeKey}
+                                  title={
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                      <span style={{ color: colors.textPrimary }}>
+                                        {typeLabel}
                                       </span>
-                                    )}
-                                  </div>
-                                }
-                                isExpanded={defaultStates[positionKey] || false}
-                                onToggle={() => setDefaultStates(prev => ({ ...prev, [positionKey]: !prev[positionKey] }))}
-                                rightValue={formatPrice(position.balance)}
-                                rightLabel="Balance"
-                                isNested={true}
-                                level={2}
-                              >
-                                {/* Individual tokens within this position */}
-                                <div style={{ 
-                                  backgroundColor: '#f8f9fa', 
-                                  padding: '16px 24px',
-                                  margin: '8px 0',
-                                  borderRadius: '8px',
-                                  border: '1px solid #e0e0e0'
-                                }}>
-                                  {getFilteredDefiTokens(position.tokens).length === 0 ? (
-                                    <div style={{ 
-                                      textAlign: 'center', 
-                                      color: '#6c757d', 
-                                      fontSize: '14px',
-                                      fontStyle: 'italic',
-                                      padding: '20px'
-                                    }}>
-                                      All tokens are hidden by current filter settings
                                     </div>
-                                  ) : (
-                                    getFilteredDefiTokens(position.tokens).map((token, tokenIndex) => (
-                                    <div key={`${positionKey}-token-${tokenIndex}`} 
-                                         style={{ 
-                                           display: 'flex', 
-                                           justifyContent: 'space-between', 
-                                           alignItems: 'center',
-                                           padding: '12px 16px',
-                                           backgroundColor: 'white',
-                                           borderRadius: '8px',
-                                           marginBottom: tokenIndex < getFilteredDefiTokens(position.tokens).length - 1 ? '6px' : '0',
-                                           border: '1px solid #e9ecef',
-                                           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                                           transition: 'all 0.2s ease'
-                                         }}
-                                         onMouseEnter={(e) => {
-                                           e.currentTarget.style.backgroundColor = '#f8f9fa'
-                                           e.currentTarget.style.transform = 'translateY(-1px)'
-                                           e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
-                                         }}
-                                         onMouseLeave={(e) => {
-                                           e.currentTarget.style.backgroundColor = 'white'
-                                           e.currentTarget.style.transform = 'translateY(0)'
-                                           e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'
-                                         }}
-                                    >
-                                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                                        {token.logo && (
-                                          <img 
-                                            src={token.logo} 
-                                            alt={token.symbol}
-                                            style={{ 
-                                              width: 20,
-                                              height: 20, 
-                                              marginRight: 10,
-                                              borderRadius: '50%',
-                                              border: '1px solid #e0e0e0'
-                                            }}
-                                            onError={(e) => e.target.style.display = 'none'}
-                                          />
-                                        )}
-                                        <div>
+                                  }
+                                  isExpanded={defaultStates[typeKey] || false}
+                                  onToggle={() => setDefaultStates(prev => ({ ...prev, [typeKey]: !prev[typeKey] }))}
+                                  columns={{
+                                    tokens: {
+                                      label: "Tokens",
+                                      value: tokens.length,
+                                      flex: 1
+                                    },
+                                    balance: {
+                                      label: "Balance",
+                                      value: formatPrice(displayTotal),
+                                      flex: 2,
+                                      highlight: true
+                                    }
+                                  }}
+                                  isNested={true}
+                                  level={2}
+                                >
+                                  {/* Individual tokens within this type */}
+                                  <CellsContainer>
+                                    {tokens.map((token, tokenIndex) => (
+                                      <div key={`${typeKey}-token-${tokenIndex}`} 
+                                           style={{ 
+                                             display: 'flex', 
+                                             justifyContent: 'space-between', 
+                                             alignItems: 'center',
+                                             padding: '12px 16px',
+                                             backgroundColor: 'white',
+                                             borderRadius: '8px',
+                                             marginBottom: tokenIndex < tokens.length - 1 ? '6px' : '0',
+                                             border: '1px solid #e9ecef',
+                                             boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                             transition: 'all 0.2s ease'
+                                           }}
+                                           onMouseEnter={(e) => {
+                                             e.currentTarget.style.backgroundColor = '#f8f9fa'
+                                             e.currentTarget.style.transform = 'translateY(-1px)'
+                                             e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
+                                           }}
+                                           onMouseLeave={(e) => {
+                                             e.currentTarget.style.backgroundColor = 'white'
+                                             e.currentTarget.style.transform = 'translateY(0)'
+                                             e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'
+                                           }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                          {token.logo && (
+                                            <img 
+                                              src={token.logo} 
+                                              alt={token.symbol}
+                                              style={{ 
+                                                width: 20,
+                                                height: 20, 
+                                                marginRight: 10,
+                                                borderRadius: '50%',
+                                                border: '1px solid #e0e0e0'
+                                              }}
+                                              onError={(e) => e.target.style.display = 'none'}
+                                            />
+                                          )}
                                           <span style={{ 
                                             fontWeight: '600', 
                                             fontSize: '14px',
-                                            color: '#212529',
-                                            marginRight: 8
+                                            color: '#212529'
                                           }}>{token.symbol}</span>
                                         </div>
-                                      </div>
-                                      <div style={{ display: 'flex', gap: '24px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                        {token.type !== 'defi-token' && (
+                                        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
                                           <div style={{ textAlign: 'right' }}>
-                                            <div style={{ fontSize: '11px', color: '#6c757d', marginBottom: '2px' }}>Value</div>
+                                            <div style={{ fontSize: '11px', color: '#6c757d', marginBottom: '2px' }}>Balance</div>
+                                            <span style={{ 
+                                              fontFamily: 'monospace', 
+                                              fontSize: '14px', 
+                                              fontWeight: '600',
+                                              color: '#212529'
+                                            }}>
+                                              {(() => {
+                                                const val = parseFloat(token.totalPrice) || 0
+                                                const signed = tokenType === 'borrowed' ? -Math.abs(val) : val
+                                                return formatPrice(signed)
+                                              })()}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </CellsContainer>
+                                </CollapsibleMenu>
+                              )
+                            }).filter(Boolean)
+                          })()}
+                        </CollapsibleMenu>
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleMenu>
+              )}
+
+              {/* Staking Table */}
+              {getStakingData().length > 0 && (
+                <CollapsibleMenu
+                  title="Staking"
+                  isExpanded={stakingExpanded}
+                  onToggle={() => setStakingExpanded(!stakingExpanded)}
+                  level={0}
+                  columns={{
+                    protocols: {
+                      label: "Protocols",
+                      value: groupDefiByProtocol(getStakingData()).length,
+                      flex: 1
+                    },
+                    empty: {
+                      label: "",
+                      value: "",
+                      flex: 1
+                    },
+                    balance: {
+                      label: "Balance",
+                      value: (() => {
+                        const stakingValue = getStakingData().reduce((total, position) => {
+                          const balance = parseFloat(position.balance) || 0
+                          return total + (isNaN(balance) ? 0 : balance)
+                        }, 0)
+                        return formatPrice(stakingValue)
+                      })(),
+                      flex: 1,
+                      highlight: true
+                    },
+                    percentage: {
+                      label: "%",
+                      value: (() => {
+                        const stakingValue = getStakingData().reduce((total, position) => {
+                          const balance = parseFloat(position.balance) || 0
+                          return total + (isNaN(balance) ? 0 : balance)
+                        }, 0)
+                        const totalValue = getTotalPortfolioValue()
+                        return calculatePercentage(stakingValue, totalValue)
+                      })(),
+                      flex: 0.8
+                    }
+                  }}
+                  optionsMenu={
+                    <div style={{ padding: '8px 16px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', fontSize: '14px', cursor: 'pointer', marginBottom: '8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={showStakingDefiTokens}
+                          onChange={(e) => setShowStakingDefiTokens(e.target.checked)}
+                          style={{ marginRight: 8 }}
+                        />
+                        Show internal DeFi tokens
+                      </label>
+                      
+                      <div style={{ fontSize: '11px', color: '#999', marginTop: '4px', fontStyle: 'italic' }}>
+                        Internal tokens (like staking rewards) are hidden by default
+                      </div>
+                    </div>
+                  }
+                >
+                  {/* Hierarchical nested structure for Staking */}
+                  <div style={{ padding: '16px 24px', backgroundColor: '#fafafa' }}>
+                    {groupDefiByProtocol(getStakingData()).map((protocolGroup, protocolIndex) => (
+                      <div key={protocolGroup.protocol.name} style={{ 
+                        marginBottom: protocolIndex < groupDefiByProtocol(getStakingData()).length - 1 ? '12px' : 0 
+                      }}>
+                        <CollapsibleMenu
+                          key={protocolGroup.protocol.name}
+                          title={
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              {(protocolGroup.protocol.logoURI || protocolGroup.protocol.logo) && (
+                                <img 
+                                  src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo} 
+                                  alt={protocolGroup.protocol.name}
+                                  style={{ 
+                                    width: 20, 
+                                    height: 20, 
+                                    marginRight: 8,
+                                    borderRadius: '50%',
+                                    border: '1px solid #e0e0e0'
+                                  }}
+                                  onError={(e) => e.target.style.display = 'none'}
+                                />
+                              )}
+                              <span>{protocolGroup.protocol.name}</span>
+                            </div>
+                          }
+                          isExpanded={protocolExpansions[protocolGroup.protocol.name] || false}
+                          onToggle={() => toggleProtocolExpansion(protocolGroup.protocol.name)}
+                          columns={{
+                            positions: {
+                              label: "Positions",
+                              value: protocolGroup.positions.length,
+                              flex: 1
+                            },
+                            balance: {
+                              label: "Balance",
+                              value: formatPrice(protocolGroup.positions.reduce((sum, position) => {
+                                const tokens = Array.isArray(position.tokens) ? filterStakingDefiTokens(position.tokens, showStakingDefiTokens) : []
+                                const positionValue = tokens.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0)
+                                return sum + positionValue
+                              }, 0)),
+                              flex: 2,
+                              highlight: true
+                            }
+                          }}
+                          isNested={true}
+                          level={1}
+                        >
+                          {/* Group tokens by type (staked/rewards) within this protocol */}
+                          {(() => {
+                            const filteredStakingPositions = protocolGroup.positions.map(p => ({
+                              ...p,
+                              tokens: Array.isArray(p.tokens) ? filterStakingDefiTokens(p.tokens, showStakingDefiTokens) : []
+                            }))
+                            const groupedTokens = groupStakingTokensByType(filteredStakingPositions)
+                            
+                            return Object.entries(groupedTokens).map(([tokenType, tokens], typeIndex) => {
+                              if (tokens.length === 0) return null
+                              
+                              const typeKey = `${protocolGroup.protocol.name}-${tokenType}`
+                              const typeLabel = tokenType === 'staked' ? 'Staked' : 'Rewards'
+                              const totalValue = tokens.reduce((sum, token) => sum + (parseFloat(token.totalPrice) || 0), 0)
+                              
+                              return (
+                                <CollapsibleMenu 
+                                  key={typeKey}
+                                  title={
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                      <span style={{ color: colors.textPrimary }}>
+                                        {typeLabel}
+                                      </span>
+                                    </div>
+                                  }
+                                  isExpanded={defaultStates[typeKey] || false}
+                                  onToggle={() => setDefaultStates(prev => ({ ...prev, [typeKey]: !prev[typeKey] }))}
+                                  columns={{
+                                    tokens: {
+                                      label: "Tokens",
+                                      value: tokens.length,
+                                      flex: 1
+                                    },
+                                    balance: {
+                                      label: "Balance",
+                                      value: formatPrice(totalValue),
+                                      flex: 2,
+                                      highlight: true
+                                    }
+                                  }}
+                                  isNested={true}
+                                  level={2}
+                                >
+                                  {/* Individual tokens within this type */}
+                                  <CellsContainer>
+                                    {tokens.map((token, tokenIndex) => (
+                                      <div key={`${typeKey}-token-${tokenIndex}`} 
+                                           style={{ 
+                                             display: 'flex', 
+                                             justifyContent: 'space-between', 
+                                             alignItems: 'center',
+                                             padding: '12px 16px',
+                                             backgroundColor: 'white',
+                                             borderRadius: '8px',
+                                             marginBottom: tokenIndex < tokens.length - 1 ? '6px' : '0',
+                                             border: '1px solid #e9ecef',
+                                             boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                             transition: 'all 0.2s ease'
+                                           }}
+                                           onMouseEnter={(e) => {
+                                             e.currentTarget.style.backgroundColor = '#f8f9fa'
+                                             e.currentTarget.style.transform = 'translateY(-1px)'
+                                             e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
+                                           }}
+                                           onMouseLeave={(e) => {
+                                             e.currentTarget.style.backgroundColor = 'white'
+                                             e.currentTarget.style.transform = 'translateY(0)'
+                                             e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'
+                                           }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                          {token.logo && (
+                                            <img 
+                                              src={token.logo} 
+                                              alt={token.symbol}
+                                              style={{ 
+                                                width: 20,
+                                                height: 20, 
+                                                marginRight: 10,
+                                                borderRadius: '50%',
+                                                border: '1px solid #e0e0e0'
+                                              }}
+                                              onError={(e) => e.target.style.display = 'none'}
+                                            />
+                                          )}
+                                          <span style={{ 
+                                            fontWeight: '600', 
+                                            fontSize: '14px',
+                                            color: '#212529'
+                                          }}>{token.symbol}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                                          <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '11px', color: '#6c757d', marginBottom: '2px' }}>Balance</div>
                                             <span style={{ 
                                               fontFamily: 'monospace', 
                                               fontSize: '14px', 
@@ -876,21 +1387,21 @@ export default function App() {
                                               {formatPrice(token.totalPrice || 0)}
                                             </span>
                                           </div>
-                                        )}
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))
-                                  )}
-                                </div>
-                              </CollapsibleMenu>
-                            );
-                          })}
+                                    ))}
+                                  </CellsContainer>
+                                </CollapsibleMenu>
+                              )
+                            }).filter(Boolean)
+                          })()}
                         </CollapsibleMenu>
                       </div>
                     ))}
                   </div>
                 </CollapsibleMenu>
               )}
+
             </>
           )}
         </div>

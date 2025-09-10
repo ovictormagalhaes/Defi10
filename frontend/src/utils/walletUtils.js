@@ -1,5 +1,39 @@
 // Utility functions for wallet data processing and formatting
 
+// Constants for item types
+export const ITEM_TYPES = {
+  WALLET: 1,
+  LIQUIDITY_POOL: 2,
+  LENDING_AND_BORROWING: 3,
+  STAKING: 4
+}
+
+// Filter items by type from a unified data array
+export function filterItemsByType(items, type) {
+  if (!items || !Array.isArray(items)) return []
+  return items.filter(item => item.type === type)
+}
+
+// Get wallet tokens from unified data
+export function getWalletTokens(data) {
+  return filterItemsByType(data, ITEM_TYPES.WALLET)
+}
+
+// Get liquidity pools from unified data
+export function getLiquidityPools(data) {
+  return filterItemsByType(data, ITEM_TYPES.LIQUIDITY_POOL)
+}
+
+// Get lending and borrowing positions from unified data
+export function getLendingAndBorrowingPositions(data) {
+  return filterItemsByType(data, ITEM_TYPES.LENDING_AND_BORROWING)
+}
+
+// Get staking positions from unified data
+export function getStakingPositions(data) {
+  return filterItemsByType(data, ITEM_TYPES.STAKING)
+}
+
 // Format balance (use default decimals since not provided in response)
 export function formatBalance(balance, isNative = false) {
   const balanceNum = parseFloat(balance)
@@ -52,15 +86,28 @@ export function formatNativeBalance(token) {
 
 // Format price with currency symbol
 export function formatPrice(price) {
-  if (price === 0 || price === null || price === undefined) return '$0.00'
-  const priceNum = parseFloat(price)
-  if (priceNum < 0.01) {
-    return `$${priceNum.toFixed(6)}`
-  } else if (priceNum < 1) {
-    return `$${priceNum.toFixed(4)}`
+  if (price === null || price === undefined || isNaN(price)) return '$0.00'
+  const priceNum = Number(price)
+  if (priceNum === 0) return '$0.00'
+
+  const isNegative = priceNum < 0
+  const abs = Math.abs(priceNum)
+
+  let fractionDigits = 2
+  if (abs < 0.01) {
+    fractionDigits = 6
+  } else if (abs < 1) {
+    fractionDigits = 4
   } else {
-    return `$${priceNum.toFixed(2)}`
+    fractionDigits = 2
   }
+
+  const formatted = abs.toLocaleString('en-US', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
+  })
+
+  return isNegative ? `-$${formatted}` : `$${formatted}`
 }
 
 // Group DeFi positions by protocol
@@ -124,12 +171,92 @@ export function separateDefiByType(defiData) {
 // Filter tokens based on positive balance setting
 export function getFilteredTokens(tokens, showOnlyPositiveBalance = true) {
   if (showOnlyPositiveBalance) {
-    return tokens.filter(token => {
+    return tokens.filter(tokenData => {
+      const token = tokenData.token || tokenData // Support both old and new structure
       const totalPrice = parseFloat(token.totalPrice)
       return totalPrice > 0
     })
   }
   return tokens
+}
+
+// Group tokens by type for lending positions (supplied/borrowed)
+export function groupTokensByType(positions) {
+  if (!positions || !Array.isArray(positions)) return {}
+  
+  const grouped = {
+    supplied: [],
+    borrowed: []
+  }
+  
+  positions.forEach(position => {
+    if (position.tokens && Array.isArray(position.tokens)) {
+      position.tokens.forEach(token => {
+        const t = (token.type || '').toString().toLowerCase()
+
+        const isSupplied = t === 'supplied' || t === 'supply' || t === 'deposit'
+        const isBorrowed = t === 'borrowed' || t === 'borrow' || t === 'debt'
+        const isInternal = t === 'defi-token' || t === 'internal' || token.isInternal || token.internal || token.category === 'internal'
+
+        if (isSupplied) {
+          grouped.supplied.push(token)
+          return
+        }
+        if (isBorrowed) {
+          grouped.borrowed.push(token)
+          return
+        }
+
+        // For internal tokens, infer bucket from the position context
+        if (isInternal) {
+          const hasSuppliedInPos = position.tokens.some(pt => {
+            const tt = (pt.type || '').toString().toLowerCase()
+            return tt === 'supplied' || tt === 'supply' || tt === 'deposit'
+          })
+          const hasBorrowedInPos = position.tokens.some(pt => {
+            const tt = (pt.type || '').toString().toLowerCase()
+            return tt === 'borrowed' || tt === 'borrow' || tt === 'debt'
+          })
+
+          let bucket = 'supplied'
+          if (hasBorrowedInPos && !hasSuppliedInPos) bucket = 'borrowed'
+          if (hasSuppliedInPos && hasBorrowedInPos) {
+            // Heuristic: names containing 'debt' -> borrowed, otherwise supplied
+            const sym = (token.symbol || '').toLowerCase()
+            bucket = (sym.includes('debt') || sym.includes('vdebt') || sym.includes('variabledebt')) ? 'borrowed' : 'supplied'
+          }
+          grouped[bucket].push(token)
+        }
+      })
+    }
+  })
+  
+  return grouped
+}
+
+// Group tokens by type for staking positions (staked/rewards)
+export function groupStakingTokensByType(positions) {
+  if (!positions || !Array.isArray(positions)) return {}
+  
+  const grouped = {
+    staked: [],
+    rewards: []
+  }
+  
+  positions.forEach(position => {
+    if (position.tokens && Array.isArray(position.tokens)) {
+      position.tokens.forEach(token => {
+        if (token.type === 'reward' || token.type === 'rewards') {
+          grouped.rewards.push(token)
+        } else {
+          // Default para staked se não for explicitamente reward
+          grouped.staked.push(token)
+        }
+      })
+    }
+  })
+  
+  return grouped
 }
 
 // Group tokens by pool for liquidity positions
@@ -139,14 +266,17 @@ export function groupTokensByPool(positions) {
   const grouped = {}
   
   positions.forEach((position, positionIndex) => {
-    // Cria o nome do pool baseado nos símbolos dos tokens
-    let poolKey = 'Unknown Pool'
+    // Usa o nome da posição como chave do pool, ou cria baseado nos tokens
+    let poolKey = position.name || position.label || 'Unknown Pool'
     
-    if (position.tokens && Array.isArray(position.tokens) && position.tokens.length > 0) {
-      // Pega os símbolos únicos dos tokens para formar o nome do pool
-      const tokenSymbols = position.tokens.map(token => token.symbol).filter(symbol => symbol)
-      if (tokenSymbols.length > 0) {
-        poolKey = tokenSymbols.join('/')
+    // Se não tem nome, cria baseado nos símbolos dos tokens supplied
+    if (poolKey === 'Unknown Pool' && position.tokens && Array.isArray(position.tokens)) {
+      const suppliedTokens = position.tokens.filter(token => token.type === 'supplied' || !token.type)
+      if (suppliedTokens.length > 0) {
+        const tokenSymbols = suppliedTokens.map(token => token.symbol).filter(symbol => symbol)
+        if (tokenSymbols.length > 0) {
+          poolKey = tokenSymbols.join(' / ')
+        }
       }
     }
     
@@ -158,17 +288,30 @@ export function groupTokensByPool(positions) {
       counter++
     }
     
+    const tokensArray = Array.isArray(position.tokens) ? position.tokens : []
+    const suppliedTokens = tokensArray.filter(token => {
+      const t = (token.type || '').toString().toLowerCase()
+      return t === 'supplied' || t === 'supply' || t === 'deposit' || !t
+    })
+    const rewardTokensFromTokens = tokensArray.filter(token => {
+      const t = (token.type || '').toString().toLowerCase()
+      return t === 'reward' || t === 'rewards'
+    })
+    const rewardsArray = rewardTokensFromTokens.length > 0
+      ? rewardTokensFromTokens
+      : (Array.isArray(position.rewards) ? position.rewards : [])
+
     grouped[finalPoolKey] = {
       label: finalPoolKey,
-      tokens: [...(position.tokens || [])],
-      rewards: [...(position.rewards || [])],
+      tokens: suppliedTokens,
+      rewards: rewardsArray,
       totalValue: 0,
       totalRewards: 0
     }
-
+    
     // Calcula valores totais
-    grouped[finalPoolKey].totalValue = position.tokens?.reduce((sum, token) => sum + (token.totalPrice || 0), 0) || 0
-    grouped[finalPoolKey].totalRewards = position.rewards?.reduce((sum, reward) => sum + (reward.totalPrice || 0), 0) || 0
+    grouped[finalPoolKey].totalValue = grouped[finalPoolKey].tokens?.reduce((sum, token) => sum + (token.totalPrice || 0), 0) || 0
+  grouped[finalPoolKey].totalRewards = grouped[finalPoolKey].rewards?.reduce((sum, reward) => sum + (parseFloat(reward.totalPrice) || 0), 0) || 0
   })
   
   return grouped

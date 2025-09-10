@@ -2,10 +2,10 @@ using MyWebWallet.API.Services.Models;
 
 namespace MyWebWallet.API.Models;
 
-public record WalletResponse(
-    string Account,
-    string Network,
-    decimal TotalValueUsd,
-    IEnumerable<GetERC20TokenMoralisResponse> Tokens,
-    DateTime LastUpdated
-);
+public class WalletResponse
+{
+    public string Account { get; set; } = string.Empty;
+    public string Network { get; set; } = string.Empty;
+    public List<WalletItem> Items { get; set; } = new List<WalletItem>();
+    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+}

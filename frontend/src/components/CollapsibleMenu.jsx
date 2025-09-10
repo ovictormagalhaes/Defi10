@@ -5,6 +5,9 @@ function CollapsibleMenu({
   title, 
   isExpanded, 
   onToggle, 
+  // Nova prop flexível para múltiplas colunas
+  columns = {},
+  // Props antigas mantidas para compatibilidade (opcionais)
   leftValue, 
   leftLabel,
   middleValue = '', 
@@ -30,6 +33,86 @@ function CollapsibleMenu({
     }
   }
 
+  // Calcula o tamanho da fonte para labels baseado no level
+  const getLabelFontSize = (level) => {
+    switch(level) {
+      case 0: return '14px' // Root menu
+      case 1: return '13px' // Sub menu 
+      case 2: return '12px' // Sub-sub menu
+      case 3: return '11px' // Sub-sub-sub menu
+      default: return '10px' // Níveis mais profundos
+    }
+  }
+
+  // Calcula o tamanho da fonte para valores baseado no level
+  const getValueFontSize = (level, isHighlighted = false) => {
+    const baseSize = {
+      0: isHighlighted ? '16px' : '15px', // Root menu
+      1: isHighlighted ? '15px' : '14px', // Sub menu 
+      2: isHighlighted ? '14px' : '13px', // Sub-sub menu
+      3: isHighlighted ? '13px' : '12px', // Sub-sub-sub menu
+    }
+    return baseSize[level] || (isHighlighted ? '12px' : '11px') // Níveis mais profundos
+  }
+
+  // Calcula o padding baseado no level
+  const getPadding = (level) => {
+    switch(level) {
+      case 0: return '12px 20px' // Root menu - padding completo
+      case 1: return '10px 16px' // Sub menu - padding reduzido
+      case 2: return '8px 12px'  // Sub-sub menu - padding mais reduzido
+      case 3: return '6px 10px'  // Sub-sub-sub menu - padding ainda menor
+      default: return '4px 8px'  // Níveis mais profundos - padding mínimo
+    }
+  }
+
+  // Calcula o margin baseado no level
+  const getMargin = (level) => {
+    switch(level) {
+      case 0: return { marginTop: 20, marginBottom: 20 } // Root menu - margin completo
+      case 1: return { marginTop: 12, marginBottom: 12 } // Sub menu - margin reduzido
+      case 2: return { marginTop: 8, marginBottom: 8 }   // Sub-sub menu - margin mais reduzido
+      case 3: return { marginTop: 6, marginBottom: 6 }   // Sub-sub-sub menu - margin ainda menor
+      default: return { marginTop: 4, marginBottom: 4 }  // Níveis mais profundos - margin mínimo
+    }
+  }
+
+  // Processar colunas - prioriza o novo formato, fallback para o antigo
+  const processedColumns = () => {
+    // Se columns está definido e não é vazio, usa o novo formato
+    if (Object.keys(columns).length > 0) {
+      return columns
+    }
+    
+    // Fallback para formato antigo
+    const oldFormat = {}
+    if (leftValue !== undefined || leftLabel) {
+      oldFormat.left = { 
+        label: leftLabel, 
+        value: leftValue, 
+        flex: 1 
+      }
+    }
+    if (middleValue !== undefined || middleLabel) {
+      oldFormat.middle = { 
+        label: middleLabel, 
+        value: middleValue, 
+        flex: 1 
+      }
+    }
+    if (rightValue !== undefined || rightLabel) {
+      oldFormat.right = { 
+        label: rightLabel, 
+        value: rightValue, 
+        flex: 1,
+        highlight: true // Último valor geralmente é destacado
+      }
+    }
+    return oldFormat
+  }
+
+  const finalColumns = processedColumns()
+
   // Fechar dropdown quando clicar fora
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -49,8 +132,7 @@ function CollapsibleMenu({
 
   return (
     <div style={{ 
-      marginTop: 20,
-      marginBottom: 20,
+      ...getMargin(level),
       marginLeft: isNested ? '0px' : '0',
       paddingLeft: isNested ? '0px' : '0',
       marginRight: isNested ? '0px' : '0',
@@ -60,7 +142,7 @@ function CollapsibleMenu({
       <div 
         style={{ 
           backgroundColor: 'white', 
-          padding: '12px 20px', 
+          padding: getPadding(level), 
           borderRadius: isExpanded ? '8px 8px 0 0' : '8px',
           border: '1px solid #dee2e6',
           borderBottom: isExpanded ? 'none' : '1px solid #dee2e6',
@@ -88,138 +170,67 @@ function CollapsibleMenu({
             <span style={{ fontWeight: 'bold', fontSize: getFontSize(level), color: '#333333' }}>{title}</span>
           </div>
 
-          {/* Container dos valores - dividido em 3 seções iguais aproveitando espaço máximo */}
+          {/* Container dos valores - flexível baseado no número de colunas */}
           <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
-            {/* Seção Left - 1/3 do espaço disponível */}
-            <div style={{ 
-              flex: '1 1 33.333%', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              padding: '0 8px',
-              overflow: 'hidden',
-              minWidth: 0
-            }}>
-              {leftLabel && (
-                <div style={{ 
-                  fontWeight: 'bold', 
-                  color: '#555555', 
-                  fontSize: '14px', 
-                  marginBottom: '4px',
-                  textAlign: 'center',
-                  whiteSpace: 'nowrap',
+            {Object.entries(finalColumns).map(([key, column], index) => {
+              const isHighlighted = column.highlight || false
+              const flexValue = column.flex || 1
+              
+              return (
+                <div key={key} style={{ 
+                  flex: `${flexValue} 1 0%`, 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  padding: '0 8px',
                   overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  width: '100%'
+                  minWidth: 0
                 }}>
-                  {leftLabel}
+                  {column.label && (
+                    <div style={{ 
+                      fontWeight: 'bold', 
+                      color: isHighlighted ? '#333333' : '#555555', 
+                      fontSize: getLabelFontSize(level), 
+                      marginBottom: '4px',
+                      textAlign: 'center',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      width: '100%'
+                    }}>
+                      {column.label}
+                    </div>
+                  )}
+                  {column.value !== undefined && column.value !== null && column.value !== '' && (
+                    <div style={{ 
+                      fontFamily: 'monospace', 
+                      fontWeight: isHighlighted ? 'bold' : '600', 
+                      fontSize: getValueFontSize(level, isHighlighted), 
+                      color: isHighlighted ? '#212529' : '#333333',
+                      textAlign: 'center',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      width: '100%'
+                    }}>
+                      {column.value}
+                    </div>
+                  )}
                 </div>
-              )}
-              {leftValue !== undefined && leftValue !== null && leftValue !== '' && (
-                <div style={{ 
-                  fontFamily: 'monospace', 
-                  fontWeight: 'bold', 
-                  fontSize: '16px', 
-                  color: '#333333',
-                  textAlign: 'center',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  width: '100%'
-                }}>
-                  {leftValue}
-                </div>
-              )}
-            </div>
-
-            {/* Seção Middle - 1/3 do espaço disponível */}
-            <div style={{ 
-              flex: '1 1 33.333%', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              padding: '0 8px',
-              overflow: 'hidden',
-              minWidth: 0
-            }}>
-              {middleLabel && (
-                <div style={{ 
-                  fontWeight: 'bold', 
-                  color: '#555555', 
-                  fontSize: '14px', 
-                  marginBottom: '4px',
-                  textAlign: 'center',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  width: '100%'
-                }}>
-                  {middleLabel}
-                </div>
-              )}
-              {middleValue !== undefined && middleValue !== null && middleValue !== '' && (
-                <div style={{ 
-                  fontFamily: 'monospace', 
-                  fontWeight: 'bold', 
-                  fontSize: '16px', 
-                  color: '#333333',
-                  textAlign: 'center',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  width: '100%'
-                }}>
-                  {middleValue}
-                </div>
-              )}
-            </div>
-
-            {/* Seção Right - 1/3 do espaço disponível */}
-            <div style={{ 
-              flex: '1 1 33.333%', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              padding: '0 8px',
-              overflow: 'hidden',
-              minWidth: 0
-            }}>
-              {rightLabel && (
-                <div style={{ 
-                  fontWeight: 'bold', 
-                  color: '#555555', 
-                  fontSize: '14px', 
-                  marginBottom: '4px',
-                  textAlign: 'center',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  width: '100%'
-                }}>
-                  {rightLabel}
-                </div>
-              )}
-              {rightValue !== undefined && rightValue !== null && rightValue !== '' && (
-                <div style={{ 
-                  fontFamily: 'monospace', 
-                  fontWeight: 'bold', 
-                  fontSize: '16px', 
-                  color: '#333333',
-                  textAlign: 'center',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  width: '100%'
-                }}>
-                  {rightValue}
-                </div>
-              )}
-            </div>
+              )
+            })}
           </div>
 
-          {/* Coluna de Opções - largura fixa, sempre presente */}
-          <div style={{ width: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
-            {optionsMenu ? (
+          {/* Coluna de Opções - largura fixa, sempre presente para manter alinhamento */}
+          <div style={{ 
+            width: '40px', 
+            minWidth: '40px',
+            display: 'flex', 
+            justifyContent: 'right', 
+            alignItems: 'right', 
+            position: 'relative' 
+          }}>
+            {optionsMenu && (
               <>
                 <button
                   style={{
@@ -268,7 +279,8 @@ function CollapsibleMenu({
                   </div>
                 )}
               </>
-            ) : null}
+            )}
+            {/* Espaço vazio quando não há optionsMenu, mantém o layout consistente */}
           </div>
         </div>
       </div>
@@ -277,7 +289,7 @@ function CollapsibleMenu({
       {isExpanded && headerActions && (
         <div style={{ 
           backgroundColor: '#f8f9fa', 
-          padding: '8px 20px', 
+          padding: getPadding(level), 
           borderLeft: '1px solid #dee2e6',
           borderRight: '1px solid #dee2e6',
           display: 'flex', 
@@ -291,8 +303,8 @@ function CollapsibleMenu({
       {/* Collapsible Content */}
       {isExpanded && (
         <div style={{
-          paddingLeft: isNested ? '8px' : '0',
-          paddingRight: isNested ? '8px' : '0'
+          paddingLeft: isNested ? `${4 + (level * 4)}px` : '0',
+          paddingRight: isNested ? `${4 + (level * 4)}px` : '0'
         }}>
           {children}
         </div>
