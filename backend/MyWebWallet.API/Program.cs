@@ -1,5 +1,4 @@
 using MyWebWallet.API.Services;
-using MyWebWallet.API.Services.Helpers;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Mappers;
 using MyWebWallet.API.Services.Models;
@@ -15,16 +14,19 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "MyWebWallet API", Version = "v1" });
 });
 
-// Add CORS
+// Add CORS for production
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:10002") // Updated frontend port
+        policy.AllowAnyOrigin()
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
 });
+
+// Add health checks
+builder.Services.AddHealthChecks();
 
 // Configure Redis
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
@@ -34,7 +36,12 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     var user = configuration["Redis:User"];
     var password = configuration["Redis:Password"];
 
-    var configurationOptions = ConfigurationOptions.Parse(connectionString!);
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        throw new InvalidOperationException("Redis connection string is required");
+    }
+
+    var configurationOptions = ConfigurationOptions.Parse(connectionString);
     
     if (!string.IsNullOrEmpty(user))
         configurationOptions.User = user;
@@ -43,11 +50,11 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
         configurationOptions.Password = password;
 
     configurationOptions.AbortOnConnectFail = false;
-    configurationOptions.ConnectRetry = 3;
-    configurationOptions.ConnectTimeout = 10000;
-    configurationOptions.SyncTimeout = 10000;
+    configurationOptions.ConnectRetry = 5;
+    configurationOptions.ConnectTimeout = 15000;
+    configurationOptions.SyncTimeout = 15000;
 
-    Console.WriteLine($"DEBUG: Redis: Connecting to {connectionString} with user: {user ?? "none"}");
+    Console.WriteLine($"INFO: Redis: Connecting to Redis for production");
 
     return ConnectionMultiplexer.Connect(configurationOptions);
 });
@@ -57,7 +64,7 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddSingleton<ITokenLogoService, TokenLogoService>();
 
 // Register helper services
-builder.Services.AddScoped<TokenHydrationHelper>();
+builder.Services.AddScoped<MyWebWallet.API.Services.Helpers.TokenHydrationHelper>();
 
 // Register services
 builder.Services.AddScoped<IWalletService, WalletService>();
@@ -83,6 +90,17 @@ builder.Services.AddHttpClient<EthereumService>();
 builder.Services.AddHttpClient<MoralisService>();
 
 var app = builder.Build();
+
+// Configure the HTTP request pipeline
+if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "MyWebWallet API v1");
+        c.RoutePrefix = "swagger";
+    });
+}
 
 // Test Redis connection on startup
 try
@@ -114,15 +132,16 @@ catch (Exception ex)
     Console.WriteLine($"WARNING: Token logo service initialization failed: {ex.Message}");
 }
 
-// Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Add health check endpoint
+app.MapHealthChecks("/health");
 
 app.UseHttpsRedirection();
 app.UseCors();
 app.MapControllers();
+
+// Log startup information
+var environment = app.Environment.EnvironmentName;
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+Console.WriteLine($"INFO: MyWebWallet API starting in {environment} environment on port {port}");
 
 app.Run();

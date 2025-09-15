@@ -990,14 +990,6 @@ function App() {
         )}
       </div>
 
-      {/* Loading banner */}
-      {loading && (
-        <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(255,255,255,0.1)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', borderRadius: '50%' }} />
-          <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: 500 }}>Loading wallet data...</span>
-        </div>
-      )}
-
       {/* Content */}
       {walletData && (
         <div>
