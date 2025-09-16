@@ -7,21 +7,23 @@ using StackExchange.Redis;
 // Criar o builder com configuração mínima
 var builder = WebApplication.CreateBuilder(args);
 
-// Para produção, forçar HTTP-only usando abordagem mais simples
+// Para produção, forçar HTTP-only usando abordagem correta (.NET 9 usa HTTP_PORTS/HTTPS_PORTS)
 if (builder.Environment.IsProduction())
 {
-    // Obter a porta do ambiente
-    var renderPort = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-    
-    // Configurar URLs diretamente
+    var renderPort = Environment.GetEnvironmentVariable("PORT") ?? "10000"; // Render normalmente define PORT=10000
+
+    // Remover qualquer definição de HTTPS
+    Environment.SetEnvironmentVariable("HTTPS_PORTS", null); // chave efetiva em .NET 8/9 containers
+    Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", null);
+    Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORT", null);
+
+    // Definir apenas HTTP
+    Environment.SetEnvironmentVariable("HTTP_PORTS", renderPort);
     Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{renderPort}");
-    Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORT", "");
-    Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", "");
-    
-    // Configurar Kestrel para HTTP apenas
-    builder.WebHost.UseKestrel(options =>
+
+    builder.WebHost.UseKestrel(o =>
     {
-        options.ListenAnyIP(int.Parse(renderPort));
+        o.ListenAnyIP(int.Parse(renderPort)); // Somente HTTP
     });
 }
 
@@ -38,28 +40,20 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        // Allow frontend domain in production
         if (builder.Environment.IsProduction())
         {
-            policy.WithOrigins(
-                "https://mywebwallet-frontend.onrender.com"
-            );
+            policy.WithOrigins("https://mywebwallet-frontend.onrender.com");
         }
         else
         {
             policy.WithOrigins(
                 "http://localhost:10002",
-                "https://localhost:10002"
-            );
+                "https://localhost:10002");
         }
-        
-        policy.AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
     });
 });
 
-// Add health checks
 builder.Services.AddHealthChecks();
 
 // Configure Redis
@@ -71,61 +65,47 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     var password = configuration["Redis:Password"];
 
     if (string.IsNullOrEmpty(connectionString))
-    {
         throw new InvalidOperationException("Redis connection string is required");
-    }
 
     var configurationOptions = ConfigurationOptions.Parse(connectionString);
-    
-    if (!string.IsNullOrEmpty(user))
-        configurationOptions.User = user;
-    
-    if (!string.IsNullOrEmpty(password))
-        configurationOptions.Password = password;
-
+    if (!string.IsNullOrEmpty(user)) configurationOptions.User = user;
+    if (!string.IsNullOrEmpty(password)) configurationOptions.Password = password;
     configurationOptions.AbortOnConnectFail = false;
     configurationOptions.ConnectRetry = 5;
     configurationOptions.ConnectTimeout = 15000;
     configurationOptions.SyncTimeout = 15000;
 
-    Console.WriteLine($"INFO: Redis: Connecting to Redis for production");
-
+    Console.WriteLine("INFO: Redis: Connecting to Redis for production");
     return ConnectionMultiplexer.Connect(configurationOptions);
 });
 
-// Register cache services
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddSingleton<ITokenLogoService, TokenLogoService>();
-
-// Register helper services
 builder.Services.AddScoped<MyWebWallet.API.Services.Helpers.TokenHydrationHelper>();
 
-// Register services
 builder.Services.AddScoped<IWalletService, WalletService>();
 builder.Services.AddScoped<IBlockchainService, EthereumService>();
 builder.Services.AddScoped<IMoralisService, MoralisService>();
-// Register AaveeService as IAaveeService
 builder.Services.AddScoped<IAaveeService, AaveeService>();
 builder.Services.AddScoped<IUniswapV3Service, UniswapV3Service>();
 builder.Services.AddScoped<IUniswapV3OnChainService, UniswapV3OnChainService>();
 builder.Services.AddScoped<IAlchemyNftService, AlchemyNftService>();
 
-// Register wallet item mappers using Strategy Pattern
 builder.Services.AddScoped<IWalletItemMapper<IEnumerable<TokenDetail>>, MoralisTokenMapper>();
 builder.Services.AddScoped<IWalletItemMapper<AaveGetUserSuppliesResponse>, AaveSuppliesMapper>();
 builder.Services.AddScoped<IWalletItemMapper<AaveGetUserBorrowsResponse>, AaveBorrowsMapper>();
 builder.Services.AddScoped<IWalletItemMapper<UniswapV3GetActivePoolsResponse>, UniswapV3Mapper>();
 
-// Register mapper factory
 builder.Services.AddScoped<IWalletItemMapperFactory, WalletItemMapperFactory>();
 
-// Add HTTP clients
 builder.Services.AddHttpClient<EthereumService>();
 builder.Services.AddHttpClient<MoralisService>();
 
 var app = builder.Build();
-app.UseHttpsRedirection();
-// Configure the HTTP request pipeline
+
+// IMPORTANT: remover HTTPS redirection (era causa indireta de tentativa de configurar HTTPS)
+// Nao usar app.UseHttpsRedirection();
+
 if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 {
     app.UseSwagger();
@@ -136,7 +116,6 @@ if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
     });
 }
 
-// Test Redis connection on startup
 try
 {
     var redis = app.Services.GetRequiredService<IConnectionMultiplexer>();
@@ -150,15 +129,12 @@ catch (Exception ex)
     Console.WriteLine("Application will continue without caching");
 }
 
-// Initialize Token Logo Service on startup
 try
 {
     var tokenLogoService = app.Services.GetRequiredService<ITokenLogoService>();
     await tokenLogoService.LoadAllTokensIntoMemoryAsync();
-    
     var baseCount = await tokenLogoService.GetCachedTokenCountAsync(MyWebWallet.API.Models.Chain.Base);
     var bnbCount = await tokenLogoService.GetCachedTokenCountAsync(MyWebWallet.API.Models.Chain.BNB);
-    
     Console.WriteLine($"SUCCESS: Token logos loaded - Base: {baseCount}, BNB: {bnbCount}");
 }
 catch (Exception ex)
@@ -166,15 +142,12 @@ catch (Exception ex)
     Console.WriteLine($"WARNING: Token logo service initialization failed: {ex.Message}");
 }
 
-// Add health check endpoint
 app.MapHealthChecks("/health");
-
 app.UseCors();
 app.MapControllers();
 
-// Log startup information
 var environment = app.Environment.EnvironmentName;
-var currentPort = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-Console.WriteLine($"INFO: MyWebWallet API starting in {environment} environment on port {currentPort} (HTTP-only)");
+var currentPort = Environment.GetEnvironmentVariable("PORT") ?? Environment.GetEnvironmentVariable("HTTP_PORTS") ?? "10000";
+Console.WriteLine($"INFO: MyWebWallet API starting in {environment} environment on port {currentPort} (HTTP-only, HTTPS disabled)");
 
 app.Run();
