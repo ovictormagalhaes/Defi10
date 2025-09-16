@@ -1,7 +1,8 @@
 # Use the official .NET 9 runtime as a parent image
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
-EXPOSE 8080
+# Don't expose a specific port, let Render handle it
+EXPOSE $PORT
 
 # Use the SDK image to build the application
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build

@@ -9,9 +9,18 @@ var builder = WebApplication.CreateBuilder(args);
 // Configure Kestrel for production to force HTTP-only
 if (builder.Environment.IsProduction())
 {
+    // Get the port from environment variable (Render sets PORT=10000)
+    var renderPort = int.Parse(Environment.GetEnvironmentVariable("PORT") ?? "8080");
+    
     builder.WebHost.ConfigureKestrel(options =>
     {
-        options.ListenAnyIP(8080); // Force HTTP on port 8080 for production
+        options.ListenAnyIP(renderPort); // Use the port set by Render
+    });
+    
+    // Explicitly disable HTTPS redirection
+    builder.Services.Configure<Microsoft.AspNetCore.HttpsPolicy.HttpsRedirectionOptions>(options =>
+    {
+        options.HttpsPort = null;
     });
 }
 
@@ -165,6 +174,6 @@ app.MapControllers();
 // Log startup information
 var environment = app.Environment.EnvironmentName;
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-Console.WriteLine($"INFO: MyWebWallet API starting in {environment} environment on port {port}");
+Console.WriteLine($"INFO: MyWebWallet API starting in {environment} environment on port {port} (HTTP-only)");
 
 app.Run();

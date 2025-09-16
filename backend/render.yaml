@@ -9,12 +9,7 @@ services:
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
-      - key: ASPNETCORE_URLS
-        value: http://0.0.0.0:8080
-      - key: ASPNETCORE_HTTP_PORTS
-        value: 8080
-      - key: ASPNETCORE_HTTPS_PORTS
-        value: ""
+      # Remove ASPNETCORE_URLS to let Render set the PORT automatically
       # External API Keys - Configure in Render Dashboard
       - key: Moralis__ApiKey
         sync: false
