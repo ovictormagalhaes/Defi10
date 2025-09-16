@@ -4,7 +4,7 @@ services:
     name: defi10-api
     runtime: docker
     plan: starter
-    dockerfilePath: ./MyWebWallet.API/Dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
