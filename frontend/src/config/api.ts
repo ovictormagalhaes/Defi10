@@ -1,7 +1,26 @@
 // Environment configuration for Defi10 Frontend
+// Helper to safely read env vars across build systems (CRA style REACT_APP_*, Vite style import.meta.env.VITE_*)
+// At runtime after build only the inlined values remain.
+const readEnv = (keys: string[], fallback?: string) => {
+  for (const k of keys) {
+    // CRA / Node style
+    // @ts-ignore
+    if (typeof process !== 'undefined' && process?.env?.[k]) return process.env[k] as string
+    // Vite style (import.meta.env) - optional chaining to avoid runtime errors in other bundlers
+    try {
+      // @ts-ignore
+      if (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.[k]) {
+        // @ts-ignore
+        return (import.meta as any).env[k] as string
+      }
+    } catch {}
+  }
+  return fallback
+}
+
 export const config = {
-  // API Base URL - will be set by environment variable in production
-  API_BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:10001',
+  // API Base URL - tries multiple prefixes, defaults to local dev port 10001
+  API_BASE_URL: readEnv(['REACT_APP_API_URL','VITE_API_URL'], 'http://localhost:10001'),
   
   // API Endpoints
   API_ENDPOINTS: {
@@ -17,8 +36,9 @@ export const config = {
   SUPPORTED_CHAINS: ['Base', 'BNB'],
   
   // UI Configuration
-  APP_NAME: process.env.REACT_APP_APP_NAME || 'Defi10',
-  VERSION: '1.0.0'
+  APP_NAME: readEnv(['REACT_APP_APP_NAME','VITE_APP_NAME'], 'Defi10'),
+  VERSION: '1.0.0',
+  ENVIRONMENT: readEnv(['NODE_ENV','VITE_MODE','MODE'], 'production')
 };
 
 // API Helper functions

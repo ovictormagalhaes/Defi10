@@ -734,8 +734,7 @@ function App() {
                             borderRadius: '50%',
                             background: (theme.success || '#16a34a'),
                             opacity: 0.4,
-                            animation: 'defiPulse 1.2s ease-out forwards',
-                            background: "transparent"
+                            animation: 'defiPulse 1.2s ease-out forwards'
                           }} />
                         )}
                         <span style={{
