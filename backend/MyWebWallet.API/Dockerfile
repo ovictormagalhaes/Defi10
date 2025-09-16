@@ -8,11 +8,11 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 # Copy csproj and restore as distinct layers
-COPY ["backend/MyWebWallet.API/MyWebWallet.API.csproj", "MyWebWallet.API/"]
+COPY ["MyWebWallet.API/MyWebWallet.API.csproj", "MyWebWallet.API/"]
 RUN dotnet restore "MyWebWallet.API/MyWebWallet.API.csproj"
 
 # Copy everything else and build
-COPY backend/MyWebWallet.API/ MyWebWallet.API/
+COPY MyWebWallet.API/ MyWebWallet.API/
 WORKDIR "/src/MyWebWallet.API"
 RUN dotnet build "MyWebWallet.API.csproj" -c Release -o /app/build
 
