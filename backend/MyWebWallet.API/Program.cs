@@ -4,79 +4,56 @@ using MyWebWallet.API.Services.Mappers;
 using MyWebWallet.API.Services.Models;
 using StackExchange.Redis;
 
-// Criar o builder com configuração mínima
+// Definir portas/URLs ANTES de criar o builder para impedir que Kestrel leia HTTPS pré-configurado
+var detectedPort = Environment.GetEnvironmentVariable("PORT") ?? "10000"; // Render normalmente usa 10000
+// Remover possíveis variáveis de HTTPS herdadas do container base
+Environment.SetEnvironmentVariable("HTTPS_PORTS", null);
+Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", null);
+Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORT", null);
+// Definir somente HTTP
+Environment.SetEnvironmentVariable("HTTP_PORTS", detectedPort);
+Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{detectedPort}");
+
+// Agora criar o builder (Kestrel já verá apenas HTTP)
 var builder = WebApplication.CreateBuilder(args);
 
-// Para produção, forçar HTTP-only usando abordagem correta (.NET 9 usa HTTP_PORTS/HTTPS_PORTS)
+// Em produção reforçar escuta explícita (idempotente)
 if (builder.Environment.IsProduction())
 {
-    var renderPort = Environment.GetEnvironmentVariable("PORT") ?? "10000"; // Render normalmente define PORT=10000
-
-    // Remover qualquer definição de HTTPS
-    Environment.SetEnvironmentVariable("HTTPS_PORTS", null); // chave efetiva em .NET 8/9 containers
-    Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", null);
-    Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORT", null);
-
-    // Definir apenas HTTP
-    Environment.SetEnvironmentVariable("HTTP_PORTS", renderPort);
-    Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{renderPort}");
-
-    builder.WebHost.UseKestrel(o =>
-    {
-        o.ListenAnyIP(int.Parse(renderPort)); // Somente HTTP
-    });
+    builder.WebHost.UseKestrel(o => o.ListenAnyIP(int.Parse(detectedPort)));
 }
 
-// Add services to the container
+// Services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new() { Title = "MyWebWallet API", Version = "v1" });
-});
+builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new() { Title = "MyWebWallet API", Version = "v1" }));
 
-// Add CORS for production
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
         if (builder.Environment.IsProduction())
-        {
             policy.WithOrigins("https://mywebwallet-frontend.onrender.com");
-        }
         else
-        {
-            policy.WithOrigins(
-                "http://localhost:10002",
-                "https://localhost:10002");
-        }
+            policy.WithOrigins("http://localhost:10002", "https://localhost:10002");
         policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
     });
 });
 
 builder.Services.AddHealthChecks();
 
-// Configure Redis
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
-    var configuration = sp.GetRequiredService<IConfiguration>();
-    var connectionString = configuration["Redis:ConnectionString"];
-    var user = configuration["Redis:User"];
-    var password = configuration["Redis:Password"];
-
-    if (string.IsNullOrEmpty(connectionString))
-        throw new InvalidOperationException("Redis connection string is required");
-
-    var configurationOptions = ConfigurationOptions.Parse(connectionString);
-    if (!string.IsNullOrEmpty(user)) configurationOptions.User = user;
-    if (!string.IsNullOrEmpty(password)) configurationOptions.Password = password;
-    configurationOptions.AbortOnConnectFail = false;
-    configurationOptions.ConnectRetry = 5;
-    configurationOptions.ConnectTimeout = 15000;
-    configurationOptions.SyncTimeout = 15000;
-
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    var cs = cfg["Redis:ConnectionString"];
+    var user = cfg["Redis:User"]; var pwd = cfg["Redis:Password"];
+    if (string.IsNullOrEmpty(cs)) throw new InvalidOperationException("Redis connection string is required");
+    var opt = ConfigurationOptions.Parse(cs);
+    if (!string.IsNullOrEmpty(user)) opt.User = user;
+    if (!string.IsNullOrEmpty(pwd)) opt.Password = pwd;
+    opt.AbortOnConnectFail = false; opt.ConnectRetry = 5; opt.ConnectTimeout = 15000; opt.SyncTimeout = 15000;
     Console.WriteLine("INFO: Redis: Connecting to Redis for production");
-    return ConnectionMultiplexer.Connect(configurationOptions);
+    return ConnectionMultiplexer.Connect(opt);
 });
 
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
@@ -103,9 +80,7 @@ builder.Services.AddHttpClient<MoralisService>();
 
 var app = builder.Build();
 
-// IMPORTANT: remover HTTPS redirection (era causa indireta de tentativa de configurar HTTPS)
-// Nao usar app.UseHttpsRedirection();
-
+// NÃO usar app.UseHttpsRedirection();
 if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 {
     app.UseSwagger();
@@ -119,14 +94,12 @@ if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 try
 {
     var redis = app.Services.GetRequiredService<IConnectionMultiplexer>();
-    var database = redis.GetDatabase();
-    await database.PingAsync();
+    await redis.GetDatabase().PingAsync();
     Console.WriteLine("SUCCESS: Redis connection established successfully");
 }
 catch (Exception ex)
 {
     Console.WriteLine($"WARNING: Redis connection failed: {ex.Message}");
-    Console.WriteLine("Application will continue without caching");
 }
 
 try
@@ -146,8 +119,6 @@ app.MapHealthChecks("/health");
 app.UseCors();
 app.MapControllers();
 
-var environment = app.Environment.EnvironmentName;
-var currentPort = Environment.GetEnvironmentVariable("PORT") ?? Environment.GetEnvironmentVariable("HTTP_PORTS") ?? "10000";
-Console.WriteLine($"INFO: MyWebWallet API starting in {environment} environment on port {currentPort} (HTTP-only, HTTPS disabled)");
+Console.WriteLine($"INFO: MyWebWallet API starting in {app.Environment.EnvironmentName} environment on port {detectedPort} (HTTP-only, HTTPS disabled at source)");
 
 app.Run();
