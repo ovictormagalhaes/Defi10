@@ -1,22 +1,47 @@
-// Configuração simples: se NODE_ENV === 'production' usa rota de produção, senão localhost.
-// Mantemos compatibilidade lendo tanto process.env quanto import.meta.env.
-const detectEnv = () => {
-  // @ts-ignore
-  if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV) return process.env.NODE_ENV
-  try {
+// Helper to read env var from either process.env (Node/CRA) or import.meta.env (Vite)
+const getEnv = (keys: string[]): string | undefined => {
+  for (const k of keys) {
     // @ts-ignore
-    if (typeof import.meta !== 'undefined' && (import.meta as any).env?.MODE) {
+    if (typeof process !== 'undefined' && process?.env?.[k]) return process.env[k] as string
+    try {
       // @ts-ignore
-      return (import.meta as any).env.MODE
-    }
-  } catch {}
-  return 'production'
+      if (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.[k]) {
+        // @ts-ignore
+        return (import.meta as any).env[k] as string
+      }
+    } catch {}
+  }
+  return undefined
 }
 
-const _env = (detectEnv() || 'production').toLowerCase()
-const _normalizedApiBase = (_env === 'production'
-  ? 'https://defi10-api.onrender.com'
-  : 'http://localhost:10001').replace(/\/+$/,'')
+const detectEnv = (): string => {
+  return (getEnv(['NODE_ENV','VITE_MODE','MODE']) || 'production').toLowerCase()
+}
+
+const _env = detectEnv()
+
+// Explicit API base provided?
+let explicit = getEnv(['REACT_APP_API_URL','VITE_API_URL'])
+
+// Normalize explicit (remove trailing slashes)
+if (explicit) explicit = explicit.replace(/\/+$/,'')
+
+// Decide final base:
+// production: prefer explicit non-localhost value, else default backend (updated to defi10-1 per your backend host info)
+// non-production: explicit or localhost dev
+let _normalizedApiBase = ''
+if (_env === 'production') {
+  if (explicit && !/localhost|127\.0\.0\.1/i.test(explicit)) {
+    _normalizedApiBase = explicit
+  } else {
+    _normalizedApiBase = 'https://defi10-1.onrender.com'
+  }
+} else {
+  _normalizedApiBase = explicit || 'http://localhost:10001'
+}
+
+// Safety: strip trailing slashes again
+_normalizedApiBase = _normalizedApiBase.replace(/\/+$/,'')
 
 export const config = {
   // API Base URL - tries multiple prefixes, defaults to local dev port 10001 (normalized without trailing slash)
@@ -40,6 +65,21 @@ export const config = {
   VERSION: '1.0.0',
   ENVIRONMENT: _env
 };
+
+// Debug log (only first time) so you can see which base got resolved in production
+(() => {
+  const flag = '__DEF10_API_LOG__'
+  try {
+    if (typeof window !== 'undefined') {
+      if (!(window as any)[flag]) {
+        (window as any)[flag] = true
+        ;(window as any).__DEF10_API_BASE__ = _normalizedApiBase
+        // eslint-disable-next-line no-console
+        console.log(`%c[Defi10] API Base: ${_normalizedApiBase} (env=${_env}) explicit=${explicit||'none'}`,'color:#35f7a5;font-weight:600')
+      }
+    }
+  } catch {}
+})()
 
 // API Helper functions
 export const api = {
