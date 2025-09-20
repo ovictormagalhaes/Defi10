@@ -14,6 +14,7 @@ import PoolTokenCell from './components/PoolTokenCell'
 import CellsContainer from './components/CellsContainer'
 import SectionTable from './components/SectionTable'
 import ProtocolsSection from './components/ProtocolsSection'
+import SummaryView from './components/SummaryView'
 import {
   formatBalance,
   formatNativeBalance,
@@ -97,6 +98,8 @@ function App() {
   const [showStakingDefiTokens, setShowStakingDefiTokens] = useState(false)
   // Chain selection (null or Set of canonical keys). Default: all selected
   const [selectedChains, setSelectedChains] = useState(null)
+  // View mode toggle state
+  const [viewMode, setViewMode] = useState('Default')
 
   const [defaultStates, setDefaultStates] = useState({})
   const [protocolExpansions, setProtocolExpansions] = useState({})
@@ -985,11 +988,80 @@ function App() {
         )}
       </div>
 
+      {/* View Mode Toggle */}
+      {(account || walletData) && (
+        <div style={{ 
+          marginTop: 16, 
+          marginBottom: 16,
+          display: 'flex', 
+          justifyContent: 'center' 
+        }}>
+          <div style={{
+            display: 'flex',
+            background: theme.bgInteractive,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 8,
+            padding: 2
+          }}>
+            {['Default', 'Summary'].map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                style={{
+                  background: viewMode === mode ? theme.primarySubtle : 'transparent',
+                  color: viewMode === mode ? theme.textPrimary : theme.textSecondary,
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: viewMode === mode ? 600 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 120ms ease',
+                  outline: 'none'
+                }}
+                onMouseEnter={e => {
+                  if (viewMode !== mode) {
+                    e.currentTarget.style.backgroundColor = theme.bgPanelHover
+                    e.currentTarget.style.color = theme.textPrimary
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (viewMode !== mode) {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                    e.currentTarget.style.color = theme.textSecondary
+                  }
+                }}
+                onFocus={e => e.currentTarget.style.boxShadow = `0 0 0 2px ${theme.focusRing}`}
+                onBlur={e => e.currentTarget.style.boxShadow = 'none'}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       {walletData && (
         <div>
-          {/* Tokens using SectionTable */}
-          {walletTokens.length > 0 && (() => {
+          {viewMode === 'Summary' ? (
+            <SummaryView
+              walletTokens={walletTokens}
+              getLiquidityPoolsData={getLiquidityPoolsData}
+              getLendingAndBorrowingData={getLendingAndBorrowingData}
+              getStakingData={getStakingData}
+              getTotalPortfolioValue={getTotalPortfolioValue}
+              maskValue={maskValue}
+              formatPrice={formatPrice}
+              theme={theme}
+              groupDefiByProtocol={groupDefiByProtocol}
+              filterLendingDefiTokens={filterLendingDefiTokens}
+              showLendingDefiTokens={showLendingDefiTokens}
+            />
+          ) : (
+            <>
+              {/* Default view - Tokens using SectionTable */}
+              {walletTokens.length > 0 && (() => {
             const columns = [
               { key: 'token', label: 'Token', align: 'left' },
               ...(showBalanceColumn ? [{ key: 'amount', label: 'Amount', align: 'right', width: 140 }] : []),
@@ -1096,6 +1168,8 @@ function App() {
             maskValue={maskValue}
             theme={theme}
           />
+            </>
+          )}
         </div>
       )}
 
