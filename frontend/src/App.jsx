@@ -12,11 +12,8 @@ import { useTheme } from './context/ThemeProvider'
 import WalletTokensTable from './components/WalletTokensTable'
 import PoolTokenCell from './components/PoolTokenCell'
 import CellsContainer from './components/CellsContainer'
-import ProtocolTables from './components/ProtocolTables'
-import LendingTables from './components/LendingTables'
-import StakingTables from './components/StakingTables'
-import PoolTables from './components/PoolTables'
 import SectionTable from './components/SectionTable'
+import ProtocolsSection from './components/ProtocolsSection'
 import {
   formatBalance,
   formatNativeBalance,
@@ -24,9 +21,6 @@ import {
   formatTokenAmount,
   groupDefiByProtocol,
   getFilteredTokens,
-  groupTokensByPool,
-  groupTokensByType,
-  groupStakingTokensByType,
   ITEM_TYPES,
   filterItemsByType,
   getWalletTokens,
@@ -1082,228 +1076,26 @@ function App() {
           })()}
 
           {/* Protocols at level 0 (no Liquidity/Lending/Staking top-level) */}
-          {(() => {
-            const allDefi = [
-              ...getLiquidityPoolsData(),
-              ...getLendingAndBorrowingData(),
-              ...getStakingData()
-            ]
-            if (allDefi.length === 0) return null
-            const protocolGroups = groupDefiByProtocol(allDefi)
-            return (
-              <div>
-                {protocolGroups.map((protocolGroup, pgIdx) => {
-                  // Classify positions by type using label/name heuristics
-                  const liqPositionsOriginal = protocolGroup.positions.filter(p => {
-                    const lbl = (p.position?.label || p.position?.name || p.label || '').toString().toLowerCase()
-                    return lbl.includes('liquidity')
-                  })
-                  const stakingPositionsOriginal = protocolGroup.positions.filter(p => {
-                    const lbl = (p.position?.label || p.position?.name || p.label || '').toString().toLowerCase()
-                    return lbl.includes('staking')
-                  })
-                  const lendingPositionsOriginal = protocolGroup.positions.filter(p => {
-                    const lbl = (p.position?.label || p.position?.name || p.label || '').toString().toLowerCase()
-                    return !lbl.includes('liquidity') && !lbl.includes('staking')
-                  })
-
-                  // Helper to filter tokens inside a position according to selected chains.
-                  // A position matches selection if its own chain OR any token chain is selected
-                  const positionMatchesSelection = (pos) => {
-                    if (!selectedChains || isAllChainsSelected) return true
-                    const container = pos.position || pos
-                    const chainSelf = getCanonicalFromObj(container) || getCanonicalFromObj(pos)
-                    if (chainSelf && selectedChains.has(chainSelf)) return true
-                    const toks = Array.isArray(container.tokens) ? container.tokens : []
-                    for (let i = 0; i < toks.length; i++) {
-                      const tc = getCanonicalFromObj(toks[i]) || chainSelf
-                      if (tc && selectedChains.has(tc)) return true
-                    }
-                    return false
-                  }
-
-                  // Filter tokens within positions but keep the position if it still matches selection
-                  const filterPositionArray = (positions) => {
-                    if (!positions || positions.length === 0) return []
-                    return positions
-                      .filter(p => positionMatchesSelection(p))
-                      .map(p => {
-                        if (!selectedChains || isAllChainsSelected) return p
-                        const cloned = p.position ? { ...p, position: { ...p.position } } : { ...p }
-                        const container = cloned.position || cloned
-                        const tokensArr = Array.isArray(container.tokens) ? container.tokens : []
-                        const filteredTokens = tokensArr.filter(t => {
-                          const canon = getCanonicalFromObj(t) || getCanonicalFromObj(container) || getCanonicalFromObj(p)
-                          return canon && selectedChains.has(canon)
-                        })
-                        if (container.tokens) container.tokens = filteredTokens
-                        return cloned
-                      })
-                  }
-
-                  // If selection active and protocol has no positions matching, skip early
-                  if (selectedChains && !isAllChainsSelected) {
-                    const anyMatch = protocolGroup.positions.some(pos => positionMatchesSelection(pos))
-                    if (!anyMatch) return null
-                  }
-
-                  const liqPositions = filterPositionArray(liqPositionsOriginal)
-                  const stakingPositions = filterPositionArray(stakingPositionsOriginal)
-                  const lendingPositions = filterPositionArray(lendingPositionsOriginal)
-
-                  // If after filtering everything vanished (should be rare now), still skip.
-                  if (!liqPositions.length && !stakingPositions.length && !lendingPositions.length) return null
-
-                  // Compute protocol total balance (lending borrowed negative)
-                  const liquidityTotal = liqPositions.reduce((sum, pos) => {
-                    const container = pos.position || pos
-                    return sum + (container.tokens?.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0) || 0)
-                  }, 0)
-                  const lendingTotal = lendingPositions.reduce((sum, pos) => {
-                    const tokens = Array.isArray(pos.tokens) ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens) : []
-                    const net = tokens.reduce((s, t) => {
-                      const ty = (t.type || '').toLowerCase()
-                      const val = Math.abs(parseFloat(t.totalPrice) || 0)
-                      if (ty === 'borrowed' || ty === 'borrow' || ty === 'debt') return s - val
-                      if (!ty) {
-                        const lbl = (pos?.position?.label || pos?.label || '').toLowerCase()
-                        if (lbl.includes('borrow') || lbl.includes('debt')) return s - val
-                      }
-                      return s + val
-                    }, 0)
-                    return sum + net
-                  }, 0)
-                  const stakingTotal = stakingPositions.reduce((sum, pos) => {
-                    const tokens = Array.isArray(pos.tokens) ? filterStakingDefiTokens(pos.tokens, showStakingDefiTokens) : []
-                    const v = tokens.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0)
-                    return sum + v
-                  }, 0)
-                  const protocolTotal = liquidityTotal + lendingTotal + stakingTotal
-
-                  // Build tables for this protocol
-                  const tables = []
-
-                  let poolsGrouped = null
-                  let liquidityRewardsValue = 0
-                  if (liqPositions.length > 0) {
-                    poolsGrouped = groupTokensByPool(liqPositions)
-                    // Calculate total rewards value from liquidity positions
-                    liqPositions.forEach(pos => {
-                      if (pos.tokens && Array.isArray(pos.tokens)) {
-                        pos.tokens.forEach(token => {
-                          const t = (token.type || '').toLowerCase()
-                          const sym = (token.symbol || '').toLowerCase()
-                          const name = (token.name || '').toLowerCase()
-                          const isReward = t === 'reward' || t === 'rewards' ||
-                                          sym.includes('reward') || name.includes('reward') ||
-                                          sym.includes('comp') || sym.includes('crv') ||
-                                          sym.includes('cake') || sym.includes('uni')
-                          if (isReward) {
-                            liquidityRewardsValue += parseFloat(token.totalPrice) || 0
-                          }
-                        })
-                      }
-                    })
-                  }
-
-                  let lendingGroup = null
-                  let lendingRewardsValue = 0
-                  if (lendingPositions.length > 0) {
-                    const filtered = lendingPositions.map(p => ({ ...p, tokens: Array.isArray(p.tokens) ? filterLendingDefiTokens(p.tokens, showLendingDefiTokens) : [] }))
-                    const grouped = groupTokensByType(filtered)
-                    lendingGroup = {
-                      supplied: grouped.supplied || [],
-                      borrowed: grouped.borrowed || [],
-                      rewards: grouped.rewards || []
-                    }
-                    // Calculate total rewards value from lending positions
-                    lendingRewardsValue = lendingGroup.rewards.reduce((sum, token) => sum + (parseFloat(token.totalPrice) || 0), 0)
-                  }
-
-                  let stakingGroup = null
-                  let stakingRewardsValue = 0
-                  if (stakingPositions.length > 0) {
-                    const filtered = stakingPositions.map(p => ({ ...p, tokens: Array.isArray(p.tokens) ? filterStakingDefiTokens(p.tokens, showStakingDefiTokens) : [] }))
-                    const grouped = groupStakingTokensByType(filtered)
-                    stakingGroup = {
-                      staked: grouped.staked || [],
-                      rewards: grouped.rewards || []
-                    }
-                    // Calculate total rewards value from staking positions
-                    stakingRewardsValue = stakingGroup.rewards.reduce((sum, token) => sum + (parseFloat(token.totalPrice) || 0), 0)
-                  }
-
-                  const icon = (protocolGroup.protocol.logoURI || protocolGroup.protocol.logo)
-                    ? (
-                      <img
-                        src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo}
-                        alt={protocolGroup.protocol.name}
-                        style={{ width: 22, height: 22, borderRadius: '50%', border: `1px solid ${theme.border}` }}
-                        onError={(e) => (e.currentTarget.style.display = 'none')}
-                      />
-                    )
-                    : null
-
-                  const protocolPercent = calculatePercentage(protocolTotal, getTotalPortfolioValue())
-                  const totalRewardsValue = liquidityRewardsValue + lendingRewardsValue + stakingRewardsValue
-                  const infoBadges = [
-                    liqPositions.length > 0 ? `Pools: ${Object.keys(poolsGrouped || {}).length}` : null,
-                    lendingPositions.length > 0 ? `Lending: ${lendingPositions.length}` : null,
-                    stakingPositions.length > 0 ? `Staking: ${stakingPositions.length}` : null
-                  ].filter(Boolean).join('  •  ')
-                  const optionsMenu = (
-                    <div style={{ padding: '6px 0' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13 }}>
-                        <input type="checkbox" checked={showLendingDefiTokens} onChange={(e) => setShowLendingDefiTokens(e.target.checked)} />
-                        Show internal lending tokens
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13 }}>
-                        <input type="checkbox" checked={showStakingDefiTokens} onChange={(e) => setShowStakingDefiTokens(e.target.checked)} />
-                        Show internal staking tokens
-                      </label>
-                    </div>
-                  )
-                  return (
-                    <SectionTable
-                      key={protocolGroup.protocol.name}
-                      icon={icon}
-                      title={protocolGroup.protocol.name}
-                      transparentBody={true}
-                      metricsRatio={[2,1,1,1]}
-                      rightPercent={protocolPercent}
-                      rightValue={maskValue(formatPrice(protocolTotal))}
-                      rewardsValue={totalRewardsValue > 0 ? maskValue(formatPrice(totalRewardsValue)) : null}
-                      isExpanded={protocolExpansions[protocolGroup.protocol.name] !== undefined ? protocolExpansions[protocolGroup.protocol.name] : true}
-                      onToggle={() => toggleProtocolExpansion(protocolGroup.protocol.name)}
-                      infoBadges={infoBadges}
-                      optionsMenu={optionsMenu}
-                      customContent={
-                        <>
-                          {poolsGrouped && Object.keys(poolsGrouped).length > 0 && (
-                            <PoolTables pools={poolsGrouped} />
-                          )}
-                          {lendingGroup && (lendingGroup.supplied.length > 0 || lendingGroup.borrowed.length > 0 || lendingGroup.rewards.length > 0) && (
-                            <LendingTables supplied={lendingGroup.supplied} borrowed={lendingGroup.borrowed} rewards={lendingGroup.rewards} />
-                          )}
-                          {stakingGroup && (stakingGroup.staked.length > 0 || stakingGroup.rewards.length > 0) && (
-                            <StakingTables staked={stakingGroup.staked} rewards={stakingGroup.rewards} />
-                          )}
-                          {tables.length > 0 && (
-                            <ProtocolTables
-                              icon={null}
-                              title={null}
-                              rightValue={null}
-                              tables={tables.filter(t => !['Supplied','Borrowed','Rewards'].includes(t.subtitle))}
-                            />
-                          )}
-                        </>
-                      }
-                    />
-                  )
-                })}
-              </div>
-            )
-          })()}
+          <ProtocolsSection
+            getLiquidityPoolsData={getLiquidityPoolsData}
+            getLendingAndBorrowingData={getLendingAndBorrowingData}
+            getStakingData={getStakingData}
+            selectedChains={selectedChains}
+            isAllChainsSelected={isAllChainsSelected}
+            getCanonicalFromObj={getCanonicalFromObj}
+            filterLendingDefiTokens={filterLendingDefiTokens}
+            filterStakingDefiTokens={filterStakingDefiTokens}
+            showLendingDefiTokens={showLendingDefiTokens}
+            showStakingDefiTokens={showStakingDefiTokens}
+            setShowLendingDefiTokens={setShowLendingDefiTokens}
+            setShowStakingDefiTokens={setShowStakingDefiTokens}
+            protocolExpansions={protocolExpansions}
+            toggleProtocolExpansion={toggleProtocolExpansion}
+            calculatePercentage={calculatePercentage}
+            getTotalPortfolioValue={getTotalPortfolioValue}
+            maskValue={maskValue}
+            theme={theme}
+          />
         </div>
       )}
 
