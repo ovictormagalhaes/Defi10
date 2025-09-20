@@ -14,6 +14,7 @@ import PoolTokenCell from './components/PoolTokenCell'
 import CellsContainer from './components/CellsContainer'
 import SectionTable from './components/SectionTable'
 import ProtocolsSection from './components/ProtocolsSection'
+import ErrorBoundary from './components/ErrorBoundary'
 import SummaryView from './components/SummaryView'
 import {
   formatBalance,
@@ -141,14 +142,13 @@ function App() {
       alert('Please enter a wallet address')
       return
     }
-    resetSelectionAndSnapshot()
+    // Keep selectedChains; snapshot will update when walletData arrives
     callAccountAPI(addr, setLoading)
     refreshSupportedChains(true)
   }
 
   // Refresh current account
   const handleRefreshWalletData = () => {
-    resetSelectionAndSnapshot()
     refreshWalletData(account, setLoading)
     refreshSupportedChains(true)
   }
@@ -156,7 +156,6 @@ function App() {
   // Load data when account changes
   useEffect(() => {
     if (account) {
-      resetSelectionAndSnapshot()
       callAccountAPI(account, setLoading)
       refreshSupportedChains(true)
     } else {
@@ -164,21 +163,34 @@ function App() {
       walletDataSnapshotRef.current = null
       setSelectedChains(null)
     }
-    // refreshSupportedChains is stable (useCallback) but omit to prevent redundant triggers
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, callAccountAPI, setLoading, clearWalletData])
 
   // Immutable snapshot of the last full walletData to ensure global aggregates (chainTotals) are independent from any UI filtering mutations.
   const walletDataSnapshotRef = React.useRef(null)
+  const [snapshotVersion, setSnapshotVersion] = useState(0)
   useEffect(() => {
-    if (walletData) {
-      // Deep-ish clone via JSON for immutability (acceptable for aggregate computation; optimize later if needed)
-      try {
-        walletDataSnapshotRef.current = JSON.parse(JSON.stringify(walletData))
-      } catch {
-        walletDataSnapshotRef.current = walletData
-      }
+    if (!walletData) {
+      walletDataSnapshotRef.current = null
+      setSnapshotVersion(v => v + 1)
+      try { console.log('[Chains] Snapshot cleared (no walletData). Version bumped.') } catch {}
+      return
     }
+    // Deep clone to avoid downstream mutations affecting aggregates
+    let cloned = null
+    try {
+      if (typeof structuredClone === 'function') {
+        cloned = structuredClone(walletData)
+      } else {
+        cloned = JSON.parse(JSON.stringify(walletData))
+      }
+    } catch (e) {
+      // As a last resort, shallow copy top-level fields to reduce shared references
+      try {
+        cloned = { ...walletData }
+      } catch {}
+    }
+    walletDataSnapshotRef.current = cloned
+    setSnapshotVersion(v => v + 1)
   }, [walletData])
 
   // Data getters supporting multiple shapes
@@ -298,11 +310,13 @@ function App() {
     if (supportedChains && supportedChains.length > 0 && selectedChains === null) {
       const initial = new Set(supportedChains.map(sc => normalizeChainKey(sc.displayName || sc.name || sc.shortName || sc.id || sc.chainId || sc.chain || sc.network || sc.networkId)))
       setSelectedChains(initial)
+      try { console.log('[Chains] Initialized selection with all chains:', Array.from(initial)) } catch {}
     }
   }, [supportedChains, selectedChains])
 
   const isAllChainsSelected = selectedChains && supportedChains && selectedChains.size === supportedChains.length
   const toggleChainSelection = (chainCanonicalKey) => {
+    try { console.log('[Chains] Toggle click:', chainCanonicalKey) } catch {}
     setSelectedChains(prev => {
       if (!prev) return new Set([chainCanonicalKey])
       const next = new Set(prev)
@@ -313,6 +327,7 @@ function App() {
       } else {
         next.add(chainCanonicalKey)
       }
+      try { console.log('[Chains] Selected after toggle:', Array.from(next)) } catch {}
       return next
     })
   }
@@ -394,7 +409,7 @@ function App() {
 
   // Compute per-chain totals (net of borrowed like overall calculation) once per render dependencies
   const { mergedTotals: chainTotals, rawTotals: rawChainTotals } = React.useMemo(() => {
-    const sourceData = walletDataSnapshotRef.current || walletData
+    const sourceData = walletDataSnapshotRef.current || {}
     const totals = {} // raw keyed by any discovered chain id/name
     const addVal = (rawKey, v) => {
       if (rawKey === undefined || rawKey === null) return
@@ -584,7 +599,9 @@ function App() {
     }
 
     return { mergedTotals: merged, rawTotals: totals }
-  }, [walletData, showLendingDefiTokens, showStakingDefiTokens, supportedChains])
+    try { console.log('[Chains] Computing chainTotals from snapshot. Version:', snapshotVersion, 'hasSnapshot:', !!walletDataSnapshotRef.current) } catch {}
+    return { mergedTotals: merged, rawTotals: totals }
+  }, [snapshotVersion, showLendingDefiTokens, showStakingDefiTokens, supportedChains])
 
   // Global total for percentages: sum only canonical keys (avoid alias duplication)
   const totalAllChains = React.useMemo(() => {
@@ -1148,26 +1165,28 @@ function App() {
           })()}
 
           {/* Protocols at level 0 (no Liquidity/Lending/Staking top-level) */}
-          <ProtocolsSection
-            getLiquidityPoolsData={getLiquidityPoolsData}
-            getLendingAndBorrowingData={getLendingAndBorrowingData}
-            getStakingData={getStakingData}
-            selectedChains={selectedChains}
-            isAllChainsSelected={isAllChainsSelected}
-            getCanonicalFromObj={getCanonicalFromObj}
-            filterLendingDefiTokens={filterLendingDefiTokens}
-            filterStakingDefiTokens={filterStakingDefiTokens}
-            showLendingDefiTokens={showLendingDefiTokens}
-            showStakingDefiTokens={showStakingDefiTokens}
-            setShowLendingDefiTokens={setShowLendingDefiTokens}
-            setShowStakingDefiTokens={setShowStakingDefiTokens}
-            protocolExpansions={protocolExpansions}
-            toggleProtocolExpansion={toggleProtocolExpansion}
-            calculatePercentage={calculatePercentage}
-            getTotalPortfolioValue={getTotalPortfolioValue}
-            maskValue={maskValue}
-            theme={theme}
-          />
+          <ErrorBoundary>
+            <ProtocolsSection
+              getLiquidityPoolsData={getLiquidityPoolsData}
+              getLendingAndBorrowingData={getLendingAndBorrowingData}
+              getStakingData={getStakingData}
+              selectedChains={selectedChains}
+              isAllChainsSelected={isAllChainsSelected}
+              getCanonicalFromObj={getCanonicalFromObj}
+              filterLendingDefiTokens={filterLendingDefiTokens}
+              filterStakingDefiTokens={filterStakingDefiTokens}
+              showLendingDefiTokens={showLendingDefiTokens}
+              showStakingDefiTokens={showStakingDefiTokens}
+              setShowLendingDefiTokens={setShowLendingDefiTokens}
+              setShowStakingDefiTokens={setShowStakingDefiTokens}
+              protocolExpansions={protocolExpansions}
+              toggleProtocolExpansion={toggleProtocolExpansion}
+              calculatePercentage={calculatePercentage}
+              getTotalPortfolioValue={getTotalPortfolioValue}
+              maskValue={maskValue}
+              theme={theme}
+            />
+          </ErrorBoundary>
             </>
           )}
         </div>

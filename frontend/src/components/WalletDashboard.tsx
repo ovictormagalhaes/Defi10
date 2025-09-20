@@ -35,6 +35,23 @@ const WalletDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const { maskValues } = useMaskValues();
 
+  // Log valor total e informações de cada chain sempre que selectedChains ou walletData mudam
+  useEffect(() => {
+    if (!walletData || !walletData.items) return;
+    const chainTotals: Record<string, number> = {};
+    walletData.items.forEach(item => {
+      const chain = item.network || item.chain || 'Unknown';
+      const value = parseFloat(item.totalPrice || item.value || 0);
+      if (!chainTotals[chain]) chainTotals[chain] = 0;
+      chainTotals[chain] += value;
+    });
+    const total = Object.values(chainTotals).reduce((a, b) => a + b, 0);
+    console.log('[WalletDashboard] Chains selecionadas:', selectedChains);
+    console.log('[WalletDashboard] Totais por chain:', chainTotals);
+    console.log('[WalletDashboard] Valor total:', total);
+    console.log('[WalletDashboard] Dados detalhados:', walletData.items);
+  }, [selectedChains, walletData]);
+
   // Check API health on component mount
   useEffect(() => {
     checkApiHealth();

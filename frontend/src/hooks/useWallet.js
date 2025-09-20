@@ -156,7 +156,6 @@ export function useWalletData() {
       const response = await fetch(`${API_BASE}/wallets/accounts/${accountAddress}`)
       if (response.ok) {
         const data = await response.json()
-        console.log('Account data:', data)
         setWalletData(data)
       } else {
         console.error('API error:', response.status, response.statusText)

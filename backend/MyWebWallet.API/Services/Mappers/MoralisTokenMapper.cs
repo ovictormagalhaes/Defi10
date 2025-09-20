@@ -67,7 +67,7 @@ public class MoralisTokenMapper : IWalletItemMapper<IEnumerable<TokenDetail>>
     private static Protocol GetProtocol(ChainEnum chain) => new()
     {
         Name = "Moralis",
-        Chain = chain.GetDisplayName(),
+        Chain = chain.ToChainId(),
         Id = "moralis",
         Url = "",
         Logo = ""

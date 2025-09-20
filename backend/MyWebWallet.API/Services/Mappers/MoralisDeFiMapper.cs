@@ -41,7 +41,7 @@ public class MoralisDeFiMapper : IWalletItemMapper<IEnumerable<GetDeFiPositionsM
                 Protocol = new Protocol
                 {
                     Name = d.ProtocolName,
-                    Chain = chain.GetDisplayName(),
+                    Chain = chain.ToChainId(),
                     Id = d.ProtocolId,
                     Url = d.ProtocolUrl,
                     Logo = d.ProtocolLogo

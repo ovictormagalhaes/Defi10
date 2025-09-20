@@ -74,7 +74,7 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
     private static Protocol GetProtocol(ChainEnum chain) => new()
     {
         Name = "Aave V3",
-        Chain = chain.GetDisplayName(),
+        Chain = chain.ToChainId(),
         Id = "aave-v3",
         Url = "https://app.aave.com",
         Logo = "https://cdn.moralis.io/defi/aave.png"

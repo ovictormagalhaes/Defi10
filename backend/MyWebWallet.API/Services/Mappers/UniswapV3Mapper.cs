@@ -145,7 +145,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                             Name = position.Token1.Name,
                             Symbol = position.Token1.Symbol,
                             ContractAddress = position.Token1.Id,
-                            Chain = chain.GetDisplayName(),
+                            Chain = chain.ToChainId(),
                             Financials = new TokenFinancials
                             {
                                 DecimalPlaces = token1Decimals,
@@ -161,7 +161,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                             Name = position.Token0.Name,
                             Symbol = position.Token0.Symbol,
                             ContractAddress = position.Token0.Id,
-                            Chain = chain.GetDisplayName(),
+                            Chain = chain.ToChainId(),
                             Financials = new TokenFinancials
                             {
                                 DecimalPlaces = token0Decimals,
@@ -177,7 +177,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                             Name = position.Token1.Name,
                             Symbol = position.Token1.Symbol,
                             ContractAddress = position.Token1.Id,
-                            Chain = chain.GetDisplayName(),
+                            Chain = chain.ToChainId(),
                             Financials = new TokenFinancials
                             {
                                 DecimalPlaces = token1Decimals,
@@ -214,7 +214,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
     private static Protocol GetProtocol(ChainEnum chain) => new()
     {
         Name = "Uniswap V3",
-        Chain = chain.GetDisplayName(),
+        Chain = chain.ToChainId(),
         Id = "uniswap-v3",
         Url = "https://app.uniswap.org",
         Logo = "https://cdn.moralis.io/defi/uniswap.png"
