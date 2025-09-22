@@ -68,7 +68,7 @@ public class MoralisTokenMapper : IWalletItemMapper<IEnumerable<TokenDetail>>
     {
         Name = "Moralis",
         Chain = chain.ToChainId(),
-        Id = "moralis",
+        Id = "wallet",
         Url = "",
         Logo = ""
     };

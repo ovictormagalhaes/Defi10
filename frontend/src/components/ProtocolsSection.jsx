@@ -4,6 +4,7 @@ import PoolTables from './PoolTables'
 import LendingTables from './LendingTables'
 import StakingTables from './StakingTables'
 import ProtocolTables from './ProtocolTables'
+import { useChainIcons } from '../context/ChainIconsProvider'
 import {
   formatPrice,
   groupDefiByProtocol,
@@ -32,6 +33,7 @@ const ProtocolsSection = ({
   maskValue,
   theme
 }) => {
+  const { getIcon } = useChainIcons()
   const allDefi = [
     ...getLiquidityPoolsData(),
     ...getLendingAndBorrowingData(),
@@ -185,14 +187,53 @@ const ProtocolsSection = ({
           stakingRewardsValue = stakingGroup.rewards.reduce((sum, token) => sum + (parseFloat(token.totalPrice) || 0), 0)
         }
 
+        // Resolve chain icon to overlay
+        const resolveChainRaw = (obj) => {
+          if (!obj || typeof obj !== 'object') return undefined
+          const direct = obj.chainId || obj.chainID || obj.chain_id || obj.chain || obj.networkId || obj.network || obj.chainName
+          if (direct) return direct
+          const p = obj.protocol
+          if (p && typeof p === 'object') {
+            return p.chainId || p.chainID || p.chain || p.networkId || p.network || p.chainName
+          }
+          for (const k in obj) {
+            if (!Object.prototype.hasOwnProperty.call(obj, k)) continue
+            if (/(chain|network)/i.test(k)) {
+              const v = obj[k]
+              if (v && (typeof v === 'string' || typeof v === 'number')) return v
+            }
+          }
+          return undefined
+        }
+        const firstPos = protocolGroup?.positions?.[0] || null
+        const basePos = firstPos && (firstPos.position || firstPos)
+        let chainRaw = resolveChainRaw(protocolGroup?.protocol) || resolveChainRaw(basePos)
+        if (!chainRaw && basePos && Array.isArray(basePos?.tokens)) {
+          for (let i = 0; i < basePos.tokens.length; i++) {
+            const c = resolveChainRaw(basePos.tokens[i])
+            if (c) { chainRaw = c; break }
+          }
+        }
+        const chainIcon = chainRaw ? getIcon(chainRaw) : undefined
+
         const icon = (protocolGroup.protocol.logoURI || protocolGroup.protocol.logo)
           ? (
-            <img
-              src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo}
-              alt={protocolGroup.protocol.name}
-              style={{ width: 22, height: 22, borderRadius: '50%', border: `1px solid ${theme.border}` }}
-              onError={(e) => (e.currentTarget.style.display = 'none')}
-            />
+            <div style={{ position: 'relative', width: 22, height: 22 }}>
+              <img
+                src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo}
+                alt={protocolGroup.protocol.name}
+                style={{ width: 22, height: 22, borderRadius: '50%', border: `1px solid ${theme.border}`, display: 'block' }}
+                onError={(e) => (e.currentTarget.style.display = 'none')}
+              />
+              {chainIcon && (
+                <img
+                  src={chainIcon}
+                  alt="chain"
+                  style={{ position: 'absolute', top: -4, right: -4, width: 12, height: 12, borderRadius: '50%', border: `1px solid ${theme.border}`, background: theme.bgPanel }}
+                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                />
+              )}
+            </div>
           )
           : null
 

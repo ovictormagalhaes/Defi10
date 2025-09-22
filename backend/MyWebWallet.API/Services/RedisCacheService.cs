@@ -11,6 +11,7 @@ public class RedisCacheService : ICacheService
     private readonly IConfiguration _configuration;
     private readonly TimeSpan _defaultExpiration;
     private readonly string _walletCacheKeyPrefix;
+    private readonly string _rebalanceKeyPrefix;
 
     public RedisCacheService(IConnectionMultiplexer redis, IConfiguration configuration)
     {
@@ -24,6 +25,7 @@ public class RedisCacheService : ICacheService
             : TimeSpan.FromMinutes(30);
             
         _walletCacheKeyPrefix = configuration["Redis:WalletCacheKeyPrefix"] ?? "wallet:";
+        _rebalanceKeyPrefix = configuration["Redis:RebalanceKeyPrefix"] ?? "rebalance:";
     }
 
     public async Task<T?> GetAsync<T>(string key) where T : class
@@ -60,6 +62,20 @@ public class RedisCacheService : ICacheService
         {
             Console.WriteLine($"ERROR: RedisCacheService: Failed to set cache for key {key}: {ex.Message}");
             // Don't throw - caching should be non-blocking
+        }
+    }
+
+    public async Task SetPersistentAsync<T>(string key, T value) where T : class
+    {
+        try
+        {
+            var serializedValue = JsonSerializer.Serialize(value);
+            // No TTL => persist indefinitely
+            await _database.StringSetAsync(key, serializedValue, expiry: null);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ERROR: RedisCacheService: Failed to set persistent value for key {key}: {ex.Message}");
         }
     }
 
@@ -104,5 +120,10 @@ public class RedisCacheService : ICacheService
         var key = $"{_walletCacheKeyPrefix}{address.ToLowerInvariant()}:multi:{chainIds}";
         
         return key;
+    }
+
+    public string GenerateRebalanceCacheKey(string accountId)
+    {
+        return $"{_rebalanceKeyPrefix}{accountId.ToLowerInvariant()}";
     }
 }

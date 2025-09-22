@@ -16,6 +16,8 @@ import SectionTable from './components/SectionTable'
 import ProtocolsSection from './components/ProtocolsSection'
 import ErrorBoundary from './components/ErrorBoundary'
 import SummaryView from './components/SummaryView'
+import RebalancingView from './components/RebalancingView'
+import { api } from './config/api'
 import {
   formatBalance,
   formatNativeBalance,
@@ -65,7 +67,7 @@ function App() {
     ? '15%'
     : (viewportWidth >= 800 ? '8%' : '20px')
   // Wallet connection
-  const { account, loading, setLoading, connectWallet, copyAddress, disconnect, supportedChains, chainsLoading, refreshSupportedChains } = useWalletConnection()
+  const { account, loading, setLoading, connectWallet, copyAddress, disconnect, supportedChains, chainsLoading, refreshSupportedChains, getRebalances } = useWalletConnection()
   // Track first connect for pulse animation
   const hasPulsedRef = useRef(false)
   const [showPulse, setShowPulse] = useState(false)
@@ -81,6 +83,33 @@ function App() {
   }, [account])
   // Wallet data API
   const { walletData, callAccountAPI, refreshWalletData, clearWalletData } = useWalletData()
+  const [rebalanceInfo, setRebalanceInfo] = useState(null)
+  const fetchRebalancesFor = async (addr) => {
+    if (!addr) { setRebalanceInfo(null); return }
+    try {
+      const res = await fetch(api.getRebalances(addr))
+      if (!res.ok) { setRebalanceInfo(null); return }
+      const data = await res.json()
+      setRebalanceInfo(data)
+    } catch {
+      setRebalanceInfo(null)
+    }
+  }
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!account) { setRebalanceInfo(null); return }
+      try {
+        const res = await fetch(api.getRebalances(account))
+        if (!res.ok) { if (!cancelled) setRebalanceInfo(null); return }
+        const data = await res.json()
+        if (!cancelled) setRebalanceInfo(data)
+      } catch (e) {
+        if (!cancelled) setRebalanceInfo(null)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [account])
   // Tooltip
   const { tooltipVisible, tooltipPosition } = useTooltip()
 
@@ -145,12 +174,15 @@ function App() {
     // Keep selectedChains; snapshot will update when walletData arrives
     callAccountAPI(addr, setLoading)
     refreshSupportedChains(true)
+    // Also fetch saved rebalances for this address
+    fetchRebalancesFor(addr)
   }
 
   // Refresh current account
   const handleRefreshWalletData = () => {
     refreshWalletData(account, setLoading)
     refreshSupportedChains(true)
+    if (account) fetchRebalancesFor(account)
   }
 
   // Load data when account changes
@@ -1018,9 +1050,11 @@ function App() {
             background: theme.bgInteractive,
             border: `1px solid ${theme.border}`,
             borderRadius: 8,
-            padding: 2
+            padding: 2,
+            width: '100%',
+            maxWidth: 480
           }}>
-            {['Default', 'Summary'].map((mode) => (
+            {['Default', 'Summary', 'Rebalancing'].map((mode) => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
@@ -1034,7 +1068,9 @@ function App() {
                   fontWeight: viewMode === mode ? 600 : 500,
                   cursor: 'pointer',
                   transition: 'all 120ms ease',
-                  outline: 'none'
+                  outline: 'none',
+                  flex: 1,
+                  textAlign: 'center'
                 }}
                 onMouseEnter={e => {
                   if (viewMode !== mode) {
@@ -1074,6 +1110,18 @@ function App() {
               groupDefiByProtocol={groupDefiByProtocol}
               filterLendingDefiTokens={filterLendingDefiTokens}
               showLendingDefiTokens={showLendingDefiTokens}
+            />
+          ) : viewMode === 'Rebalancing' ? (
+            <RebalancingView
+              walletTokens={walletTokens}
+              getLiquidityPoolsData={getLiquidityPoolsData}
+              getLendingAndBorrowingData={getLendingAndBorrowingData}
+              getStakingData={getStakingData}
+              account={account}
+              theme={theme}
+              initialSavedKey={rebalanceInfo?.key}
+              initialSavedCount={rebalanceInfo?.count}
+              initialSavedItems={rebalanceInfo?.items}
             />
           ) : (
             <>

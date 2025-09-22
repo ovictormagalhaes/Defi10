@@ -4,6 +4,7 @@ import { formatPrice, groupDefiByProtocol, groupTokensByPool } from '../utils/wa
 import { useMaskValues } from '../context/MaskValuesContext'
 import { useTheme } from '../context/ThemeProvider'
 import Chip from './Chip'
+import { useChainIcons } from '../context/ChainIconsProvider'
 
 const DeFiMenu = ({ 
   title, 
@@ -169,6 +170,38 @@ const ProtocolGroup = ({
   toggleProtocolExpansion, 
   menuType 
 }) => {
+  const { getIcon } = useChainIcons()
+  const { theme } = useTheme()
+
+  // Resolve possible chain identifier from protocol/position/tokens
+  const resolveChainRaw = (obj) => {
+    if (!obj || typeof obj !== 'object') return undefined
+    const direct = obj.chainId || obj.chainID || obj.chain_id || obj.chain || obj.networkId || obj.network || obj.chainName
+    if (direct) return direct
+    const p = obj.protocol
+    if (p && typeof p === 'object') {
+      return p.chainId || p.chainID || p.chain || p.networkId || p.network || p.chainName
+    }
+    for (const k in obj) {
+      if (!Object.prototype.hasOwnProperty.call(obj, k)) continue
+      if (/(chain|network)/i.test(k)) {
+        const v = obj[k]
+        if (v && (typeof v === 'string' || typeof v === 'number')) return v
+      }
+    }
+    return undefined
+  }
+
+  const firstPos = protocolGroup?.positions?.[0] || null
+  const basePos = firstPos && (firstPos.position || firstPos)
+  let chainRaw = resolveChainRaw(protocolGroup?.protocol) || resolveChainRaw(basePos)
+  if (!chainRaw && basePos && Array.isArray(basePos.tokens)) {
+    for (let i = 0; i < basePos.tokens.length; i++) {
+      const c = resolveChainRaw(basePos.tokens[i])
+      if (c) { chainRaw = c; break }
+    }
+  }
+  const chainIcon = chainRaw ? getIcon(chainRaw) : undefined
   const getProtocolColumns = () => {
     switch (menuType) {
       case 'liquidity':
@@ -265,19 +298,38 @@ const ProtocolGroup = ({
       <CollapsibleMenu
         title={
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            {(protocolGroup.protocol.logoURI || protocolGroup.protocol.logo) && (
-              <img 
-                src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo} 
-                alt={protocolGroup.protocol.name}
-                style={{ 
-                  width: 20, 
-                  height: 20, 
-                  marginRight: 8,
-                  borderRadius: '50%'
-                }}
-                onError={(e) => e.target.style.display = 'none'}
-              />
-            )}
+            {(protocolGroup.protocol.logoURI || protocolGroup.protocol.logo) ? (
+              <div style={{ position: 'relative', width: 20, height: 20, marginRight: 8 }}>
+                <img 
+                  src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo} 
+                  alt={protocolGroup.protocol.name}
+                  style={{ 
+                    width: 20, 
+                    height: 20, 
+                    borderRadius: '50%',
+                    display: 'block'
+                  }}
+                  onError={(e) => e.target.style.display = 'none'}
+                />
+                {chainIcon && (
+                  <img
+                    src={chainIcon}
+                    alt="chain"
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      border: `1px solid ${theme.border}`,
+                      background: theme.bgPanel
+                    }}
+                    onError={(e) => e.currentTarget.style.display = 'none'}
+                  />
+                )}
+              </div>
+            ) : null}
             {protocolGroup.protocol.name}
           </div>
         }

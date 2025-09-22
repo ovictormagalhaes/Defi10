@@ -50,7 +50,8 @@ export const config = {
     WALLETS: '/api/v1/wallets',
     TOKENS: '/api/v1/tokens',
     CACHE: '/api/v1/cache',
-    SUPPORTED_CHAINS: '/api/v1/wallets/supported-chains'
+    SUPPORTED_CHAINS: '/api/v1/wallets/supported-chains',
+    REBALANCES: '/api/v1/rebalances'
   },
   
   // Default configuration
@@ -103,7 +104,11 @@ export const api = {
   
   // Supported chains
   getSupportedChains: () => 
-    `${config.API_BASE_URL}${config.API_ENDPOINTS.SUPPORTED_CHAINS}`
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.SUPPORTED_CHAINS}`,
+
+  // Rebalances
+  getRebalances: (accountId: string) =>
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.REBALANCES}/${accountId}`
 };
 
 export default config;

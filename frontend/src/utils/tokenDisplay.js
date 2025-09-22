@@ -9,7 +9,7 @@
 
 function pickLogo(t) {
   if (!t || typeof t !== 'object') return ''
-  return t.logo || t.logoURI || t.image || t.icon || ''
+  return t.logo || t.logoURI || t.image || t.icon || t.logoUrl || t.logo_url || t.iconUrl || t.icon_url || ''
 }
 
 export function formatTokenDisplay(tokens = [], { showName = false } = {}) {

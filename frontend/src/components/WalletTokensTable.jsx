@@ -53,7 +53,7 @@ export default function WalletTokensTable({ tokens = [], showBalanceColumn = tru
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableRowHoverBg}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
               <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary }}>
-                <TokenDisplay tokens={[token]} />
+                <TokenDisplay tokens={[token]} size={22} showChain={true} />
               </td>
               {showBalanceColumn && (
                 <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>

@@ -15,10 +15,12 @@ import { useChainIcons } from '../context/ChainIconsProvider'
  * - showChain?: boolean (default true -> show chain badge overlay)
  * - getChainIcon?: (chainKey: string) => string | undefined (optional custom resolver)
  */
-export default function TokenDisplay({ tokens = [], showName = false, size = 26, gap = 10, className = '', style = {}, showChain = true, getChainIcon }) {
+export default function TokenDisplay({ tokens = [], showName = false, showText = true, size = 26, gap = 10, className = '', style = {}, showChain = true, getChainIcon }) {
   const { theme } = useTheme()
   const { getIcon: getChainIconFromContext } = useChainIcons()
-  const { logos, text } = formatTokenDisplay(tokens, { showName })
+  // Normalize lending/position tokens: map [{token, type}, ...] to token objects when needed
+  const normalizedTokens = Array.isArray(tokens) ? tokens.map(t => (t && t.token) ? t.token : t) : tokens
+  const { logos, text } = formatTokenDisplay(normalizedTokens, { showName })
   if (!logos.length) return null
 
   const isPair = logos.length === 2
@@ -26,7 +28,7 @@ export default function TokenDisplay({ tokens = [], showName = false, size = 26,
   const overlap = Math.round(pairSize * 0.52)
 
   // Determine chain (prefer first token's chain-like fields)
-  const baseToken = tokens[0] || {}
+  const baseToken = normalizedTokens[0] || {}
   // Attempt direct field extraction
   let raw = baseToken.chain || baseToken.chainId || baseToken.chainID || baseToken.network || baseToken.networkId || baseToken.chainName || ''
   // If still empty, scan keys (covers variations like capitalized 'Chain')
@@ -98,11 +100,19 @@ export default function TokenDisplay({ tokens = [], showName = false, size = 26,
 
   const [chainLoaded, setChainLoaded] = React.useState(false)
   const [chainFailed, setChainFailed] = React.useState(false)
+  const chainImgRef = React.useRef(null)
   React.useEffect(() => {
     // Reset when chain changes
     setChainLoaded(false)
     setChainFailed(false)
   }, [chainKey, resolvedIcon])
+  // Mark loaded if image was cached and already complete
+  React.useEffect(() => {
+    const img = chainImgRef.current
+    if (img && img.complete && img.naturalWidth > 0) {
+      setChainLoaded(true)
+    }
+  }, [resolvedIcon])
 
   return (
     <div className={className} style={{ display: 'inline-flex', alignItems: 'center', gap, ...style }}>
@@ -137,9 +147,10 @@ export default function TokenDisplay({ tokens = [], showName = false, size = 26,
             </div>
           )
         })}
-        {resolvedIcon && !chainFailed && chainLoaded && (
-          <div style={{ position: 'absolute', top: -4, right: -4, width: Math.round(size * 0.45), height: Math.round(size * 0.45), borderRadius: '50%', background: (theme.tableBg || theme.bgPanel || theme.bgApp), display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 0 1px rgba(0,0,0,0.25)' }}>
+        {resolvedIcon && !chainFailed && (
+          <div style={{ position: 'absolute', top: -4, right: -4, width: Math.round(size * 0.45), height: Math.round(size * 0.45), borderRadius: '50%', background: (theme.tableBg || theme.bgPanel || theme.bgApp), display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 0 1px rgba(0,0,0,0.25)', opacity: chainLoaded ? 1 : 0, transition: 'opacity 120ms ease-in' }}>
             <img
+              ref={chainImgRef}
               src={resolvedIcon}
               alt={chainKey}
               style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%' }}
@@ -148,15 +159,13 @@ export default function TokenDisplay({ tokens = [], showName = false, size = 26,
             />
           </div>
         )}
-        {resolvedIcon && !chainFailed && !chainLoaded && (
-          // Preload hidden image (no empty badge placeholder)
-          <img src={resolvedIcon} alt="preload" style={{ display: 'none' }} onLoad={() => setChainLoaded(true)} onError={() => setChainFailed(true)} />
-        )}
       </div>
       {/* Text */}
-      <div style={{ minWidth: 0 }}>
-        <span style={{ fontSize: 14, fontWeight: 400, color: theme.textPrimary, lineHeight: '16px', whiteSpace: 'nowrap' }}>{text}</span>
-      </div>
+      {showText && (
+        <div style={{ minWidth: 0 }}>
+          <span style={{ fontSize: 14, fontWeight: 400, color: theme.textPrimary, lineHeight: '16px', whiteSpace: 'nowrap' }}>{text}</span>
+        </div>
+      )}
     </div>
   )
 }

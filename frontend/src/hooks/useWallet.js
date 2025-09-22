@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { STORAGE_KEY, EXPIRY_HOURS, API_BASE } from '../constants/config'
+import { api } from '../config/api'
 
 // Custom hook for wallet connection and account management
 export function useWalletConnection() {
@@ -130,6 +131,18 @@ export function useWalletConnection() {
     }
   }, [])
 
+  const getRebalances = useCallback(async (accountId) => {
+    if (!accountId) return null
+    try {
+      const res = await fetch(api.getRebalances(accountId))
+      if (!res.ok) return null
+      return await res.json()
+    } catch (e) {
+      console.error('getRebalances failed', e)
+      return null
+    }
+  }, [])
+
   return {
     account,
     loading,
@@ -139,7 +152,8 @@ export function useWalletConnection() {
     refreshSupportedChains,
     connectWallet,
     copyAddress,
-    disconnect
+    disconnect,
+    getRebalances
   }
 }
 

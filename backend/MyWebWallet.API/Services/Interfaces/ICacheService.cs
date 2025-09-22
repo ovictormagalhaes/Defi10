@@ -10,4 +10,6 @@ public interface ICacheService
     Task<bool> ExistsAsync(string key);
     string GenerateWalletCacheKey(string address, Chain? chain = null);
     string GenerateWalletCacheKey(string address, IEnumerable<Chain> chains);
+    Task SetPersistentAsync<T>(string key, T value) where T : class;
+    string GenerateRebalanceCacheKey(string accountId);
 }

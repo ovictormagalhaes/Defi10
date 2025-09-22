@@ -69,6 +69,8 @@ builder.Services.AddScoped<IWalletItemMapperFactory, WalletItemMapperFactory>();
 builder.Services.AddHttpClient<EthereumService>();
 builder.Services.AddHttpClient<MoralisService>();
 
+builder.Services.AddScoped<IRebalanceService, RebalanceService>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
