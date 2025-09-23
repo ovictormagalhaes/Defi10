@@ -33,6 +33,19 @@ const ProtocolsSection = ({
   maskValue,
   theme
 }) => {
+  // Responsive breakpoints to align summary columns with tables
+  const initialWidth = typeof window !== 'undefined' ? window.innerWidth : 1200
+  const [vw, setVw] = React.useState(initialWidth)
+  React.useEffect(() => {
+    const onResize = () => setVw(typeof window !== 'undefined' ? window.innerWidth : initialWidth)
+    if (typeof window !== 'undefined') window.addEventListener('resize', onResize)
+    return () => { if (typeof window !== 'undefined') window.removeEventListener('resize', onResize) }
+  }, [])
+  const poolsHideRange = vw < 950
+  const poolsHideRewards = vw < 800
+  const poolsHideAmount = vw < 600
+  // Hide rewards chip in header metrics on small screens
+  const hideHeaderRewards = vw < 700
   const { getIcon } = useChainIcons()
   const allDefi = [
     ...getLiquidityPoolsData(),
@@ -267,9 +280,9 @@ const ProtocolsSection = ({
         const poolSummaryColumns = hasPools
           ? [
               { key: 'pool', label: 'Pool', align: 'left', width: '33.333%' },
-              { key: 'range', label: 'Range', align: 'center', width: '16.667%' },
-              { key: 'amount', label: 'Amount', align: 'right', width: '16.667%' },
-              { key: 'rewards', label: 'Rewards', align: 'right', width: '16.667%' },
+              ...(!poolsHideRange ? [{ key: 'range', label: 'Range', align: 'center', width: '16.667%' }] : []),
+              ...(!poolsHideAmount ? [{ key: 'amount', label: 'Amount', align: 'right', width: '16.667%' }] : []),
+              ...(!poolsHideRewards ? [{ key: 'rewards', label: 'Rewards', align: 'right', width: '16.667%' }] : []),
               { key: 'value', label: 'Value', align: 'right', width: '16.667%' }
             ]
           : null
@@ -323,9 +336,13 @@ const ProtocolsSection = ({
             key={protocolGroup.protocol.name}
             icon={icon}
             title={protocolGroup.protocol.name}
+            rightPercent={protocolPercent}
+            rightValue={maskValue(formatPrice(protocolTotal))}
+            rewardsValue={totalRewardsValue > 0 ? maskValue(formatPrice(totalRewardsValue)) : null}
             transparentBody={true}
-            summaryColumns={poolSummaryColumns || lendingSummaryColumns}
-            renderSummaryCell={(poolSummaryColumns ? renderPoolSummaryCell : (lendingSummaryColumns ? renderLendingSummaryCell : undefined))}
+            metricsRatio={hideHeaderRewards ? [2,1,1] : [2,1,1,1]}
+            summaryColumns={null}
+            renderSummaryCell={undefined}
             isExpanded={protocolExpansions[protocolGroup.protocol.name] !== undefined ? protocolExpansions[protocolGroup.protocol.name] : true}
             onToggle={() => toggleProtocolExpansion(protocolGroup.protocol.name)}
             infoBadges={infoBadges}

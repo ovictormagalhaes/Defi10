@@ -62,10 +62,19 @@ function App() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-  // Breakpoints: >=1100px => 15% side padding, >=800px => 8%, below => fixed 20px
+  // Breakpoints: >=1100px => 15% side padding, >=800px => 8%, 480-799px => 20px, <480px => 0
   const sidePadding = viewportWidth >= 1100
     ? '15%'
-    : (viewportWidth >= 800 ? '8%' : '20px')
+    : (viewportWidth >= 800 ? '8%'
+      : (viewportWidth >= 480 ? '20px' : '0'))
+  // Mobile breakpoint for header/menu responsiveness
+  const isMobile = viewportWidth < 700
+  // Responsive column visibility breakpoints for tables
+  // >= 900px: Token | Amount | Price | Value
+  // 600px–899px: Token | Amount | Value (hide Price)
+  // < 600px: Token | Value (hide Amount & Price)
+  const tableHidePrice = viewportWidth < 900
+  const tableHideAmount = viewportWidth < 600
   // Wallet connection
   const { account, loading, setLoading, connectWallet, copyAddress, disconnect, supportedChains, chainsLoading, refreshSupportedChains, getRebalances } = useWalletConnection()
   // Track first connect for pulse animation
@@ -748,11 +757,11 @@ function App() {
         transition: 'background 0.25s,border-color 0.25s'
       }}>
         {/** Reusable small action button factory to keep consistent width & prevent layout shift */}
-  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, minHeight: 52 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+  <div style={{ display: 'flex', justifyContent: isMobile ? 'flex-start' : 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: 12, minHeight: 52, flexDirection: isMobile ? 'column' : 'row' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, width: isMobile ? '100%' : 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {account ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, width: isMobile ? '100%' : 'auto' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                     <span style={{ fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Account Connected</span>
                     <div
@@ -764,8 +773,10 @@ function App() {
                         border: `1px solid ${theme.border}`,
                         padding: '6px 12px',
                         borderRadius: 10,
-                        minWidth: 300,
-                        maxWidth: 380,
+                        minWidth: isMobile ? 0 : 300,
+                        maxWidth: isMobile ? '100%' : 380,
+                        width: isMobile ? '100%' : 'auto',
+                        flex: isMobile ? '1 1 auto' : '0 0 auto',
                         color: theme.textPrimary,
                         position: 'relative',
                         transition: 'background-color 140ms'
@@ -899,23 +910,28 @@ function App() {
               )}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: theme.bgInteractive, border: `1px solid ${theme.border}`, padding: '8px 10px', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', gap: 12, width: isMobile ? '100%' : 'auto' }}>
+            <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', gap: 8, background: theme.bgInteractive, border: `1px solid ${theme.border}`, padding: '8px 10px', borderRadius: 10, width: isMobile ? '100%' : 'auto', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
               {/* Search input for arbitrary address */}
               <input
                 value={searchAddress}
                 onChange={e => setSearchAddress(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSearch() }}
                 placeholder="Search address..."
+                aria-label="Search wallet address"
+                enterKeyHint="search"
+                autoComplete="off"
+                spellCheck={false}
                 style={{
                   background: theme.bgPanel,
                   border: `1px solid ${theme.border}`,
                   color: theme.textPrimary,
                   fontSize: 12,
-                  padding: '6px 8px',
+                  padding: isMobile ? '10px 12px' : '6px 8px',
                   borderRadius: 6,
-                  width: 170,
-                  outline: 'none'
+                  width: isMobile ? '100%' : 170,
+                  outline: 'none',
+                  flex: isMobile ? '1 1 100%' : '0 0 auto'
                 }}
               />
               <button
@@ -924,11 +940,13 @@ function App() {
                   background: theme.primarySubtle,
                   color: theme.textPrimary,
                   border: `1px solid ${theme.border}`,
-                  padding: '6px 10px',
+                  padding: isMobile ? '10px 12px' : '6px 10px',
                   borderRadius: 6,
                   fontSize: 12,
                   cursor: 'pointer',
-                  transition: 'background-color 120ms, box-shadow 160ms'
+                  transition: 'background-color 120ms, box-shadow 160ms',
+                  width: isMobile ? '100%' : 'auto',
+                  marginTop: isMobile ? 8 : 0
                 }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = theme.bgPanelHover}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = theme.primarySubtle}
@@ -944,11 +962,13 @@ function App() {
                     background: theme.accentSubtle || theme.primarySubtle,
                     color: theme.textPrimary,
                     border: `1px solid ${theme.border}`,
-                    padding: '6px 10px',
+                    padding: isMobile ? '10px 12px' : '6px 10px',
                     borderRadius: 6,
                     fontSize: 12,
                     cursor: 'pointer',
-                    transition: 'background-color 120ms, box-shadow 160ms'
+                    transition: 'background-color 120ms, box-shadow 160ms',
+                    width: isMobile ? '100%' : 'auto',
+                    marginTop: isMobile ? 8 : 0
                   }}
                   onMouseEnter={e => e.currentTarget.style.backgroundColor = theme.bgPanelHover}
                   onMouseLeave={e => e.currentTarget.style.backgroundColor = theme.accentSubtle || theme.primarySubtle}
@@ -1146,8 +1166,8 @@ function App() {
                     </div>
                   </div>
                 ),
-                amount: showBalanceColumn ? maskValue(formatBalance(token.balance, token.native), { short: true }) : undefined,
-                price: showUnitPriceColumn ? maskValue(formatPrice(token.price), { short: true }) : undefined,
+                amount: (!tableHideAmount && showBalanceColumn) ? maskValue(formatBalance(token.balance, token.native), { short: true }) : undefined,
+                price: (!tableHidePrice && showUnitPriceColumn) ? maskValue(formatPrice(token.price), { short: true }) : undefined,
                 value: maskValue(formatPrice(token.totalPrice))
               }
             })
@@ -1168,7 +1188,9 @@ function App() {
                   <input type="checkbox" checked={showUnitPriceColumn} onChange={(e) => setShowUnitPriceColumn(e.target.checked)} />
                   Price
                 </label>
-                <div style={{ fontSize: 11, color: '#9ca3af', padding: '6px 12px', fontStyle: 'italic' }}>Token and Total Value are always visible</div>
+                <div style={{ fontSize: 11, color: '#9ca3af', padding: '6px 12px', fontStyle: 'italic' }}>
+                  Token and Total Value are always visible. On small screens some columns may hide automatically.
+                </div>
               </div>
             )
             return (
@@ -1205,7 +1227,17 @@ function App() {
                 optionsMenu={optionsMenu}
                 customContent={
                   <div style={{ background: 'transparent', border: 'none', borderRadius: 8 }}>
-                    <WalletTokensTable tokens={walletTokens} showBalanceColumn={showBalanceColumn} showUnitPriceColumn={showUnitPriceColumn} />
+                    {(() => {
+                      const effShowBalanceColumn = !tableHideAmount && showBalanceColumn
+                      const effShowUnitPriceColumn = !tableHidePrice && showUnitPriceColumn
+                      return (
+                        <WalletTokensTable
+                          tokens={walletTokens}
+                          showBalanceColumn={effShowBalanceColumn}
+                          showUnitPriceColumn={effShowUnitPriceColumn}
+                        />
+                      )
+                    })()}
                   </div>
                 }
               />

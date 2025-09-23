@@ -8,6 +8,14 @@ import { ratioToColGroup } from '../utils/tableLayout'
 // Renders lending (Aave style) supplied, borrowed and rewards tokens using the same visual style as PoolTables (Uniswap)
 export default function LendingTables({ supplied = [], borrowed = [], rewards = [] }) {
   const { theme } = useTheme(); const { maskValue } = useMaskValues()
+  const initialWidth = typeof window !== 'undefined' ? window.innerWidth : 1200
+  const [vw, setVw] = React.useState(initialWidth)
+  React.useEffect(() => {
+    const onResize = () => setVw(typeof window !== 'undefined' ? window.innerWidth : initialWidth)
+    if (typeof window !== 'undefined') window.addEventListener('resize', onResize)
+    return () => { if (typeof window !== 'undefined') window.removeEventListener('resize', onResize) }
+  }, [])
+  const hideAmount = vw < 600
   if ((supplied?.length || 0) === 0 && (borrowed?.length || 0) === 0 && (rewards?.length || 0) === 0) return null
 
   const Section = ({ title, tokens, negative }) => {
@@ -15,11 +23,11 @@ export default function LendingTables({ supplied = [], borrowed = [], rewards = 
     return (
   <div style={{ background: theme.tableBg, border: `1px solid ${theme.tableBorder}`, borderRadius: 10, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', color: theme.textPrimary }}>
-          {ratioToColGroup([2,1,1])}
+          {ratioToColGroup(hideAmount ? [2,1] : [2,1,1])}
           <thead>
             <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `2px solid ${theme.tableBorder}` }}>
               <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>{title}</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Amount</th>
+              {!hideAmount && <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Amount</th>}
               <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Value</th>
             </tr>
           </thead>
@@ -35,7 +43,9 @@ export default function LendingTables({ supplied = [], borrowed = [], rewards = 
                   <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary }}>
                     <TokenDisplay tokens={[t]} size={22} showChain={false} />
                   </td>
-                  <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{maskValue(formatTokenAmount(t), { short: true })}</td>
+                  {!hideAmount && (
+                    <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{maskValue(formatTokenAmount(t), { short: true })}</td>
+                  )}
                   <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{maskValue(formatPrice(value))}</td>
                 </tr>
               )

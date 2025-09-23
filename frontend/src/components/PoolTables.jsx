@@ -10,6 +10,18 @@ import RangeChip from './RangeChip'
 export default function PoolTables({ pools = {} }) {
   const [openPools, setOpenPools] = useState({})
   const { theme } = useTheme(); const { maskValue } = useMaskValues()
+  // Responsive breakpoints for columns
+  const initialWidth = typeof window !== 'undefined' ? window.innerWidth : 1200
+  const [vw, setVw] = useState(initialWidth)
+  React.useEffect(() => {
+    const onResize = () => setVw(typeof window !== 'undefined' ? window.innerWidth : initialWidth)
+    if (typeof window !== 'undefined') window.addEventListener('resize', onResize)
+    return () => { if (typeof window !== 'undefined') window.removeEventListener('resize', onResize) }
+  }, [])
+  // Hide order as width shrinks: Range -> Rewards -> Amount
+  const hideRange = vw < 950
+  const hideRewards = vw < 800
+  const hideAmount = vw < 600
 
   const togglePool = (key) => setOpenPools(p => ({ ...p, [key]: !p[key] }))
 
@@ -18,16 +30,23 @@ export default function PoolTables({ pools = {} }) {
 
   // RangeChip moved to reusable component ./RangeChip
 
+  // Build dynamic column ratios: Pool is 2, each visible metric is 1
+  const ratio = [2]
+  if (!hideRange) ratio.push(1)
+  if (!hideAmount) ratio.push(1)
+  if (!hideRewards) ratio.push(1)
+  ratio.push(1) // Value always
+
   return (
   <div style={{ background: theme.tableBg, border: `1px solid ${theme.tableBorder}`, borderRadius: 10, overflow: 'hidden' }}>
     <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', color: theme.textPrimary }}>
-        {ratioToColGroup([2,1,1,1,1])}
+        {ratioToColGroup(ratio)}
         <thead>
           <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `2px solid ${theme.tableBorder}` }}>
             <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Pool</th>
-            <th style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Range</th>
-            <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Amount</th>
-            <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Rewards</th>
+            {!hideRange && <th style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Range</th>}
+            {!hideAmount && <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Amount</th>}
+            {!hideRewards && <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Rewards</th>}
             <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>Value</th>
           </tr>
         </thead>
@@ -68,11 +87,17 @@ export default function PoolTables({ pools = {} }) {
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                    <RangeChip range={poolRange} />
-                  </td>
-                  <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>-</td>
-                  <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{maskValue(formatPrice(totalRewardsValue))}</td>
+                  {!hideRange && (
+                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                      <RangeChip range={poolRange} />
+                    </td>
+                  )}
+                  {!hideAmount && (
+                    <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>-</td>
+                  )}
+                  {!hideRewards && (
+                    <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{maskValue(formatPrice(totalRewardsValue))}</td>
+                  )}
                   <td style={{ padding: '12px 14px', fontSize: 13, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{maskValue(formatPrice(pool.totalValue))}</td>
                 </tr>
                  {isOpen && pool.tokens && pool.tokens.map((t, tIdx) => {
@@ -84,9 +109,13 @@ export default function PoolTables({ pools = {} }) {
                       <td style={{ padding: '10px 34px', fontSize: 12, color: theme.textSecondary, display: 'flex', alignItems: 'center' }}>
                         <TokenDisplay tokens={[t]} size={18} showChain={false} />
                       </td>
-                      <td style={{ padding: '10px 14px' }} />
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{maskValue(amountDisplay, { short: true })}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{rewardValue ? maskValue(formatPrice(rewardValue)) : '-'}</td>
+                      {!hideRange && <td style={{ padding: '10px 14px' }} />}
+                      {!hideAmount && (
+                        <td style={{ padding: '10px 14px', fontSize: 12, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{maskValue(amountDisplay, { short: true })}</td>
+                      )}
+                      {!hideRewards && (
+                        <td style={{ padding: '10px 14px', fontSize: 12, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{rewardValue ? maskValue(formatPrice(rewardValue)) : '-'}</td>
+                      )}
                       <td style={{ padding: '10px 14px', fontSize: 12, color: theme.textPrimary, textAlign: 'right', fontFamily: 'monospace' }}>{maskValue(formatPrice(parseFloat(t.totalPrice) || 0))}</td>
                     </tr>
                   )

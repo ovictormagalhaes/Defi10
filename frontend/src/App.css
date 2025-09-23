@@ -32,8 +32,11 @@ pre {
 
 /* Responsive design */
 @media (max-width: 768px) {
+  body {
+    padding: 0;
+  }
   .App {
-    padding: 10px;
+    padding: 0;
   }
   
   input {

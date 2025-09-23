@@ -22,6 +22,7 @@ const createBadgeStyle = (fontStyle, theme, additionalProps = {}) => ({
   maxWidth: '100%',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
+  minWidth: 70,
   ...fontStyle,
   ...additionalProps
 })
@@ -39,6 +40,7 @@ const createCondensedBadgeStyle = (fontStyle, theme, additionalProps = {}) => ({
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
+  minWidth: 70,
   ...fontStyle,
   ...additionalProps
 })
@@ -423,6 +425,7 @@ export default function SectionTable({
   const metricsCols = Array.isArray(metricsRatio) && metricsRatio.length >= 3 ? metricsRatio : [2,1,1,1]
   const isThreeColMetrics = metricsCols.length === 3
   const hasRewardsValue = rewardsValue !== null
+  const effectiveRewardsValue = (metricsCols.length === 3) ? null : rewardsValue
 
   const renderMetricsTable = (descriptor) => {
     if (!descriptor || !Array.isArray(descriptor.ratio) || !Array.isArray(descriptor.cells)) return null
@@ -542,7 +545,7 @@ export default function SectionTable({
                           </td>
                           {/* 4-col: rewards */}
                           <td style={createCellStyle(fontStyles.monospace)}>
-                            {rewardsValue !== null ? rewardsValue : ''}
+                            {effectiveRewardsValue !== null ? effectiveRewardsValue : ''}
                           </td>
                           {/* 4-col: value */}
                           <td style={createCellStyle(fontStyles.monospace)}>
@@ -704,21 +707,7 @@ export default function SectionTable({
                             <>
                               {/* 3-col condensed metrics row with total forced to last column */}
                               <td style={{ padding: '0 0px' }}>
-                                <div style={createFlexRow(8)}>
-                                  {optionsMenu ? (
-                                    <button
-                                      style={{
-                                        background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6,
-                                        ...createFlexCenter()
-                                      }}
-                                      onClick={(e) => { e.stopPropagation(); setOptionsExpanded(v => !v) }}
-                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.bgInteractiveHover}
-                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                      title="Options"
-                                    >
-                                      <SettingsIcon color={theme.textSecondary} />
-                                    </button>
-                                  ) : null}
+                                <div style={createFlexRow(8)}>                                  
                                   {rightPercent !== null && (
                                     <CondensedPercentBadge value={rightPercent} fontStyles={fontStyles} theme={theme} showTooltip={true} />
                                   )}
