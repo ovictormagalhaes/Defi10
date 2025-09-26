@@ -1,17 +1,19 @@
-import React from 'react'
-import SectionTable from './SectionTable'
-import PoolTables from './PoolTables'
-import LendingTables from './LendingTables'
-import StakingTables from './StakingTables'
-import ProtocolTables from './ProtocolTables'
-import { useChainIcons } from '../context/ChainIconsProvider'
+import React from 'react';
+
+import { useChainIcons } from '../context/ChainIconsProvider';
 import {
   formatPrice,
   groupDefiByProtocol,
   groupTokensByPool,
   groupTokensByType,
-  groupStakingTokensByType
-} from '../utils/walletUtils'
+  groupStakingTokensByType,
+} from '../utils/walletUtils';
+
+import LendingTables from './LendingTables';
+import PoolTables from './PoolTables';
+import ProtocolTables from './ProtocolTables';
+import SectionTable from './SectionTable';
+import StakingTables from './StakingTables';
 
 const ProtocolsSection = ({
   getLiquidityPoolsData,
@@ -31,319 +33,472 @@ const ProtocolsSection = ({
   calculatePercentage,
   getTotalPortfolioValue,
   maskValue,
-  theme
+  theme,
 }) => {
   // Responsive breakpoints to align summary columns with tables
-  const initialWidth = typeof window !== 'undefined' ? window.innerWidth : 1200
-  const [vw, setVw] = React.useState(initialWidth)
+  const initialWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const [vw, setVw] = React.useState(initialWidth);
   React.useEffect(() => {
-    const onResize = () => setVw(typeof window !== 'undefined' ? window.innerWidth : initialWidth)
-    if (typeof window !== 'undefined') window.addEventListener('resize', onResize)
-    return () => { if (typeof window !== 'undefined') window.removeEventListener('resize', onResize) }
-  }, [])
-  const poolsHideRange = vw < 950
-  const poolsHideRewards = vw < 800
-  const poolsHideAmount = vw < 600
+    const onResize = () => setVw(typeof window !== 'undefined' ? window.innerWidth : initialWidth);
+    if (typeof window !== 'undefined') window.addEventListener('resize', onResize);
+    return () => {
+      if (typeof window !== 'undefined') window.removeEventListener('resize', onResize);
+    };
+  }, []);
+  const poolsHideRange = vw < 950;
+  const poolsHideRewards = vw < 800;
+  const poolsHideAmount = vw < 600;
   // Hide rewards chip in header metrics on small screens
-  const hideHeaderRewards = vw < 700
-  const { getIcon } = useChainIcons()
+  const hideHeaderRewards = vw < 700;
+  const { getIcon } = useChainIcons();
   const allDefi = [
     ...getLiquidityPoolsData(),
     ...getLendingAndBorrowingData(),
-    ...getStakingData()
-  ]
+    ...getStakingData(),
+  ];
 
-  if (allDefi.length === 0) return null
+  if (allDefi.length === 0) return null;
 
-  const protocolGroups = groupDefiByProtocol(allDefi)
+  const protocolGroups = groupDefiByProtocol(allDefi);
 
   return (
     <div>
       {protocolGroups.map((protocolGroup, pgIdx) => {
         // Classify positions by type using label/name heuristics
-        const liqPositionsOriginal = protocolGroup.positions.filter(p => {
-          const lbl = (p.position?.label || p.position?.name || p.label || '').toString().toLowerCase()
-          return lbl.includes('liquidity')
-        })
-        const stakingPositionsOriginal = protocolGroup.positions.filter(p => {
-          const lbl = (p.position?.label || p.position?.name || p.label || '').toString().toLowerCase()
-          return lbl.includes('staking')
-        })
-        const lendingPositionsOriginal = protocolGroup.positions.filter(p => {
-          const lbl = (p.position?.label || p.position?.name || p.label || '').toString().toLowerCase()
-          return !lbl.includes('liquidity') && !lbl.includes('staking')
-        })
+        const liqPositionsOriginal = protocolGroup.positions.filter((p) => {
+          const lbl = (p.position?.label || p.position?.name || p.label || '')
+            .toString()
+            .toLowerCase();
+          return lbl.includes('liquidity');
+        });
+        const stakingPositionsOriginal = protocolGroup.positions.filter((p) => {
+          const lbl = (p.position?.label || p.position?.name || p.label || '')
+            .toString()
+            .toLowerCase();
+          return lbl.includes('staking');
+        });
+        const lendingPositionsOriginal = protocolGroup.positions.filter((p) => {
+          const lbl = (p.position?.label || p.position?.name || p.label || '')
+            .toString()
+            .toLowerCase();
+          return !lbl.includes('liquidity') && !lbl.includes('staking');
+        });
 
         // Helper to filter tokens inside a position according to selected chains.
         // A position matches selection if its own chain OR any token chain is selected
         const positionMatchesSelection = (pos) => {
-          if (!selectedChains || isAllChainsSelected) return true
-          const container = pos.position || pos
-          const chainSelf = getCanonicalFromObj(container) || getCanonicalFromObj(pos)
-          if (chainSelf && selectedChains.has(chainSelf)) return true
-          const toks = Array.isArray(container.tokens) ? container.tokens : []
+          if (!selectedChains || isAllChainsSelected) return true;
+          const container = pos.position || pos;
+          const chainSelf = getCanonicalFromObj(container) || getCanonicalFromObj(pos);
+          if (chainSelf && selectedChains.has(chainSelf)) return true;
+          const toks = Array.isArray(container.tokens) ? container.tokens : [];
           for (let i = 0; i < toks.length; i++) {
-            const tc = getCanonicalFromObj(toks[i]) || chainSelf
-            if (tc && selectedChains.has(tc)) return true
+            const tc = getCanonicalFromObj(toks[i]) || chainSelf;
+            if (tc && selectedChains.has(tc)) return true;
           }
-          return false
-        }
+          return false;
+        };
 
         // Filter tokens within positions but keep the position if it still matches selection
         const filterPositionArray = (positions) => {
-          if (!positions || positions.length === 0) return []
+          if (!positions || positions.length === 0) return [];
           return positions
-            .filter(p => positionMatchesSelection(p))
-            .map(p => {
-              if (!selectedChains || isAllChainsSelected) return p
-              const cloned = p.position ? { ...p, position: { ...p.position } } : { ...p }
-              const container = cloned.position || cloned
-              const tokensArr = Array.isArray(container.tokens) ? container.tokens : []
-              const filteredTokens = tokensArr.filter(t => {
-                const canon = getCanonicalFromObj(t) || getCanonicalFromObj(container) || getCanonicalFromObj(p)
-                return canon && selectedChains.has(canon)
-              })
-              if (container.tokens) container.tokens = filteredTokens
-              return cloned
-            })
-        }
+            .filter((p) => positionMatchesSelection(p))
+            .map((p) => {
+              if (!selectedChains || isAllChainsSelected) return p;
+              const cloned = p.position ? { ...p, position: { ...p.position } } : { ...p };
+              const container = cloned.position || cloned;
+              const tokensArr = Array.isArray(container.tokens) ? container.tokens : [];
+              const filteredTokens = tokensArr.filter((t) => {
+                const canon =
+                  getCanonicalFromObj(t) ||
+                  getCanonicalFromObj(container) ||
+                  getCanonicalFromObj(p);
+                return canon && selectedChains.has(canon);
+              });
+              if (container.tokens) container.tokens = filteredTokens;
+              return cloned;
+            });
+        };
 
         // If selection active and protocol has no positions matching, skip early
         if (selectedChains && !isAllChainsSelected) {
-          const anyMatch = protocolGroup.positions.some(pos => positionMatchesSelection(pos))
-          if (!anyMatch) return null
+          const anyMatch = protocolGroup.positions.some((pos) => positionMatchesSelection(pos));
+          if (!anyMatch) return null;
         }
 
-        const liqPositions = filterPositionArray(liqPositionsOriginal)
-        const stakingPositions = filterPositionArray(stakingPositionsOriginal)
-        const lendingPositions = filterPositionArray(lendingPositionsOriginal)
+        const liqPositions = filterPositionArray(liqPositionsOriginal);
+        const stakingPositions = filterPositionArray(stakingPositionsOriginal);
+        const lendingPositions = filterPositionArray(lendingPositionsOriginal);
 
         // If after filtering everything vanished (should be rare now), still skip.
-        if (!liqPositions.length && !stakingPositions.length && !lendingPositions.length) return null
+        if (!liqPositions.length && !stakingPositions.length && !lendingPositions.length)
+          return null;
 
         // Compute protocol total balance (lending borrowed negative)
         const liquidityTotal = liqPositions.reduce((sum, pos) => {
-          const container = pos.position || pos
-          return sum + (container.tokens?.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0) || 0)
-        }, 0)
+          const container = pos.position || pos;
+          return (
+            sum + (container.tokens?.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0) || 0)
+          );
+        }, 0);
         const lendingTotal = lendingPositions.reduce((sum, pos) => {
-          const tokens = Array.isArray(pos.tokens) ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens) : []
+          const tokens = Array.isArray(pos.tokens)
+            ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens)
+            : [];
           const net = tokens.reduce((s, t) => {
-            const ty = (t.type || '').toLowerCase()
-            const val = Math.abs(parseFloat(t.totalPrice) || 0)
-            if (ty === 'borrowed' || ty === 'borrow' || ty === 'debt') return s - val
+            const ty = (t.type || '').toLowerCase();
+            const val = Math.abs(parseFloat(t.totalPrice) || 0);
+            if (ty === 'borrowed' || ty === 'borrow' || ty === 'debt') return s - val;
             if (!ty) {
-              const lbl = (pos?.position?.label || pos?.label || '').toLowerCase()
-              if (lbl.includes('borrow') || lbl.includes('debt')) return s - val
+              const lbl = (pos?.position?.label || pos?.label || '').toLowerCase();
+              if (lbl.includes('borrow') || lbl.includes('debt')) return s - val;
             }
-            return s + val
-          }, 0)
-          return sum + net
-        }, 0)
+            return s + val;
+          }, 0);
+          return sum + net;
+        }, 0);
         const stakingTotal = stakingPositions.reduce((sum, pos) => {
-          const tokens = Array.isArray(pos.tokens) ? filterStakingDefiTokens(pos.tokens, showStakingDefiTokens) : []
-          const v = tokens.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0)
-          return sum + v
-        }, 0)
-        const protocolTotal = liquidityTotal + lendingTotal + stakingTotal
+          const tokens = Array.isArray(pos.tokens)
+            ? filterStakingDefiTokens(pos.tokens, showStakingDefiTokens)
+            : [];
+          const v = tokens.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0);
+          return sum + v;
+        }, 0);
+        const protocolTotal = liquidityTotal + lendingTotal + stakingTotal;
 
         // Build tables for this protocol
-        const tables = []
+        const tables = [];
 
-        let poolsGrouped = null
-        let liquidityRewardsValue = 0
+        let poolsGrouped = null;
+        let liquidityRewardsValue = 0;
         if (liqPositions.length > 0) {
-          poolsGrouped = groupTokensByPool(liqPositions)
+          poolsGrouped = groupTokensByPool(liqPositions);
           // Calculate total rewards value from liquidity positions
-          liqPositions.forEach(pos => {
+          liqPositions.forEach((pos) => {
             if (pos.tokens && Array.isArray(pos.tokens)) {
-              pos.tokens.forEach(token => {
-                const t = (token.type || '').toLowerCase()
-                const sym = (token.symbol || '').toLowerCase()
-                const name = (token.name || '').toLowerCase()
-                const isReward = t === 'reward' || t === 'rewards' ||
-                                sym.includes('reward') || name.includes('reward') ||
-                                sym.includes('comp') || sym.includes('crv') ||
-                                sym.includes('cake') || sym.includes('uni')
+              pos.tokens.forEach((token) => {
+                const t = (token.type || '').toLowerCase();
+                const sym = (token.symbol || '').toLowerCase();
+                const name = (token.name || '').toLowerCase();
+                const isReward =
+                  t === 'reward' ||
+                  t === 'rewards' ||
+                  sym.includes('reward') ||
+                  name.includes('reward') ||
+                  sym.includes('comp') ||
+                  sym.includes('crv') ||
+                  sym.includes('cake') ||
+                  sym.includes('uni');
                 if (isReward) {
-                  liquidityRewardsValue += parseFloat(token.totalPrice) || 0
+                  liquidityRewardsValue += parseFloat(token.totalPrice) || 0;
                 }
-              })
+              });
             }
-          })
+          });
         }
 
-        let lendingGroup = null
-        let lendingRewardsValue = 0
+        let lendingGroup = null;
+        let lendingRewardsValue = 0;
         if (lendingPositions.length > 0) {
-          const filtered = lendingPositions.map(p => ({ ...p, tokens: Array.isArray(p.tokens) ? filterLendingDefiTokens(p.tokens, showLendingDefiTokens) : [] }))
-          const grouped = groupTokensByType(filtered)
+          const filtered = lendingPositions.map((p) => ({
+            ...p,
+            tokens: Array.isArray(p.tokens)
+              ? filterLendingDefiTokens(p.tokens, showLendingDefiTokens)
+              : [],
+          }));
+          const grouped = groupTokensByType(filtered);
           lendingGroup = {
             supplied: grouped.supplied || [],
             borrowed: grouped.borrowed || [],
-            rewards: grouped.rewards || []
-          }
+            rewards: grouped.rewards || [],
+          };
           // Calculate total rewards value from lending positions
-          lendingRewardsValue = lendingGroup.rewards.reduce((sum, token) => sum + (parseFloat(token.totalPrice) || 0), 0)
+          lendingRewardsValue = lendingGroup.rewards.reduce(
+            (sum, token) => sum + (parseFloat(token.totalPrice) || 0),
+            0
+          );
         }
 
-        let stakingGroup = null
-        let stakingRewardsValue = 0
+        let stakingGroup = null;
+        let stakingRewardsValue = 0;
         if (stakingPositions.length > 0) {
-          const filtered = stakingPositions.map(p => ({ ...p, tokens: Array.isArray(p.tokens) ? filterStakingDefiTokens(p.tokens, showStakingDefiTokens) : [] }))
-          const grouped = groupStakingTokensByType(filtered)
+          const filtered = stakingPositions.map((p) => ({
+            ...p,
+            tokens: Array.isArray(p.tokens)
+              ? filterStakingDefiTokens(p.tokens, showStakingDefiTokens)
+              : [],
+          }));
+          const grouped = groupStakingTokensByType(filtered);
           stakingGroup = {
             staked: grouped.staked || [],
-            rewards: grouped.rewards || []
-          }
+            rewards: grouped.rewards || [],
+          };
           // Calculate total rewards value from staking positions
-          stakingRewardsValue = stakingGroup.rewards.reduce((sum, token) => sum + (parseFloat(token.totalPrice) || 0), 0)
+          stakingRewardsValue = stakingGroup.rewards.reduce(
+            (sum, token) => sum + (parseFloat(token.totalPrice) || 0),
+            0
+          );
         }
 
         // Resolve chain icon to overlay
         const resolveChainRaw = (obj) => {
-          if (!obj || typeof obj !== 'object') return undefined
-          const direct = obj.chainId || obj.chainID || obj.chain_id || obj.chain || obj.networkId || obj.network || obj.chainName
-          if (direct) return direct
-          const p = obj.protocol
+          if (!obj || typeof obj !== 'object') return undefined;
+          const direct =
+            obj.chainId ||
+            obj.chainID ||
+            obj.chain_id ||
+            obj.chain ||
+            obj.networkId ||
+            obj.network ||
+            obj.chainName;
+          if (direct) return direct;
+          const p = obj.protocol;
           if (p && typeof p === 'object') {
-            return p.chainId || p.chainID || p.chain || p.networkId || p.network || p.chainName
+            return p.chainId || p.chainID || p.chain || p.networkId || p.network || p.chainName;
           }
           for (const k in obj) {
-            if (!Object.prototype.hasOwnProperty.call(obj, k)) continue
+            if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
             if (/(chain|network)/i.test(k)) {
-              const v = obj[k]
-              if (v && (typeof v === 'string' || typeof v === 'number')) return v
+              const v = obj[k];
+              if (v && (typeof v === 'string' || typeof v === 'number')) return v;
             }
           }
-          return undefined
-        }
-        const firstPos = protocolGroup?.positions?.[0] || null
-        const basePos = firstPos && (firstPos.position || firstPos)
-        let chainRaw = resolveChainRaw(protocolGroup?.protocol) || resolveChainRaw(basePos)
+          return undefined;
+        };
+        const firstPos = protocolGroup?.positions?.[0] || null;
+        const basePos = firstPos && (firstPos.position || firstPos);
+        let chainRaw = resolveChainRaw(protocolGroup?.protocol) || resolveChainRaw(basePos);
         if (!chainRaw && basePos && Array.isArray(basePos?.tokens)) {
           for (let i = 0; i < basePos.tokens.length; i++) {
-            const c = resolveChainRaw(basePos.tokens[i])
-            if (c) { chainRaw = c; break }
+            const c = resolveChainRaw(basePos.tokens[i]);
+            if (c) {
+              chainRaw = c;
+              break;
+            }
           }
         }
-        const chainIcon = chainRaw ? getIcon(chainRaw) : undefined
+        const chainIcon = chainRaw ? getIcon(chainRaw) : undefined;
 
-        const icon = (protocolGroup.protocol.logoURI || protocolGroup.protocol.logo)
-          ? (
+        const icon =
+          protocolGroup.protocol.logoURI || protocolGroup.protocol.logo ? (
             <div style={{ position: 'relative', width: 22, height: 22 }}>
               <img
                 src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo}
                 alt={protocolGroup.protocol.name}
-                style={{ width: 22, height: 22, borderRadius: '50%', border: `1px solid ${theme.border}`, display: 'block' }}
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  border: `1px solid ${theme.border}`,
+                  display: 'block',
+                }}
                 onError={(e) => (e.currentTarget.style.display = 'none')}
               />
               {chainIcon && (
                 <img
                   src={chainIcon}
                   alt="chain"
-                  style={{ position: 'absolute', top: -4, right: -4, width: 12, height: 12, borderRadius: '50%', border: `1px solid ${theme.border}`, background: theme.bgPanel }}
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    border: `1px solid ${theme.border}`,
+                    background: theme.bgPanel,
+                  }}
                   onError={(e) => (e.currentTarget.style.display = 'none')}
                 />
               )}
             </div>
-          )
-          : null
+          ) : null;
 
-        const protocolPercent = calculatePercentage(protocolTotal, getTotalPortfolioValue())
-        const totalRewardsValue = liquidityRewardsValue + lendingRewardsValue + stakingRewardsValue
+        const protocolPercent = calculatePercentage(protocolTotal, getTotalPortfolioValue());
+        const totalRewardsValue = liquidityRewardsValue + lendingRewardsValue + stakingRewardsValue;
         const infoBadges = [
           liqPositions.length > 0 ? `Pools: ${Object.keys(poolsGrouped || {}).length}` : null,
           lendingPositions.length > 0 ? `Lending: ${lendingPositions.length}` : null,
-          stakingPositions.length > 0 ? `Staking: ${stakingPositions.length}` : null
-        ].filter(Boolean).join('  •  ')
+          stakingPositions.length > 0 ? `Staking: ${stakingPositions.length}` : null,
+        ]
+          .filter(Boolean)
+          .join('  •  ');
         const optionsMenu = (
           <div style={{ padding: '6px 0' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13 }}>
-              <input type="checkbox" checked={showLendingDefiTokens} onChange={(e) => setShowLendingDefiTokens(e.target.checked)} />
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 12px',
+                cursor: 'pointer',
+                fontSize: 13,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showLendingDefiTokens}
+                onChange={(e) => setShowLendingDefiTokens(e.target.checked)}
+              />
               Show internal lending tokens
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13 }}>
-              <input type="checkbox" checked={showStakingDefiTokens} onChange={(e) => setShowStakingDefiTokens(e.target.checked)} />
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 12px',
+                cursor: 'pointer',
+                fontSize: 13,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showStakingDefiTokens}
+                onChange={(e) => setShowStakingDefiTokens(e.target.checked)}
+              />
               Show internal staking tokens
             </label>
           </div>
-        )
+        );
         // Decide layout AFTER we know which table(s) will render
-        const hasPools = !!(poolsGrouped && Object.keys(poolsGrouped).length > 0)
-        const hasLending = !!(lendingGroup && (lendingGroup.supplied.length > 0 || lendingGroup.borrowed.length > 0 || lendingGroup.rewards.length > 0))
-        const hasStaking = !!(stakingGroup && (stakingGroup.staked.length > 0 || stakingGroup.rewards.length > 0))
+        const hasPools = !!(poolsGrouped && Object.keys(poolsGrouped).length > 0);
+        const hasLending = !!(
+          lendingGroup &&
+          (lendingGroup.supplied.length > 0 ||
+            lendingGroup.borrowed.length > 0 ||
+            lendingGroup.rewards.length > 0)
+        );
+        const hasStaking = !!(
+          stakingGroup &&
+          (stakingGroup.staked.length > 0 || stakingGroup.rewards.length > 0)
+        );
         // Pools: 5 cols (Pool|Range|Amount|Rewards|Value), Lending/Staking: 3 cols ([2,1,1])
-        const metricsRatio = hasPools ? [2,1,1,1,1] : [2,1,1]
+        const metricsRatio = hasPools ? [2, 1, 1, 1, 1] : [2, 1, 1];
 
         // Summary row schema mirrors the visible table for pools
         const poolSummaryColumns = hasPools
           ? [
               { key: 'pool', label: 'Pool', align: 'left', width: '33.333%' },
-              ...(!poolsHideRange ? [{ key: 'range', label: 'Range', align: 'center', width: '16.667%' }] : []),
-              ...(!poolsHideAmount ? [{ key: 'amount', label: 'Amount', align: 'right', width: '16.667%' }] : []),
-              ...(!poolsHideRewards ? [{ key: 'rewards', label: 'Rewards', align: 'right', width: '16.667%' }] : []),
-              { key: 'value', label: 'Value', align: 'right', width: '16.667%' }
+              ...(!poolsHideRange
+                ? [{ key: 'range', label: 'Range', align: 'center', width: '16.667%' }]
+                : []),
+              ...(!poolsHideAmount
+                ? [{ key: 'amount', label: 'Amount', align: 'right', width: '16.667%' }]
+                : []),
+              ...(!poolsHideRewards
+                ? [{ key: 'rewards', label: 'Rewards', align: 'right', width: '16.667%' }]
+                : []),
+              { key: 'value', label: 'Value', align: 'right', width: '16.667%' },
             ]
-          : null
+          : null;
         const renderPoolSummaryCell = (col) => {
           if (col.key === 'pool') {
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ border: `1px solid ${theme.border}`, padding: '2px 6px', borderRadius: 6, fontSize: 12 }}>{protocolPercent}</span>
+                <span
+                  style={{
+                    border: `1px solid ${theme.border}`,
+                    padding: '2px 6px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                >
+                  {protocolPercent}
+                </span>
                 {infoBadges && (
-                  <span style={{ border: `1px solid ${theme.border}`, padding: '2px 6px', borderRadius: 6, fontSize: 12 }}>{infoBadges}</span>
+                  <span
+                    style={{
+                      border: `1px solid ${theme.border}`,
+                      padding: '2px 6px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                    }}
+                  >
+                    {infoBadges}
+                  </span>
                 )}
               </div>
-            )
+            );
           }
           if (col.key === 'rewards') {
-            return totalRewardsValue > 0 ? maskValue(formatPrice(totalRewardsValue)) : null
+            return totalRewardsValue > 0 ? maskValue(formatPrice(totalRewardsValue)) : null;
           }
           if (col.key === 'value') {
-            return maskValue(formatPrice(protocolTotal))
+            return maskValue(formatPrice(protocolTotal));
           }
-          return null
-        }
+          return null;
+        };
 
         // Lending/Staking summary (no Rewards column): [2,1,1]
-        const lendingSummaryColumns = (!hasPools && (hasLending || hasStaking))
-          ? [
-              { key: 'title', label: 'Title', align: 'left', width: '66.667%' },
-              { key: 'amount', label: 'Amount', align: 'right', width: '16.667%' },
-              { key: 'value', label: 'Value', align: 'right', width: '16.667%' }
-            ]
-          : null
+        const lendingSummaryColumns =
+          !hasPools && (hasLending || hasStaking)
+            ? [
+                { key: 'title', label: 'Title', align: 'left', width: '66.667%' },
+                { key: 'amount', label: 'Amount', align: 'right', width: '16.667%' },
+                { key: 'value', label: 'Value', align: 'right', width: '16.667%' },
+              ]
+            : null;
         const renderLendingSummaryCell = (col) => {
           if (col.key === 'title') {
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ border: `1px solid ${theme.border}`, padding: '2px 6px', borderRadius: 6, fontSize: 12 }}>{protocolPercent}</span>
+                <span
+                  style={{
+                    border: `1px solid ${theme.border}`,
+                    padding: '2px 6px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                >
+                  {protocolPercent}
+                </span>
                 {infoBadges && (
-                  <span style={{ border: `1px solid ${theme.border}`, padding: '2px 6px', borderRadius: 6, fontSize: 12 }}>{infoBadges}</span>
+                  <span
+                    style={{
+                      border: `1px solid ${theme.border}`,
+                      padding: '2px 6px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                    }}
+                  >
+                    {infoBadges}
+                  </span>
                 )}
               </div>
-            )
+            );
           }
           if (col.key === 'value') {
-            return maskValue(formatPrice(protocolTotal))
+            return maskValue(formatPrice(protocolTotal));
           }
-          return null
-        }
+          return null;
+        };
+
+        // UI display adjustment: hide chain suffix for Uniswap V3 groups (e.g. "Uniswap V3 (Base)" -> "Uniswap V3")
+        const displayTitle = (() => {
+          const n = protocolGroup.protocol.name || '';
+          if (/^Uniswap V3 \(/i.test(n)) return 'Uniswap V3';
+          return n;
+        })();
 
         return (
           <SectionTable
             key={protocolGroup.protocol.name}
             icon={icon}
-            title={protocolGroup.protocol.name}
+            title={displayTitle}
             rightPercent={protocolPercent}
             rightValue={maskValue(formatPrice(protocolTotal))}
             rewardsValue={totalRewardsValue > 0 ? maskValue(formatPrice(totalRewardsValue)) : null}
             transparentBody={true}
-            metricsRatio={hideHeaderRewards ? [2,1,1] : [2,1,1,1]}
+            metricsRatio={hideHeaderRewards ? [2, 1, 1] : [2, 1, 1, 1]}
             summaryColumns={null}
             renderSummaryCell={undefined}
-            isExpanded={protocolExpansions[protocolGroup.protocol.name] !== undefined ? protocolExpansions[protocolGroup.protocol.name] : true}
+            isExpanded={
+              protocolExpansions[protocolGroup.protocol.name] !== undefined
+                ? protocolExpansions[protocolGroup.protocol.name]
+                : true
+            }
             onToggle={() => toggleProtocolExpansion(protocolGroup.protocol.name)}
             infoBadges={infoBadges}
             optionsMenu={optionsMenu}
@@ -352,27 +507,37 @@ const ProtocolsSection = ({
                 {poolsGrouped && Object.keys(poolsGrouped).length > 0 && (
                   <PoolTables pools={poolsGrouped} />
                 )}
-                {lendingGroup && (lendingGroup.supplied.length > 0 || lendingGroup.borrowed.length > 0 || lendingGroup.rewards.length > 0) && (
-                  <LendingTables supplied={lendingGroup.supplied} borrowed={lendingGroup.borrowed} rewards={lendingGroup.rewards} />
-                )}
-                {stakingGroup && (stakingGroup.staked.length > 0 || stakingGroup.rewards.length > 0) && (
-                  <StakingTables staked={stakingGroup.staked} rewards={stakingGroup.rewards} />
-                )}
+                {lendingGroup &&
+                  (lendingGroup.supplied.length > 0 ||
+                    lendingGroup.borrowed.length > 0 ||
+                    lendingGroup.rewards.length > 0) && (
+                    <LendingTables
+                      supplied={lendingGroup.supplied}
+                      borrowed={lendingGroup.borrowed}
+                      rewards={lendingGroup.rewards}
+                    />
+                  )}
+                {stakingGroup &&
+                  (stakingGroup.staked.length > 0 || stakingGroup.rewards.length > 0) && (
+                    <StakingTables staked={stakingGroup.staked} rewards={stakingGroup.rewards} />
+                  )}
                 {tables.length > 0 && (
                   <ProtocolTables
                     icon={null}
                     title={null}
                     rightValue={null}
-                    tables={tables.filter(t => !['Supplied','Borrowed','Rewards'].includes(t.subtitle))}
+                    tables={tables.filter(
+                      (t) => !['Supplied', 'Borrowed', 'Rewards'].includes(t.subtitle)
+                    )}
                   />
                 )}
               </>
             }
           />
-        )
+        );
       })}
     </div>
-  )
-}
+  );
+};
 
-export default ProtocolsSection
+export default ProtocolsSection;

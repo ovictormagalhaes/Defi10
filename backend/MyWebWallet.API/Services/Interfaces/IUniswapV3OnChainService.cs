@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Json.Serialization;
 using System.Collections.Generic;
 using MyWebWallet.API.Services.Models; // Added for UniswapV3GetActivePoolsResponse
+using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services.Interfaces
 {
@@ -26,6 +27,8 @@ namespace MyWebWallet.API.Services.Interfaces
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress);
         // Overload with filter for only open positions
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress, bool onlyOpenPositions);
+        // Chain-aware overload for multi-chain support (Base, Arbitrum)
+        Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress, bool onlyOpenPositions, ChainEnum chain);
     }
 
     /// <summary>

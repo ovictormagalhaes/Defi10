@@ -19,16 +19,9 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
     public string ProtocolName => "UniswapV3";
     public string GetProtocolName() => ProtocolName;
 
-    public bool SupportsChain(ChainEnum chain)
-    {
-        return GetSupportedChains().Contains(chain);
-    }
+    public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
 
-    public IEnumerable<ChainEnum> GetSupportedChains()
-    {
-        // Uniswap V3 is currently only supported on Base in this implementation
-        return new[] { ChainEnum.Base };
-    }
+    public IEnumerable<ChainEnum> GetSupportedChains() => [ChainEnum.Base, ChainEnum.Arbitrum];
 
     public async Task<List<WalletItem>> MapAsync(UniswapV3GetActivePoolsResponse response, ChainEnum chain)
     {
@@ -42,23 +35,22 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
 
         foreach (var position in response.Data.Positions)
         {
-            await Task.Delay(1000); // Rate limiting
-
-            var walletItem = await ProcessPositionAsync(position, chain, nativePriceUSD);
-            if (walletItem != null)
-                walletItems.Add(walletItem);
+            var item = await ProcessPositionAsync(position, chain, nativePriceUSD);
+            if (item != null) walletItems.Add(item);
         }
 
         return walletItems;
     }
 
-    private async Task<WalletItem?> ProcessPositionAsync(UniswapV3Position position, ChainEnum chain, decimal nativePriceUSD)
+    private Task<WalletItem?> ProcessPositionAsync(UniswapV3Position position, ChainEnum chain, decimal nativePriceUSD)
     {
         try
         {
+            // Parse decimals
             int.TryParse(position.Token0.Decimals, NumberStyles.Integer, CultureInfo.InvariantCulture, out var token0Decimals);
             int.TryParse(position.Token1.Decimals, NumberStyles.Integer, CultureInfo.InvariantCulture, out var token1Decimals);
 
+            // Amounts supplied / withdrawn
             decimal.TryParse(position.DepositedToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var depositedToken0);
             decimal.TryParse(position.WithdrawnToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var withdrawnToken0);
             decimal.TryParse(position.DepositedToken1, NumberStyles.Float, CultureInfo.InvariantCulture, out var depositedToken1);
@@ -67,54 +59,30 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             var currentSupplyToken0 = depositedToken0 - withdrawnToken0;
             var currentSupplyToken1 = depositedToken1 - withdrawnToken1;
 
+            // Fees owed already provided (tokens owed / collected) – treat as rewards
+            decimal.TryParse(position.CollectedFeesToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var feesToken0);
+            decimal.TryParse(position.CollectedFeesToken1, NumberStyles.Float, CultureInfo.InvariantCulture, out var feesToken1);
+
+            // Derived native (token per native) -> price in native; multiply by native USD
             decimal.TryParse(position.Token0.DerivedNative, NumberStyles.Float, CultureInfo.InvariantCulture, out var token0DerivedNative);
             decimal.TryParse(position.Token1.DerivedNative, NumberStyles.Float, CultureInfo.InvariantCulture, out var token1DerivedNative);
-
             var token0PriceUSD = nativePriceUSD * token0DerivedNative;
             var token1PriceUSD = nativePriceUSD * token1DerivedNative;
 
             var positionToken0ValueUSD = currentSupplyToken0 * token0PriceUSD;
             var positionToken1ValueUSD = currentSupplyToken1 * token1PriceUSD;
 
-            if (!BigInteger.TryParse(position.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tokenId)) return null;
+            // Range info
+            decimal? lower = TryParseDecimal(position.MinPriceToken1PerToken0);
+            decimal? upper = TryParseDecimal(position.MaxPriceToken1PerToken0);
+            decimal? current = TryParseDecimal(position.CurrentPriceToken1PerToken0);
+            bool? inRange = position.RangeStatus?.Equals("in-range", StringComparison.OrdinalIgnoreCase);
 
-            // Execute blockchain calls in parallel using Task.WhenAll
-            var chainInformationTask = _uniswapV3OnChainService.GetPositionAsync(tokenId);
-            var poolFeeGrowthTask = _uniswapV3OnChainService.GetPoolFeeGrowthAsync(position.Pool.Id);
-            var currentTickTask = _uniswapV3OnChainService.GetCurrentTickAsync(position.Pool.Id);
-            var tickRangeInfoTask = _uniswapV3OnChainService.GetTickRangeInfoAsync(
-                position.Pool.Id, (int)position.TickLower, (int)position.TickUpper);
-
-            await Task.WhenAll(chainInformationTask, poolFeeGrowthTask, currentTickTask, tickRangeInfoTask);
-
-            var chainInformation = await chainInformationTask;
-            var (feeGrowthGlobal0X128, feeGrowthGlobal1X128) = await poolFeeGrowthTask;
-            var currentTick = await currentTickTask;
-            var (lowerTickInfo, upperTickInfo) = await tickRangeInfoTask;
-
-            var uncollectedFees = new UncollectedFees().CalculateUncollectedFees(
-                chainInformation,
-                feeGrowthGlobal0X128,
-                feeGrowthGlobal1X128,
-                token0Decimals,
-                token1Decimals,
-                currentTick,
-                lowerTickInfo,
-                upperTickInfo);
-
-            // On-chain extras into AdditionalData
             int? tickSpacing = null; if (int.TryParse(position.Pool?.TickSpacing, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ts)) tickSpacing = ts;
             long? createdAt = null; if (long.TryParse(position.Pool?.CreatedAtUnix, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ca)) createdAt = ca;
             var sqrtPriceX96 = string.IsNullOrEmpty(position.Pool?.SqrtPriceX96) ? null : position.Pool!.SqrtPriceX96;
 
-            // Range values
-            decimal? lower = null, upper = null, current = null; bool? inRange = null;
-            if (decimal.TryParse(position.MinPriceToken1PerToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var minP)) lower = minP;
-            if (decimal.TryParse(position.MaxPriceToken1PerToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var maxP)) upper = maxP;
-            if (decimal.TryParse(position.CurrentPriceToken1PerToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var curP)) current = curP;
-            if (!string.IsNullOrEmpty(position.RangeStatus)) inRange = position.RangeStatus.Equals("in-range", StringComparison.OrdinalIgnoreCase);
-
-            return new WalletItem
+            return Task.FromResult<WalletItem?>(new WalletItem
             {
                 Type = WalletItemType.LiquidityPool,
                 Protocol = GetProtocol(chain),
@@ -165,10 +133,10 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                             Financials = new TokenFinancials
                             {
                                 DecimalPlaces = token0Decimals,
-                                Amount = uncollectedFees.Amount0,
-                                BalanceFormatted = uncollectedFees.Amount0,
+                                Amount = feesToken0 * (decimal)Math.Pow(10, token0Decimals),
+                                BalanceFormatted = feesToken0,
                                 Price = token0PriceUSD,
-                                TotalPrice = uncollectedFees.Amount0 * token0PriceUSD
+                                TotalPrice = feesToken0 * token0PriceUSD
                             }
                         },
                         new Token
@@ -181,10 +149,10 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                             Financials = new TokenFinancials
                             {
                                 DecimalPlaces = token1Decimals,
-                                Amount = uncollectedFees.Amount1,
-                                BalanceFormatted = uncollectedFees.Amount1,
+                                Amount = feesToken1 * (decimal)Math.Pow(10, token1Decimals),
+                                BalanceFormatted = feesToken1,
                                 Price = token1PriceUSD,
-                                TotalPrice = uncollectedFees.Amount1 * token1PriceUSD
+                                TotalPrice = feesToken1 * token1PriceUSD
                             }
                         }
                     }
@@ -202,13 +170,18 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                         InRange = inRange
                     }
                 }
-            };
+            });
         }
         catch (Exception ex)
         {
             Console.WriteLine($"ERROR: UniswapV3Mapper: Failed to process position {position.Id}: {ex.Message}");
-            return null;
+            return Task.FromResult<WalletItem?>(null);
         }
+    }
+
+    private static decimal? TryParseDecimal(string? s)
+    {
+        if (decimal.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v)) return v; return null;
     }
 
     private static Protocol GetProtocol(ChainEnum chain) => new()

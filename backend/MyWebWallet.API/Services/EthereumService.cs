@@ -23,6 +23,8 @@ public class EthereumService : IBlockchainService
 
     public string NetworkName => "Ethereum";
 
+    private readonly string _instanceId = Guid.NewGuid().ToString("N");
+
     public EthereumService(
         IMoralisService moralisService,
         IConfiguration configuration,
@@ -37,6 +39,7 @@ public class EthereumService : IBlockchainService
         _uniswapV3Service = uniswapV3Service; // intentionally unused (subgraph disabled)
         _uniswapV3OnChainService = uniswapV3OnChainService;
         _mapperFactory = mapperFactory;
+        Console.WriteLine($"DI: EthereumService instance created id={_instanceId} hash={GetHashCode()} scope=Scoped");
     }
 
     public bool IsValidAddress(string account)
@@ -60,7 +63,7 @@ public class EthereumService : IBlockchainService
         {
             var items = new List<WalletItem>();
 
-            Console.WriteLine($"EthereumService: Starting wallet data fetch for account: {account} on chain: {chain}");
+            Console.WriteLine($"EthereumService({_instanceId}): Starting wallet data fetch account={account} chain={chain} hash={GetHashCode()}");
 
             // Validate chain support before proceeding
             ValidateChainSupport(chain);
@@ -81,11 +84,11 @@ public class EthereumService : IBlockchainService
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"WARNING: EthereumService: Mapping task failed: {ex.Message}");
+                    Console.WriteLine($"WARNING: EthereumService({_instanceId}): Mapping task failed: {ex.Message}");
                 }
             }
 
-            Console.WriteLine($"SUCCESS: EthereumService: All operations completed. Total items: {items.Count}");
+            Console.WriteLine($"SUCCESS: EthereumService({_instanceId}): Completed account={account} chain={chain} totalItems={items.Count}");
 
             return new WalletResponse
             {
@@ -97,7 +100,7 @@ public class EthereumService : IBlockchainService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: Error fetching wallet data from {chain} chain: {ex.Message}");
+            Console.WriteLine($"ERROR: EthereumService({_instanceId}): Error fetching wallet data chain={chain} ex={ex.Message}");
             throw;
         }
     }
@@ -110,16 +113,13 @@ public class EthereumService : IBlockchainService
     }
 
     private async Task<(
-        UniswapV3GetActivePoolsResponse? Uniswap,
         UniswapV3GetActivePoolsResponse? UniswapOnChain,
         MoralisGetERC20TokenResponse? Tokens,
         AaveGetUserSuppliesResponse? AaveSupplies,
         AaveGetUserBorrowsResponse? AaveBorrows
     )> FetchAllDataAsync(string account, ChainEnum chain)
     {
-        // Subgraph disabled: keep a placeholder null task
-        var uniswapTask = Task.FromResult<UniswapV3GetActivePoolsResponse?>(null);
-        Console.WriteLine("INFO: EthereumService: UniswapV3 (subgraph) disabled. Using on-chain only.");
+        Console.WriteLine($"TRACE: EthereumService({_instanceId}): FetchAllDataAsync start chain={chain}");
 
         var tokensTask = SafeExecuteAsync(() =>
             _mapperFactory.CreateMoralisTokenMapper().SupportsChain(chain)
@@ -139,18 +139,28 @@ public class EthereumService : IBlockchainService
                 : Task.FromResult<AaveGetUserBorrowsResponse?>(null),
             "Aave Borrows");
 
-        // Only open pools/positions option (true to hide closed positions)
         var onlyOpen = true;
+        var uniswapSupported = _mapperFactory.CreateUniswapV3Mapper().SupportsChain(chain);
+        if (uniswapSupported)
+        {
+            Console.WriteLine($"TRACE: EthereumService({_instanceId}): Scheduling Uniswap On-Chain fetch chain={chain} owner={account}");
+        }
+        else
+        {
+            Console.WriteLine($"TRACE: EthereumService({_instanceId}): Uniswap not supported for chain={chain}");
+        }
 
-        // On-chain Uniswap directly from owner as parallel task
         var uniswapOnChainTask = SafeExecuteAsync(() =>
-            _uniswapV3OnChainService.GetActivePoolsOnChainAsync(account, onlyOpen),
+            uniswapSupported
+                ? _uniswapV3OnChainService.GetActivePoolsOnChainAsync(account, onlyOpen, chain)
+                : Task.FromResult<UniswapV3GetActivePoolsResponse?>(null),
             "Uniswap On-Chain");
 
-        await Task.WhenAll(uniswapTask, tokensTask, aaveSuppliesTask, aaveBorrowsTask, uniswapOnChainTask);
+        await Task.WhenAll(tokensTask, aaveSuppliesTask, aaveBorrowsTask, uniswapOnChainTask);
+
+        Console.WriteLine($"TRACE: EthereumService({_instanceId}): FetchAllDataAsync end chain={chain}");
 
         return (
-            await uniswapTask,
             await uniswapOnChainTask,
             await tokensTask,
             await aaveSuppliesTask,
@@ -159,20 +169,18 @@ public class EthereumService : IBlockchainService
     }
 
     private async Task<List<Task<List<WalletItem>>>> MapAllDataAsync(
-        (UniswapV3GetActivePoolsResponse? Uniswap,
-         UniswapV3GetActivePoolsResponse? UniswapOnChain,
+        (UniswapV3GetActivePoolsResponse? UniswapOnChain,
          MoralisGetERC20TokenResponse? Tokens,
          AaveGetUserSuppliesResponse? AaveSupplies,
          AaveGetUserBorrowsResponse? AaveBorrows) data,
         ChainEnum chain)
     {
+        Console.WriteLine($"TRACE: EthereumService({_instanceId}): MapAllDataAsync chain={chain}");
         var mappingTasks = new List<Task<List<WalletItem>>>();
 
-        // Subgraph mapping removed (disabled)
-
-        // Map on-chain Uniswap positions if data available and chain supported
         if (data.UniswapOnChain != null)
         {
+            Console.WriteLine($"TRACE: EthereumService({_instanceId}): Mapping Uniswap positions count={data.UniswapOnChain.Data.Positions.Count} chain={chain}");
             var mapper = _mapperFactory.CreateUniswapV3Mapper();
             if (mapper.SupportsChain(chain))
             {
@@ -180,36 +188,21 @@ public class EthereumService : IBlockchainService
             }
         }
 
-        // Map Moralis tokens if data available and chain supported
         if (data.Tokens?.Result != null)
         {
             var mapper = _mapperFactory.CreateMoralisTokenMapper();
-            if (mapper.SupportsChain(chain))
-            {
-                mappingTasks.Add(mapper.MapAsync(data.Tokens.Result, chain));
-            }
+            if (mapper.SupportsChain(chain)) mappingTasks.Add(mapper.MapAsync(data.Tokens.Result, chain));
         }
-
-        // Map Aave supplies if data available and chain supported
         if (data.AaveSupplies != null)
         {
             var mapper = _mapperFactory.CreateAaveSuppliesMapper();
-            if (mapper.SupportsChain(chain))
-            {
-                mappingTasks.Add(mapper.MapAsync(data.AaveSupplies, chain));
-            }
+            if (mapper.SupportsChain(chain)) mappingTasks.Add(mapper.MapAsync(data.AaveSupplies, chain));
         }
-
-        // Map Aave borrows if data available and chain supported
         if (data.AaveBorrows != null)
         {
             var mapper = _mapperFactory.CreateAaveBorrowsMapper();
-            if (mapper.SupportsChain(chain))
-            {
-                mappingTasks.Add(mapper.MapAsync(data.AaveBorrows, chain));
-            }
+            if (mapper.SupportsChain(chain)) mappingTasks.Add(mapper.MapAsync(data.AaveBorrows, chain));
         }
-
         return mappingTasks;
     }
 
@@ -219,13 +212,13 @@ public class EthereumService : IBlockchainService
         {
             var result = await operation();
             Console.WriteLine(result != null
-                ? $"SUCCESS: EthereumService: {operationName} data fetched successfully"
-                : $"INFO: EthereumService: {operationName} skipped (chain not supported)");
+                ? $"SUCCESS: EthereumService({_instanceId}): {operationName} data fetched successfully"
+                : $"INFO: EthereumService({_instanceId}): {operationName} skipped (chain not supported)");
             return result;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"WARNING: EthereumService: {operationName} data fetch failed, continuing without it: {ex.Message}");
+            Console.WriteLine($"WARNING: EthereumService({_instanceId}): {operationName} data fetch failed: {ex.Message}");
             return default;
         }
     }

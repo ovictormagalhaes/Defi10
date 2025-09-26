@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react'
+import React, { createContext, useContext } from 'react';
 
 // Context para mascarar valores financeiros de forma global
 export const MaskValuesContext = createContext({
@@ -6,15 +6,13 @@ export const MaskValuesContext = createContext({
   // função de passagem; será substituída pelo App
   maskValue: (v) => v,
   toggleMaskValues: () => {},
-  setMaskValues: () => {}
-})
+  setMaskValues: () => {},
+});
 
 export const MaskValuesProvider = ({ value, children }) => (
-  <MaskValuesContext.Provider value={value}>
-    {children}
-  </MaskValuesContext.Provider>
-)
+  <MaskValuesContext.Provider value={value}>{children}</MaskValuesContext.Provider>
+);
 
-export const useMaskValues = () => useContext(MaskValuesContext)
+export const useMaskValues = () => useContext(MaskValuesContext);
 
-export default MaskValuesContext
+export default MaskValuesContext;

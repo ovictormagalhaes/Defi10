@@ -16,7 +16,7 @@ public class MoralisTokenMapper : IWalletItemMapper<IEnumerable<TokenDetail>>
 
     public IEnumerable<ChainEnum> GetSupportedChains()
     {
-        return new[] { ChainEnum.Base, ChainEnum.BNB };
+        return [ChainEnum.Base, ChainEnum.BNB, ChainEnum.Arbitrum];
     }
 
     public async Task<List<WalletItem>> MapAsync(IEnumerable<TokenDetail> tokens, ChainEnum chain)

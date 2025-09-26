@@ -7,11 +7,11 @@ export const tableLayoutStyles = (theme) => ({
     width: '100%',
     borderCollapse: 'collapse',
     tableLayout: 'fixed',
-    color: theme.textPrimary
+    color: theme.textPrimary,
   },
   theadRow: {
     backgroundColor: theme.tableHeaderBg,
-    borderBottom: `2px solid ${theme.tableBorder}`
+    borderBottom: `2px solid ${theme.tableBorder}`,
   },
   thBase: {
     padding: '10px 14px',
@@ -20,7 +20,7 @@ export const tableLayoutStyles = (theme) => ({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     color: theme.textSecondary,
-    textAlign: 'left'
+    textAlign: 'left',
   },
   tdBase: {
     padding: '12px 14px',
@@ -28,22 +28,26 @@ export const tableLayoutStyles = (theme) => ({
     fontWeight: 400,
     color: theme.textPrimary,
     fontFamily: 'inherit',
-    textAlign: 'left'
+    textAlign: 'left',
   },
   row: (theme) => ({
     borderBottom: `1px solid ${theme.tableBorder}`,
-    transition: 'background 0.2s'
+    transition: 'background 0.2s',
   }),
-  rowHover: (el, theme) => { if (el) el.style.backgroundColor = theme.tableRowHoverBg },
-  rowUnhover: (el) => { if (el) el.style.backgroundColor = 'transparent' }
-})
+  rowHover: (el, theme) => {
+    if (el) el.style.backgroundColor = theme.tableRowHoverBg;
+  },
+  rowUnhover: (el) => {
+    if (el) el.style.backgroundColor = 'transparent';
+  },
+});
 
 export const panelSurface = (theme) => ({
   background: theme.tableBg,
   border: `1px solid ${theme.tableBorder}`,
   borderRadius: 10,
-  overflow: 'hidden'
-})
+  overflow: 'hidden',
+});
 
 export const headerSurface = (theme) => ({
   background: theme.tableHeaderBg,
@@ -52,5 +56,5 @@ export const headerSurface = (theme) => ({
   padding: '10px 16px',
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between'
-})
+  justifyContent: 'space-between',
+});

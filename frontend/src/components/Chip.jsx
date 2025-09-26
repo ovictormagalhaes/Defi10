@@ -1,24 +1,25 @@
-import React from 'react'
-import { useTheme } from '../context/ThemeProvider'
+import React from 'react';
+
+import { useTheme } from '../context/ThemeProvider';
 
 // Generic small badge/chip component
 // Props: variant ('default' | 'accent' | 'success' | 'danger' | 'warning' | 'muted' | 'outline'),
 // size ('sm' | 'xs'), minimal (boolean), children, title
-export default function Chip({ 
-  children, 
-  variant = 'default', 
-  size = 'xs', 
+export default function Chip({
+  children,
+  variant = 'default',
+  size = 'xs',
   minimal = false,
   title,
-  style = {}
+  style = {},
 }) {
-  const { theme } = useTheme()
+  const { theme } = useTheme();
 
   const sizes = {
     xs: { fontSize: 10, padY: 2, padX: 6, radius: 10 },
-    sm: { fontSize: 11, padY: 3, padX: 8, radius: 12 }
-  }
-  const s = sizes[size] || sizes.xs
+    sm: { fontSize: 11, padY: 3, padX: 8, radius: 12 },
+  };
+  const s = sizes[size] || sizes.xs;
 
   const palette = {
     default: { bg: theme.bgInteractive, color: theme.textSecondary, border: theme.border },
@@ -27,9 +28,9 @@ export default function Chip({
     danger: { bg: 'rgba(255,95,86,0.12)', color: theme.danger, border: theme.border },
     warning: { bg: 'rgba(217,151,56,0.15)', color: theme.warning, border: theme.border },
     muted: { bg: 'transparent', color: theme.textMuted, border: theme.border },
-    outline: { bg: 'transparent', color: theme.textSecondary, border: theme.border }
-  }
-  const p = palette[variant] || palette.default
+    outline: { bg: 'transparent', color: theme.textSecondary, border: theme.border },
+  };
+  const p = palette[variant] || palette.default;
 
   return (
     <span
@@ -49,10 +50,10 @@ export default function Chip({
         border: minimal ? 'none' : `1px solid ${p.border}`,
         whiteSpace: 'nowrap',
         userSelect: 'none',
-        ...style
+        ...style,
       }}
     >
       {children}
     </span>
-  )
+  );
 }

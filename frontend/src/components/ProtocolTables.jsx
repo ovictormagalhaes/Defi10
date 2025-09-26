@@ -1,5 +1,6 @@
-import React from 'react'
-import { useTheme } from '../context/ThemeProvider'
+import React from 'react';
+
+import { useTheme } from '../context/ThemeProvider';
 
 /**
  * ProtocolTables
@@ -16,89 +17,67 @@ import { useTheme } from '../context/ThemeProvider'
  *   }>
  */
 export default function ProtocolTables({ icon = null, title, rightValue = null, tables = [] }) {
-  const { theme } = useTheme()
-  const showHeader = Boolean(icon || title || rightValue)
+  const { theme } = useTheme();
+  const showHeader = Boolean(icon || title || rightValue);
   return (
-    <div style={{ margin: showHeader ? '12px 0' : 0 }}>
+    <div className={showHeader ? 'mt-12 mb-6' : ''}>
       {showHeader && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          backgroundColor: theme.tableHeaderBg,
-          border: `1px solid ${theme.tableBorder}`,
-          borderRadius: 10, padding: '10px 16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="protocol-header">
+          <div className="flex align-center gap-8">
             {icon}
-            <span style={{ fontWeight: 700, fontSize: 15, color: theme.textPrimary }}>{title}</span>
+            <span className="protocol-header-title text-primary">{title}</span>
           </div>
-          {rightValue !== null && (
-            <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 14, color: theme.textPrimary }}>{rightValue}</div>
-          )}
+          {rightValue !== null && <div className="protocol-header-value text-primary">{rightValue}</div>}
         </div>
       )}
       {tables.map((t, idx) => (
-        <div key={idx} style={{ backgroundColor: theme.tableBg, border: `1px solid ${theme.tableBorder}`, borderTop: 'none', borderRadius: idx === tables.length - 1 ? '0 0 10px 10px' : 0, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px' }}>
-            {t.subtitle ? (
-              <div style={{
-                fontSize: 12,
-                color: theme.textMuted,
-                fontWeight: 400,
-                marginBottom: 6,
-                textTransform: 'uppercase'
-              }}>{t.subtitle}</div>
-            ) : null}
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div key={idx} className="protocol-table-container">
+          <div className="p-12 px-16">
+            {t.subtitle ? <div className="subtitle">{t.subtitle}</div> : null}
+            <table className="table">
               <thead>
-                <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `2px solid ${theme.tableBorder}` }}>
-                  {t.columns.map((col) => (
-                    <th key={col.key}
-                        style={{
-                          padding: '10px 14px',
-                          textAlign: col.align || 'left',
-                          fontWeight: 500,
-                          color: theme.textSecondary,
-                          fontSize: 11,
-                          letterSpacing: '0.4px',
-                          width: col.width
-                        }}>
-                      {col.label}
-                    </th>
-                  ))}
+                <tr className="thead-row">
+                  {t.columns.map((col) => {
+                    const align = col.align || 'left';
+                    const alignClass = align === 'right' ? 'th-right' : align === 'center' ? 'th-center' : 'th-left';
+                    return (
+                      <th
+                        key={col.key}
+                        className={`th-head ${alignClass}`}
+                        style={{ width: col.width }}
+                      >
+                        {col.label}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {(!t.rows || t.rows.length === 0) ? (
+                {!t.rows || t.rows.length === 0 ? (
                   <tr>
-                    <td colSpan={t.columns.length} style={{ padding: '14px', textAlign: 'center', color: theme.textMuted, fontSize: 12 }}>
+                    <td colSpan={t.columns.length} className="td text-center text-muted fs-11">
                       No data
                     </td>
                   </tr>
-                ) : t.rows.map((row, rIdx) => (
-                  <tr key={t.getKey ? t.getKey(row, rIdx) : rIdx}
-                      style={{ borderBottom: rIdx === t.rows.length - 1 ? 'none' : `1px solid ${theme.tableBorder}`, transition: 'background 0.2s' }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.tableRowHoverBg}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    {t.columns.map((col) => (
-                      <td key={col.key}
-                          style={{
-                            padding: '12px 14px',
-                            textAlign: col.align || 'left',
-                            fontFamily: 'inherit',
-                            fontWeight: 400,
-                            fontSize: 13,
-                            color: theme.textPrimary
-                          }}>
-                        {row[col.key]}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                ) : (
+                  t.rows.map((row, rIdx) => (
+                    <tr
+                      key={t.getKey ? t.getKey(row, rIdx) : rIdx}
+                      className={`table-row table-row-hover ${rIdx === t.rows.length - 1 ? '' : 'tbody-divider'}`}
+                    >
+                      {t.columns.map((col) => (
+                        <td key={col.key} className="td text-primary" style={{ textAlign: col.align || 'left' }}>
+                          {row[col.key]}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
       ))}
     </div>
-  )
+  );
 }

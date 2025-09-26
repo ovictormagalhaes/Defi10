@@ -4,20 +4,20 @@ export const darkMint = {
   mode: 'dark',
   // NEW DARK THEME (user spec)
   // core backgrounds
-  bgApp: '#15171f',          // main app background
-  bgAppAlt: '#191b24',       // slight elevation / alt section
-  bgPanel: '#22242b',        // cards / tables
-  bgPanelAlt: '#272a33',     // hover / elevated card
+  bgApp: '#15171f', // main app background
+  bgAppAlt: '#191b24', // slight elevation / alt section
+  bgPanel: '#22242b', // cards / tables
+  bgPanelAlt: '#272a33', // hover / elevated card
   bgInteractive: 'rgba(255,255,255,0.06)',
   bgInteractiveHover: 'rgba(255,255,255,0.1)',
   bgAccentSoft: 'rgba(69,183,115,0.18)', // subtle tint of highlight
 
   // header & table surfaces
-  headerBg: '#22242b',       // unify header with panels
-  headerBgAlt: '#272a33',    // hover / active state
+  headerBg: '#22242b', // unify header with panels
+  headerBgAlt: '#272a33', // hover / active state
   tableBg: '#22242b',
-  tableHeaderBg: '#262830',  // slight differentiation for header row
-  tableBorder: '#2a2d35',    // subdued border
+  tableHeaderBg: '#262830', // slight differentiation for header row
+  tableBorder: '#2a2d35', // subdued border
   tableStripeBg: '#24272f',
   tableRowHoverBg: '#2b2e37',
 
@@ -27,14 +27,14 @@ export const darkMint = {
   divider: '#30333b',
 
   // text
-  textPrimary: '#f4f4f4',          // main text
-  textSecondary: '#a2a9b5',        // button / secondary text
-  textMuted: '#6d757f',            // muted / placeholders
+  textPrimary: '#f4f4f4', // main text
+  textSecondary: '#a2a9b5', // button / secondary text
+  textMuted: '#6d757f', // muted / placeholders
   textOnAccent: '#0f1712',
 
   // brand / primary actions (using "highlighted text" color)
   primary: '#45b773',
-  primaryHover: '#54c381',  // lighter
+  primaryHover: '#54c381', // lighter
   primaryActive: '#379f62', // pressed / darker
   primarySubtle: '#1c2d24', // subtle background tint
 
@@ -54,8 +54,8 @@ export const darkMint = {
   shadowHover: '0 4px 10px -2px rgba(0,0,0,0.55), 0 6px 22px -6px rgba(0,0,0,0.6)',
 
   // focus / outlines
-  focusRing: '0 0 0 2px rgba(69,183,115,0.55)'
-}
+  focusRing: '0 0 0 2px rgba(69,183,115,0.55)',
+};
 
 export const lightMint = {
   mode: 'light',
@@ -107,14 +107,14 @@ export const lightMint = {
   shadowLight: '0 1px 2px rgba(0,0,0,0.05), 0 3px 6px rgba(0,0,0,0.08)',
   shadowHover: '0 4px 10px -2px rgba(0,0,0,0.14), 0 8px 24px -6px rgba(0,0,0,0.18)',
 
-  focusRing: '0 0 0 2px rgba(45,152,115,0.45)'
-}
+  focusRing: '0 0 0 2px rgba(45,152,115,0.45)',
+};
 
 // Legacy default export retains original keys for older components still importing `colors`.
 // We point it to darkMint for now to maintain dark-first experience.
-const colors = { ...darkMint }
+const colors = { ...darkMint };
 
-export const THEMES = { darkMint, lightMint }
-export const getThemeByMode = (mode = 'dark') => mode === 'light' ? lightMint : darkMint
+export const THEMES = { darkMint, lightMint };
+export const getThemeByMode = (mode = 'dark') => (mode === 'light' ? lightMint : darkMint);
 
-export default colors
+export default colors;

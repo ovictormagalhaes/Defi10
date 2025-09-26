@@ -1,143 +1,242 @@
-import React from 'react'
-import CollapsibleMenu from './CollapsibleMenu'
-import { formatPrice, groupDefiByProtocol, groupTokensByPool } from '../utils/walletUtils'
-import { useMaskValues } from '../context/MaskValuesContext'
-import { useTheme } from '../context/ThemeProvider'
-import Chip from './Chip'
-import { useChainIcons } from '../context/ChainIconsProvider'
+import React from 'react';
 
-const DeFiMenu = ({ 
-  title, 
-  data, 
-  isExpanded, 
-  onToggle, 
-  protocolExpansions, 
+import { useChainIcons } from '../context/ChainIconsProvider';
+import { useMaskValues } from '../context/MaskValuesContext';
+import { formatPrice, groupDefiByProtocol, groupTokensByPool } from '../utils/walletUtils';
+
+import Chip from './Chip';
+import CollapsibleMenu from './CollapsibleMenu';
+
+const DeFiMenu = ({
+  title,
+  data,
+  isExpanded,
+  onToggle,
+  protocolExpansions,
   toggleProtocolExpansion,
   getTotalPortfolioValue,
   calculatePercentage,
-  menuType = 'default' // 'liquidity', 'lending', 'staking'
+  menuType = 'default', // 'liquidity', 'lending', 'staking'
 }) => {
-  if (!data || data.length === 0) return null
-  const { maskValue } = useMaskValues()
+  // Hooks must run before any conditional return
+  const { maskValue } = useMaskValues();
+  // Early return AFTER hooks to keep order stable
+  if (!data || data.length === 0) return null;
 
   const getMenuColumns = () => {
     switch (menuType) {
       case 'liquidity':
         return {
           pools: {
-            label: "Pools",
-            value: groupDefiByProtocol(data).reduce((total, group) => total + group.positions.length, 0),
-            flex: 1
+            label: 'Pools',
+            value: groupDefiByProtocol(data).reduce(
+              (total, group) => total + group.positions.length,
+              0
+            ),
+            flex: 1,
           },
           rewards: {
-            label: "Rewards",
-            value: maskValue(formatPrice(groupDefiByProtocol(data).reduce((total, group) => 
-              total + group.positions.reduce((sum, pos) => 
-                sum + (pos.rewards?.reduce((rewardSum, reward) => rewardSum + (reward.totalPrice || 0), 0) || 0), 0
-              ), 0
-            ))),
-            flex: 1
+            label: 'Rewards',
+            value: maskValue(
+              formatPrice(
+                groupDefiByProtocol(data).reduce(
+                  (total, group) =>
+                    total +
+                    group.positions.reduce(
+                      (sum, pos) =>
+                        sum +
+                        (pos.rewards?.reduce(
+                          (rewardSum, reward) => rewardSum + (reward.totalPrice || 0),
+                          0
+                        ) || 0),
+                      0
+                    ),
+                  0
+                )
+              )
+            ),
+            flex: 1,
           },
           balance: {
-            label: "Balance",
-            value: maskValue(formatPrice(groupDefiByProtocol(data).reduce((total, group) => 
-              total + group.positions.reduce((sum, pos) => 
-                sum + (pos.tokens?.reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-              ), 0
-            ))),
+            label: 'Balance',
+            value: maskValue(
+              formatPrice(
+                groupDefiByProtocol(data).reduce(
+                  (total, group) =>
+                    total +
+                    group.positions.reduce(
+                      (sum, pos) =>
+                        sum +
+                        (pos.tokens?.reduce(
+                          (tokenSum, token) => tokenSum + (token.totalPrice || 0),
+                          0
+                        ) || 0),
+                      0
+                    ),
+                  0
+                )
+              )
+            ),
             flex: 1,
-            highlight: true
+            highlight: true,
           },
           percentage: {
-            label: "%",
+            label: '%',
             value: (() => {
-              const totalValue = groupDefiByProtocol(data).reduce((total, group) => 
-                total + group.positions.reduce((sum, pos) => 
-                  sum + (pos.tokens?.reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-                ), 0
-              )
-              return calculatePercentage(totalValue, getTotalPortfolioValue())
+              const totalValue = groupDefiByProtocol(data).reduce(
+                (total, group) =>
+                  total +
+                  group.positions.reduce(
+                    (sum, pos) =>
+                      sum +
+                      (pos.tokens?.reduce(
+                        (tokenSum, token) => tokenSum + (token.totalPrice || 0),
+                        0
+                      ) || 0),
+                    0
+                  ),
+                0
+              );
+              return calculatePercentage(totalValue, getTotalPortfolioValue());
             })(),
-            flex: 0.8
-          }
-        }
-      
+            flex: 0.8,
+          },
+        };
+
       case 'lending':
         return {
           positions: {
-            label: "Positions",
+            label: 'Positions',
             value: groupDefiByProtocol(data).length,
-            flex: 1
+            flex: 1,
           },
           supplied: {
-            label: "Supplied",
-            value: maskValue(formatPrice(groupDefiByProtocol(data).reduce((total, group) => 
-              total + group.positions.reduce((sum, pos) => 
-                sum + (pos.tokens?.filter(token => token.type === 'supplied')
-                  .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-              ), 0
-            ))),
-            flex: 1.5
+            label: 'Supplied',
+            value: maskValue(
+              formatPrice(
+                groupDefiByProtocol(data).reduce(
+                  (total, group) =>
+                    total +
+                    group.positions.reduce(
+                      (sum, pos) =>
+                        sum +
+                        (pos.tokens
+                          ?.filter((token) => token.type === 'supplied')
+                          .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0),
+                      0
+                    ),
+                  0
+                )
+              )
+            ),
+            flex: 1.5,
           },
           borrowed: {
-            label: "Borrowed", 
-            value: maskValue(formatPrice(groupDefiByProtocol(data).reduce((total, group) => 
-              total + group.positions.reduce((sum, pos) => 
-                sum + (pos.tokens?.filter(token => token.type === 'borrowed')
-                  .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-              ), 0
-            ))),
-            flex: 1.5
+            label: 'Borrowed',
+            value: maskValue(
+              formatPrice(
+                groupDefiByProtocol(data).reduce(
+                  (total, group) =>
+                    total +
+                    group.positions.reduce(
+                      (sum, pos) =>
+                        sum +
+                        (pos.tokens
+                          ?.filter((token) => token.type === 'borrowed')
+                          .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0),
+                      0
+                    ),
+                  0
+                )
+              )
+            ),
+            flex: 1.5,
           },
           balance: {
-            label: "Net Balance",
-            value: maskValue(formatPrice(groupDefiByProtocol(data).reduce((total, group) => 
-              total + group.positions.reduce((sum, pos) => sum + (parseFloat(pos.balance) || 0), 0), 0
-            ))),
+            label: 'Net Balance',
+            value: maskValue(
+              formatPrice(
+                groupDefiByProtocol(data).reduce(
+                  (total, group) =>
+                    total +
+                    group.positions.reduce((sum, pos) => sum + (parseFloat(pos.balance) || 0), 0),
+                  0
+                )
+              )
+            ),
             flex: 2,
-            highlight: true
-          }
-        }
-      
+            highlight: true,
+          },
+        };
+
       case 'staking':
         return {
           positions: {
-            label: "Positions",
+            label: 'Positions',
             value: groupDefiByProtocol(data).length,
-            flex: 1
+            flex: 1,
           },
           staked: {
-            label: "Staked",
-            value: maskValue(formatPrice(groupDefiByProtocol(data).reduce((total, group) => 
-              total + group.positions.reduce((sum, pos) => 
-                sum + (pos.tokens?.reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-              ), 0
-            ))),
-            flex: 1.5
+            label: 'Staked',
+            value: maskValue(
+              formatPrice(
+                groupDefiByProtocol(data).reduce(
+                  (total, group) =>
+                    total +
+                    group.positions.reduce(
+                      (sum, pos) =>
+                        sum +
+                        (pos.tokens?.reduce(
+                          (tokenSum, token) => tokenSum + (token.totalPrice || 0),
+                          0
+                        ) || 0),
+                      0
+                    ),
+                  0
+                )
+              )
+            ),
+            flex: 1.5,
           },
           unclaimed: {
-            label: "Unclaimed",
-            value: maskValue(formatPrice(groupDefiByProtocol(data).reduce((total, group) => 
-              total + group.positions.reduce((sum, pos) => sum + (parseFloat(pos.totalUnclaimed) || 0), 0), 0
-            ))),
-            flex: 1.5
+            label: 'Unclaimed',
+            value: maskValue(
+              formatPrice(
+                groupDefiByProtocol(data).reduce(
+                  (total, group) =>
+                    total +
+                    group.positions.reduce(
+                      (sum, pos) => sum + (parseFloat(pos.totalUnclaimed) || 0),
+                      0
+                    ),
+                  0
+                )
+              )
+            ),
+            flex: 1.5,
           },
           balance: {
-            label: "Total Value",
-            value: maskValue(formatPrice(groupDefiByProtocol(data).reduce((total, group) => 
-              total + group.positions.reduce((sum, pos) => sum + (parseFloat(pos.balance) || 0), 0), 0
-            ))),
+            label: 'Total Value',
+            value: maskValue(
+              formatPrice(
+                groupDefiByProtocol(data).reduce(
+                  (total, group) =>
+                    total +
+                    group.positions.reduce((sum, pos) => sum + (parseFloat(pos.balance) || 0), 0),
+                  0
+                )
+              )
+            ),
             flex: 2,
-            highlight: true
-          }
-        }
-      
-      default:
-        return {}
-    }
-  }
+            highlight: true,
+          },
+        };
 
-  const { theme } = useTheme()
+      default:
+        return {};
+    }
+  };
+
   return (
     <CollapsibleMenu
       title={title}
@@ -145,7 +244,7 @@ const DeFiMenu = ({
       onToggle={onToggle}
       columns={getMenuColumns()}
     >
-      <div style={{ backgroundColor: theme.bgPanel, borderRadius: '0 0 12px 12px', overflow: 'hidden' }}>
+      <div className="defi-container">
         {groupDefiByProtocol(data).map((protocolGroup, protocolIndex) => (
           <ProtocolGroup
             key={protocolGroup.protocol.name}
@@ -159,178 +258,241 @@ const DeFiMenu = ({
         ))}
       </div>
     </CollapsibleMenu>
-  )
-}
+  );
+};
 
-const ProtocolGroup = ({ 
-  protocolGroup, 
-  protocolIndex, 
-  totalProtocols, 
-  protocolExpansions, 
-  toggleProtocolExpansion, 
-  menuType 
+const ProtocolGroup = ({
+  protocolGroup,
+  protocolIndex,
+  totalProtocols,
+  protocolExpansions,
+  toggleProtocolExpansion,
+  menuType,
 }) => {
-  const { getIcon } = useChainIcons()
-  const { theme } = useTheme()
+  const { getIcon } = useChainIcons();
+  const { maskValue } = useMaskValues();
 
   // Resolve possible chain identifier from protocol/position/tokens
   const resolveChainRaw = (obj) => {
-    if (!obj || typeof obj !== 'object') return undefined
-    const direct = obj.chainId || obj.chainID || obj.chain_id || obj.chain || obj.networkId || obj.network || obj.chainName
-    if (direct) return direct
-    const p = obj.protocol
+    if (!obj || typeof obj !== 'object') return undefined;
+    const direct =
+      obj.chainId ||
+      obj.chainID ||
+      obj.chain_id ||
+      obj.chain ||
+      obj.networkId ||
+      obj.network ||
+      obj.chainName;
+    if (direct) return direct;
+    const p = obj.protocol;
     if (p && typeof p === 'object') {
-      return p.chainId || p.chainID || p.chain || p.networkId || p.network || p.chainName
+      return p.chainId || p.chainID || p.chain || p.networkId || p.network || p.chainName;
     }
     for (const k in obj) {
-      if (!Object.prototype.hasOwnProperty.call(obj, k)) continue
+      if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
       if (/(chain|network)/i.test(k)) {
-        const v = obj[k]
-        if (v && (typeof v === 'string' || typeof v === 'number')) return v
+        const v = obj[k];
+        if (v && (typeof v === 'string' || typeof v === 'number')) return v;
       }
     }
-    return undefined
-  }
+    return undefined;
+  };
 
-  const firstPos = protocolGroup?.positions?.[0] || null
-  const basePos = firstPos && (firstPos.position || firstPos)
-  let chainRaw = resolveChainRaw(protocolGroup?.protocol) || resolveChainRaw(basePos)
+  const firstPos = protocolGroup?.positions?.[0] || null;
+  const basePos = firstPos && (firstPos.position || firstPos);
+  let chainRaw = resolveChainRaw(protocolGroup?.protocol) || resolveChainRaw(basePos);
   if (!chainRaw && basePos && Array.isArray(basePos.tokens)) {
     for (let i = 0; i < basePos.tokens.length; i++) {
-      const c = resolveChainRaw(basePos.tokens[i])
-      if (c) { chainRaw = c; break }
+      const c = resolveChainRaw(basePos.tokens[i]);
+      if (c) {
+        chainRaw = c;
+        break;
+      }
     }
   }
-  const chainIcon = chainRaw ? getIcon(chainRaw) : undefined
+  const chainIcon = chainRaw ? getIcon(chainRaw) : undefined;
   const getProtocolColumns = () => {
     switch (menuType) {
       case 'liquidity':
         return {
           pools: {
-            label: "Pools",
+            label: 'Pools',
             value: protocolGroup.positions.length,
-            flex: 1
+            flex: 1,
           },
           rewards: {
-            label: "Rewards", 
-            value: maskValue(formatPrice(protocolGroup.positions.reduce((sum, pos) => 
-              sum + (pos.rewards?.reduce((rewardSum, reward) => rewardSum + (reward.totalPrice || 0), 0) || 0), 0
-            ))),
-            flex: 1.5
+            label: 'Rewards',
+            value: maskValue(
+              formatPrice(
+                protocolGroup.positions.reduce(
+                  (sum, pos) =>
+                    sum +
+                    (pos.rewards?.reduce(
+                      (rewardSum, reward) => rewardSum + (reward.totalPrice || 0),
+                      0
+                    ) || 0),
+                  0
+                )
+              )
+            ),
+            flex: 1.5,
           },
           balance: {
-            label: "Balance",
-            value: maskValue(formatPrice(protocolGroup.positions.reduce((sum, pos) => 
-              sum + (pos.tokens?.reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-            ))),
+            label: 'Balance',
+            value: maskValue(
+              formatPrice(
+                protocolGroup.positions.reduce(
+                  (sum, pos) =>
+                    sum +
+                    (pos.tokens?.reduce(
+                      (tokenSum, token) => tokenSum + (token.totalPrice || 0),
+                      0
+                    ) || 0),
+                  0
+                )
+              )
+            ),
             flex: 2,
-            highlight: true
-          }
-        }
-      
+            highlight: true,
+          },
+        };
+
       case 'lending':
         return {
           positions: {
-            label: "Positions",
+            label: 'Positions',
             value: protocolGroup.positions.length,
-            flex: 1
+            flex: 1,
           },
           supplied: {
-            label: "Supplied",
-            value: maskValue(formatPrice(protocolGroup.positions.reduce((sum, pos) => 
-              sum + (pos.tokens?.filter(token => token.type === 'supplied')
-                .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-            ))),
-            flex: 1.5
+            label: 'Supplied',
+            value: maskValue(
+              formatPrice(
+                protocolGroup.positions.reduce(
+                  (sum, pos) =>
+                    sum +
+                    (pos.tokens
+                      ?.filter((token) => token.type === 'supplied')
+                      .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0),
+                  0
+                )
+              )
+            ),
+            flex: 1.5,
           },
           borrowed: {
-            label: "Borrowed",
-            value: maskValue(formatPrice(protocolGroup.positions.reduce((sum, pos) => 
-              sum + (pos.tokens?.filter(token => token.type === 'borrowed')
-                .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-            ))),
-            flex: 1.5
+            label: 'Borrowed',
+            value: maskValue(
+              formatPrice(
+                protocolGroup.positions.reduce(
+                  (sum, pos) =>
+                    sum +
+                    (pos.tokens
+                      ?.filter((token) => token.type === 'borrowed')
+                      .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0),
+                  0
+                )
+              )
+            ),
+            flex: 1.5,
           },
           balance: {
-            label: "Net Balance",
-            value: maskValue(formatPrice(protocolGroup.positions.reduce((sum, pos) => sum + (parseFloat(pos.balance) || 0), 0))),
+            label: 'Net Balance',
+            value: maskValue(
+              formatPrice(
+                protocolGroup.positions.reduce(
+                  (sum, pos) => sum + (parseFloat(pos.balance) || 0),
+                  0
+                )
+              )
+            ),
             flex: 2,
-            highlight: true
-          }
-        }
-      
+            highlight: true,
+          },
+        };
+
       case 'staking':
         return {
           positions: {
-            label: "Positions",
+            label: 'Positions',
             value: protocolGroup.positions.length,
-            flex: 1
+            flex: 1,
           },
           staked: {
-            label: "Staked",
-            value: maskValue(formatPrice(protocolGroup.positions.reduce((sum, pos) => 
-              sum + (pos.tokens?.reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0), 0
-            ))),
-            flex: 1.5
+            label: 'Staked',
+            value: maskValue(
+              formatPrice(
+                protocolGroup.positions.reduce(
+                  (sum, pos) =>
+                    sum +
+                    (pos.tokens?.reduce(
+                      (tokenSum, token) => tokenSum + (token.totalPrice || 0),
+                      0
+                    ) || 0),
+                  0
+                )
+              )
+            ),
+            flex: 1.5,
           },
           unclaimed: {
-            label: "Unclaimed",
-            value: maskValue(formatPrice(protocolGroup.positions.reduce((sum, pos) => sum + (parseFloat(pos.totalUnclaimed) || 0), 0))),
-            flex: 1.5
+            label: 'Unclaimed',
+            value: maskValue(
+              formatPrice(
+                protocolGroup.positions.reduce(
+                  (sum, pos) => sum + (parseFloat(pos.totalUnclaimed) || 0),
+                  0
+                )
+              )
+            ),
+            flex: 1.5,
           },
           balance: {
-            label: "Total Value",
-            value: maskValue(formatPrice(protocolGroup.positions.reduce((sum, pos) => sum + (parseFloat(pos.balance) || 0), 0))),
+            label: 'Total Value',
+            value: maskValue(
+              formatPrice(
+                protocolGroup.positions.reduce(
+                  (sum, pos) => sum + (parseFloat(pos.balance) || 0),
+                  0
+                )
+              )
+            ),
             flex: 2,
-            highlight: true
-          }
-        }
-      
+            highlight: true,
+          },
+        };
+
       default:
-        return {}
+        return {};
     }
-  }
+  };
 
   return (
-    <div style={{ 
-      borderBottom: protocolIndex < totalProtocols - 1 ? `1px solid ${theme.border}` : 'none'
-    }}>
+    <div className={protocolIndex < totalProtocols - 1 ? 'defi-group-separator' : undefined}>
       <CollapsibleMenu
         title={
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            {(protocolGroup.protocol.logoURI || protocolGroup.protocol.logo) ? (
-              <div style={{ position: 'relative', width: 20, height: 20, marginRight: 8 }}>
-                <img 
-                  src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo} 
+          <div className="defi-protocol-header flex items-center">
+            {protocolGroup.protocol.logoURI || protocolGroup.protocol.logo ? (
+              <div className="logo-stack">
+                <img
+                  src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo}
                   alt={protocolGroup.protocol.name}
-                  style={{ 
-                    width: 20, 
-                    height: 20, 
-                    borderRadius: '50%',
-                    display: 'block'
-                  }}
-                  onError={(e) => e.target.style.display = 'none'}
+                  className="token-logo block"
+                  onError={(e) => (e.target.style.display = 'none')}
                 />
                 {chainIcon && (
                   <img
                     src={chainIcon}
                     alt="chain"
-                    style={{
-                      position: 'absolute',
-                      top: -4,
-                      right: -4,
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      border: `1px solid ${theme.border}`,
-                      background: theme.bgPanel
-                    }}
-                    onError={(e) => e.currentTarget.style.display = 'none'}
+                    className="chain-overlay"
+                    onError={(e) => (e.currentTarget.style.display = 'none')}
                   />
                 )}
               </div>
             ) : null}
-            {protocolGroup.protocol.name}
+            {/^Uniswap V3 \(/i.test(protocolGroup.protocol.name)
+              ? 'Uniswap V3'
+              : protocolGroup.protocol.name}
           </div>
         }
         isExpanded={protocolExpansions[protocolGroup.protocol.name] || false}
@@ -345,199 +507,142 @@ const ProtocolGroup = ({
         )}
       </CollapsibleMenu>
     </div>
-  )
-}
+  );
+};
 
 const LiquidityPositions = ({ protocolGroup }) => {
-  const { theme } = useTheme();
   return (
-  <div style={{
-    padding: '12px 16px',
-    backgroundColor: theme.bgPanelAlt,
-    border: 'none'
-  }}>
-    {Object.entries(groupTokensByPool(protocolGroup.positions)).map(([poolName, poolData], poolIndex) => {
-      const poolKey = `pool-${protocolGroup.protocol.name}-${poolIndex}`;
-      
-      const poolTitle = (
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          {poolData.tokens.map((token, tokenIndex) => (
-            <React.Fragment key={`${poolKey}-logo-${tokenIndex}`}>
-              {token.logo && (
-                <img 
-                  src={token.logo} 
-                  alt={token.symbol}
-                  style={{ 
-                    width: 18,
-                    height: 18,
-                    marginRight: 4,
-                    borderRadius: '50%',
-                    border: `1px solid ${theme.border}`
-                  }}
-                  onError={(e) => e.target.style.display = 'none'}
-                />
-              )}
-              <span style={{ marginRight: tokenIndex < poolData.tokens.length - 1 ? 4 : 0 }}>
-                {token.symbol}
-              </span>
-              {tokenIndex < poolData.tokens.length - 1 && (
-                <span style={{ margin: '0 4px', color: theme.textMuted }}>/</span>
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      );
+    <div className="defi-protocol-wrapper">
+      {Object.entries(groupTokensByPool(protocolGroup.positions)).map(
+        ([poolName, poolData], poolIndex) => {
+          const poolKey = `pool-${protocolGroup.protocol.name}-${poolIndex}`;
 
-      return (
-        <div key={poolKey} style={{ marginBottom: '8px' }}>
-          <div style={{ 
-            fontWeight: 600,
-            marginBottom: 8,
-            color: theme.textPrimary,
-            fontSize: 13
-          }}>
-            {poolTitle}
-          </div>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-            paddingLeft: 12,
-            border: 'none'
-          }}>
-            {poolData.tokens.map((token, tokenIndex) => {
-              const correspondingReward = poolData.rewards?.find(reward => reward.symbol === token.symbol)
-              const tokenReward = correspondingReward ? correspondingReward.totalPrice || 0 : 0;
-              
-              return (
-                <TokenRow
-                  key={`${protocolGroup.protocol.name}-pool-${poolIndex}-token-${tokenIndex}`}
-                  token={token}
-                  tokenReward={tokenReward}
-                  isLast={tokenIndex === poolData.tokens.length - 1}
-                />
-              );
-            })}
-          </div>
-        </div>
-      );
-    })}
-  </div>
-)};
+          const poolTitle = (
+            <div className="flex items-center">
+              {poolData.tokens.map((token, tokenIndex) => (
+                <React.Fragment key={`${poolKey}-logo-${tokenIndex}`}>
+                  {token.logo && (
+                    <img
+                      src={token.logo}
+                      alt={token.symbol}
+                      className="pool-token-logo"
+                      onError={(e) => (e.target.style.display = 'none')}
+                    />
+                  )}
+                  <span className={tokenIndex < poolData.tokens.length - 1 ? 'mr-4' : undefined}>
+                    {token.symbol}
+                  </span>
+                  {tokenIndex < poolData.tokens.length - 1 && (
+                    <span className="token-separator">/</span>
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          );
+
+          return (
+            <div key={poolKey} className="defi-pool-wrapper">
+              <div className="defi-pool-title">
+                {poolTitle}
+              </div>
+              <div className="defi-pool-tokens">
+                {poolData.tokens.map((token, tokenIndex) => {
+                  const correspondingReward = poolData.rewards?.find(
+                    (reward) => reward.symbol === token.symbol
+                  );
+                  const tokenReward = correspondingReward ? correspondingReward.totalPrice || 0 : 0;
+
+                  return (
+                    <TokenRow
+                      key={`${protocolGroup.protocol.name}-pool-${poolIndex}-token-${tokenIndex}`}
+                      token={token}
+                      tokenReward={tokenReward}
+                      isLast={tokenIndex === poolData.tokens.length - 1}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+      )}
+    </div>
+  );
+};
 
 const StandardPositions = ({ protocolGroup, menuType }) => {
-  const { theme } = useTheme();
   return (
-  <div style={{ padding: 16, backgroundColor: theme.bgPanelAlt }}>
-    {protocolGroup.positions.map((position, positionIndex) => {
-      const positionKey = `defi-${protocolGroup.protocol.id}-${positionIndex}`;
-      
-      return (
-        <div key={positionKey} style={{ marginBottom: '12px' }}>
-          <div style={{ 
-            fontWeight: 600,
-            marginBottom: 8,
-            color: theme.textPrimary,
-            fontSize: 13
-          }}>
-            {position.name || `Position ${positionIndex + 1}`}
-            {menuType === 'staking' && position.apr && (
-              <span style={{ marginLeft: 8 }}>
-                <Chip variant="accent" size="sm">APR: {position.apr}%</Chip>
-              </span>
-            )}
+    <div className="defi-position-list">
+      {protocolGroup.positions.map((position, positionIndex) => {
+        const positionKey = `defi-${protocolGroup.protocol.id}-${positionIndex}`;
+
+        return (
+          <div key={positionKey} className="defi-position">
+            <div className="defi-position-title">
+              {position.name || `Position ${positionIndex + 1}`}
+              {menuType === 'staking' && position.apr && (
+                <span className="ml-8">
+                  <Chip variant="accent" size="sm">
+                    APR: {position.apr}%
+                  </Chip>
+                </span>
+              )}
+            </div>
+            <div className="defi-pool-tokens">
+              {position.tokens?.map((token, tokenIndex) => (
+                <TokenRow
+                  key={`${positionKey}-token-${tokenIndex}`}
+                  token={token}
+                  isLast={tokenIndex === position.tokens.length - 1}
+                  showType={menuType === 'lending'}
+                />
+              ))}
+            </div>
           </div>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            paddingLeft: 12
-          }}>
-            {position.tokens?.map((token, tokenIndex) => (
-              <TokenRow
-                key={`${positionKey}-token-${tokenIndex}`}
-                token={token}
-                isLast={tokenIndex === position.tokens.length - 1}
-                showType={menuType === 'lending'}
-              />
-            ))}
-          </div>
-        </div>
-      );
-    })}
-  </div>
-)};
+        );
+      })}
+    </div>
+  );
+};
 
 const TokenRow = ({ token, tokenReward, isLast, showType }) => {
-  const { maskValue } = useMaskValues(); const { theme } = useTheme()
+  const { maskValue } = useMaskValues();
   return (
-  <div style={{ 
-    display: 'flex', 
-    justifyContent: 'space-between', 
-    alignItems: 'center',
-    padding: '12px 16px',
-    backgroundColor: theme.tableBg,
-    borderRadius: 8,
-    marginBottom: isLast ? 0 : 6,
-    border: 'none',
-    boxShadow: 'none',
-    transition: 'background-color 0.18s'
-  }}
-  onMouseEnter={(e) => {
-    e.currentTarget.style.backgroundColor = theme.tableRowHoverBg
-  }}
-  onMouseLeave={(e) => {
-    e.currentTarget.style.backgroundColor = theme.tableBg
-  }}
->
-  <div style={{ display: 'flex', alignItems: 'center' }}>
-    {token.logo && (
-      <img 
-        src={token.logo} 
-        alt={token.symbol}
-        style={{ 
-          width: 20,
-          height: 20, 
-          marginRight: 10,
-          borderRadius: '50%',
-          border: `1px solid ${theme.border}`
-        }}
-        onError={(e) => e.target.style.display = 'none'}
-      />
-    )}
-    <span style={{ 
-      fontWeight: 600,
-      fontSize: 14,
-      color: theme.textPrimary
-    }}>{token.symbol}</span>
-    {showType && token.type && (
-      <span style={{ marginLeft: 8 }}>
-        <Chip variant={token.type === 'supplied' ? 'success' : 'danger'} minimal size="xs">{token.type}</Chip>
-      </span>
-    )}
-  </div>
-  <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-    {tokenReward !== undefined && (
-      <div style={{ textAlign: 'right' }}>
-        <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 2 }}>Rewards</div>
-        <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: '500' }}>
-          {maskValue(formatPrice(tokenReward))}
+    <div className={`defi-token-row${isLast ? ' last' : ''}`}>
+      <div className="defi-token-main">
+        {token.logo && (
+          <img
+            src={token.logo}
+            alt={token.symbol}
+            className="token-logo mr-10"
+            onError={(e) => (e.target.style.display = 'none')}
+          />
+        )}
+        <span className="token-symbol">
+          {token.symbol}
         </span>
+        {showType && token.type && (
+          <span className="ml-8">
+            <Chip variant={token.type === 'supplied' ? 'success' : 'danger'} minimal size="xs">
+              {token.type}
+            </Chip>
+          </span>
+        )}
       </div>
-    )}
-    <div style={{ textAlign: 'right' }}>
-      <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 2 }}>Balance</div>
-      <span style={{ 
-        fontFamily: 'monospace', 
-        fontSize: 14,
-        fontWeight: 600,
-        color: theme.textPrimary
-      }}>
-        {maskValue(formatPrice(token.totalPrice || 0))}
-      </span>
+      <div className="defi-row-values">
+        {tokenReward !== undefined && (
+          <div className="defi-value-block">
+            <div className="defi-value-label">Rewards</div>
+            <span className="defi-value-mono">{maskValue(formatPrice(tokenReward))}</span>
+          </div>
+        )}
+        <div className="defi-value-block">
+          <div className="defi-value-label">Balance</div>
+          <span className="defi-value-mono-strong">{maskValue(formatPrice(token.totalPrice || 0))}</span>
+        </div>
+      </div>
     </div>
-  </div>
-  </div>
-)};
+  );
+};
 
-export default DeFiMenu
+export default DeFiMenu;

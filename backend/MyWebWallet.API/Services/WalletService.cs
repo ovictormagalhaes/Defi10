@@ -65,8 +65,6 @@ public class WalletService : IWalletService
         if (cachedResult != null)
             return cachedResult;
 
-        Console.WriteLine($"DEBUG: WalletService: Multi-chain cache miss for account {account}, fetching from services");
-
         var blockchainService = _blockchainServices.FirstOrDefault(s => s.IsValidAddress(account));
         
         if (blockchainService == null)

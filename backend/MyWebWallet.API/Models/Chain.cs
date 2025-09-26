@@ -54,20 +54,6 @@ public static class ChainExtensions
         };
     }
 
-    public static string GetRpcUrl(this Chain chain)
-    {
-        return chain switch
-        {
-            Chain.Base => "https://mainnet.base.org",
-            Chain.Ethereum => "https://ethereum.publicnode.com",
-            Chain.Polygon => "https://polygon.publicnode.com",
-            Chain.Arbitrum => "https://arbitrum.publicnode.com", 
-            Chain.Optimism => "https://optimism.publicnode.com",
-            Chain.BNB => "https://bsc-dataseed1.binance.org",
-            _ => throw new ArgumentOutOfRangeException(nameof(chain), chain, "Unsupported chain")
-        };
-    }
-
     public static string GetAlchemyRpcUrl(this Chain chain, string? alchemyApiKey = null)
     {
         var baseUrl = chain switch
@@ -75,7 +61,7 @@ public static class ChainExtensions
             Chain.Base => "https://base-mainnet.g.alchemy.com/v2/",
             Chain.Ethereum => "https://eth-mainnet.g.alchemy.com/v2/",
             Chain.Polygon => "https://polygon-mainnet.g.alchemy.com/v2/",
-            Chain.Arbitrum => "https://arb-mainnet.g.alchemy.com/v2/",
+            Chain.Arbitrum => "https://arb-mainnet.g.alchemy.com/v2/",            
             Chain.Optimism => "https://opt-mainnet.g.alchemy.com/v2/",
             Chain.BNB => throw new NotSupportedException("Alchemy does not support BNB Smart Chain. Use GetRpcUrl() instead."),
             _ => throw new ArgumentOutOfRangeException(nameof(chain), chain, "Unsupported chain for Alchemy")

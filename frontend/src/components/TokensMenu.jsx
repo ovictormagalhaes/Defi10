@@ -1,15 +1,17 @@
-import React from 'react'
-import CollapsibleMenu from './CollapsibleMenu'
-import { formatBalance, formatPrice, getFilteredTokens } from '../utils/walletUtils'
-import { useTheme } from '../context/ThemeProvider'
-import Chip from './Chip'
-import { useMaskValues } from '../context/MaskValuesContext'
+import React from 'react';
 
-const TokensMenu = ({ 
-  title, 
-  tokens, 
-  isExpanded, 
-  onToggle, 
+import { useMaskValues } from '../context/MaskValuesContext';
+import { useTheme } from '../context/ThemeProvider';
+import { formatBalance, formatPrice, getFilteredTokens } from '../utils/walletUtils';
+
+import Chip from './Chip';
+import CollapsibleMenu from './CollapsibleMenu';
+
+const TokensMenu = ({
+  title,
+  tokens,
+  isExpanded,
+  onToggle,
   getTotalPortfolioValue,
   calculatePercentage,
   showOptionsMenu = false,
@@ -20,36 +22,41 @@ const TokensMenu = ({
   selectedChains,
   setSelectedChains,
   selectedTokenTypes,
-  setSelectedTokenTypes
+  setSelectedTokenTypes,
 }) => {
-  if (!tokens || tokens.length === 0) return null
+  // Hooks must run before any early returns
+  const filteredTokens = getFilteredTokens(
+    tokens || [],
+    searchTerm,
+    selectedChains,
+    selectedTokenTypes
+  );
+  const { maskValue } = useMaskValues();
+  if (!tokens || tokens.length === 0) return null;
 
-  const filteredTokens = getFilteredTokens(tokens, searchTerm, selectedChains, selectedTokenTypes)
-  const { maskValue } = useMaskValues()
-  
   const totalValue = filteredTokens.reduce((sum, token) => {
-    const price = parseFloat(token.totalPrice) || 0
-    return sum + (isNaN(price) ? 0 : price)
-  }, 0)
+    const price = parseFloat(token.totalPrice) || 0;
+    return sum + (isNaN(price) ? 0 : price);
+  }, 0);
 
   const getTokenColumns = () => ({
     tokens: {
-      label: "Tokens",
+      label: 'Tokens',
       value: filteredTokens.length,
-      flex: 1
+      flex: 1,
     },
     balance: {
-      label: "Balance",
-  value: maskValue(formatPrice(totalValue)),
+      label: 'Balance',
+      value: maskValue(formatPrice(totalValue)),
       flex: 2,
-      highlight: true
+      highlight: true,
     },
     percentage: {
-      label: "%",
-  value: calculatePercentage(totalValue, getTotalPortfolioValue()),
-      flex: 0.8
-    }
-  })
+      label: '%',
+      value: calculatePercentage(totalValue, getTotalPortfolioValue()),
+      flex: 0.8,
+    },
+  });
 
   return (
     <CollapsibleMenu
@@ -70,28 +77,22 @@ const TokensMenu = ({
     >
       <TokenTable tokens={filteredTokens} />
     </CollapsibleMenu>
-  )
-}
+  );
+};
 
 const TokenTable = ({ tokens }) => {
-  const { theme } = useTheme(); const { maskValue } = useMaskValues()
-  const headerBg = theme.tableHeaderBg || theme.bgPanelAlt || theme.bgPanel
-  const stripeBg = theme.tableStripeBg || (theme.mode === 'light' ? '#f7f9fa' : '#24272f')
-  const hoverBg = theme.tableRowHoverBg || (theme.mode === 'light' ? '#ecf0f3' : '#2b2e37')
+  const { theme } = useTheme(); // theme retained for potential future styling via vars
+  const { maskValue } = useMaskValues();
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <table className="w-full table-fixed collapse">
       <thead>
-        <tr style={{ backgroundColor: headerBg }}>
-          {['TOKEN','BALANCE','PRICE','VALUE'].map((h, i) => (
-            <th key={h}
-              style={{
-                padding: '10px 16px',
-                textAlign: i === 0 ? 'left' : 'right',
-                fontWeight: 400,
-                color: theme.textSecondary,
-                fontSize: 12,
-                letterSpacing: '0.4px'
-              }}
+        <tr className="table-header-row">
+          {['TOKEN', 'BALANCE', 'PRICE', 'VALUE'].map((h, i) => (
+            <th
+              key={h}
+              className={`px-4 py-3 text-xs tracking-wide uppercase text-secondary ${
+                i === 0 ? 'text-left' : 'text-right'
+              }`}
             >
               {h}
             </th>
@@ -100,86 +101,62 @@ const TokenTable = ({ tokens }) => {
       </thead>
       <tbody>
         {tokens.map((token, index) => (
-          <TokenRow key={index} token={token} index={index} stripeBg={stripeBg} hoverBg={hoverBg} />
+          <TokenRow key={index} token={token} index={index} />
         ))}
       </tbody>
     </table>
-  )
-}
+  );
+};
 
-const TokenRow = ({ token, index, stripeBg, hoverBg }) => {
+const TokenRow = ({ token, index }) => {
   // Extract token data based on structure (nested or direct)
-  const tokenData = token.tokenData?.token || token
-  const logo = tokenData.logo || tokenData.logoURI || token.logo || token.logoURI
-  const symbol = tokenData.symbol || token.symbol
-  const name = tokenData.name || token.name
-  const chain = token.chain
-  const balance = token.balance || token.tokenData?.balance
-  const price = token.price || token.tokenData?.price
-  const totalPrice = token.totalPrice
+  const tokenData = token.tokenData?.token || token;
+  const logo = tokenData.logo || tokenData.logoURI || token.logo || token.logoURI;
+  const symbol = tokenData.symbol || token.symbol;
+  const name = tokenData.name || token.name;
+  const chain = token.chain;
+  const balance = token.balance || token.tokenData?.balance;
+  const price = token.price || token.tokenData?.price;
+  const totalPrice = token.totalPrice;
 
-  const { theme } = useTheme()
-  const isStriped = index % 2 === 1
+  const { theme } = useTheme();
+  const { maskValue } = useMaskValues();
   return (
-    <tr
-      style={{
-        backgroundColor: isStriped ? stripeBg : 'transparent',
-        transition: 'background-color 0.18s'
-      }}
-      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
-      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isStriped ? stripeBg : 'transparent'}
-    >
-      <td style={{ padding: '16px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
+    <tr className="token-row row-hover">
+      <td className="cell-lg">
+        <div className="flex items-center">
           {logo && (
-            <img 
-              src={logo} 
+            <img
+              src={logo}
               alt={symbol}
-              style={{ 
-                width: 32, 
-                height: 32, 
-                marginRight: 12,
-                borderRadius: '50%',
-                border: `1px solid ${theme.border}`
-              }}
-              onError={(e) => e.target.style.display = 'none'}
+              className="token-logo mr-3"
+              onError={(e) => (e.target.className += ' is-hidden')}
             />
           )}
           <div>
-            <div style={{ 
-              fontWeight: 600, 
-              fontSize: 14,
-              color: theme.textPrimary,
-              marginBottom: 2
-            }}>
-              {symbol}
-            </div>
-            <div style={{ 
-              fontSize: 12, 
-              color: theme.textSecondary,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
+            <div className="token-symbol text-primary">{symbol}</div>
+            <div className="token-name text-secondary flex items-center gap-8">
               <span>{name}</span>
               {chain && (
-                <Chip variant="muted" size="xs" minimal>{chain}</Chip>
+                <Chip variant="muted" size="xs" minimal>
+                  {chain}
+                </Chip>
               )}
             </div>
           </div>
         </div>
       </td>
-      <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontSize: 13, color: theme.textPrimary }}>
-  {balance ? maskValue(formatBalance(balance), { short: true }) : 'N/A'}
+      <td className="cell-lg text-right font-mono text-sm text-primary">
+        {balance ? maskValue(formatBalance(balance), { short: true }) : 'N/A'}
       </td>
-      <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontSize: 13, color: theme.textPrimary }}>
-  {price ? maskValue(formatPrice(price), { short: true }) : 'N/A'}
+      <td className="cell-lg text-right font-mono text-sm text-primary">
+        {price ? maskValue(formatPrice(price), { short: true }) : 'N/A'}
       </td>
-      <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
-  {maskValue(formatPrice(totalPrice))}
+      <td className="cell-lg text-right font-mono text-base font-semibold text-primary">
+        {maskValue(formatPrice(totalPrice))}
       </td>
     </tr>
-  )
-}
+  );
+};
 
-export default TokensMenu
+export default TokensMenu;

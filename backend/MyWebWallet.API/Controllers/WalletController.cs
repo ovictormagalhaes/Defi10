@@ -33,7 +33,7 @@ public class WalletController : ControllerBase
             WalletResponse result;
 
             // Priority: chains parameter > chain parameter > default
-            chains = "Base,BNB";
+            chains = "Base,BNB,Arbitrum";
             if (!string.IsNullOrEmpty(chains))
             {
                 // Parse multiple chains
@@ -59,7 +59,7 @@ public class WalletController : ControllerBase
                 {
                     return BadRequest(new
                     {
-                        error = $"Invalid chains: {string.Join(", ", invalidChains)}. Supported chains: Base, BNB"
+                        error = $"Invalid chains: {string.Join(", ", invalidChains)}. Supported chains: Base, BNB, Arbitrum"
                     });
                 }
 
@@ -76,7 +76,7 @@ public class WalletController : ControllerBase
                 }
                 else
                 {
-                    return BadRequest(new { error = $"Invalid chain '{chain}'. Supported chains: Base, BNB" });
+                    return BadRequest(new { error = $"Invalid chain '{chain}'. Supported chains: Base, BNB, Arbitrum" });
                 }
             }
             else
@@ -126,6 +126,14 @@ public class WalletController : ControllerBase
                 ChainId = Chain.BNB.ToNumericChainId(),
                 DisplayName = Chain.BNB.GetDisplayName(),
                 IconUrl = Chain.BNB.GetIconUrl()
+            },
+            new()
+            {
+                Name = "Arbitrum",
+                Id = Chain.Arbitrum.ToChainId(),
+                ChainId = Chain.Arbitrum.ToNumericChainId(),
+                DisplayName = Chain.Arbitrum.GetDisplayName(),
+                IconUrl = Chain.Arbitrum.GetIconUrl()
             }
         };
 

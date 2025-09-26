@@ -1,29 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { api } from '../config/api';
+import React, { useState, useEffect, useCallback } from 'react';
+
 import { useMaskValues } from '../context/MaskValuesContext';
+import { getHealth, getSupportedChains, getWallet } from '../services/apiClient';
+import { HealthStatus, SupportedChain, WalletData, WalletItem } from '../types/api';
+import { parseNumeric, formatNumber } from '../utils/format';
 
-interface HealthStatus {
-  status: string;
-  timestamp: string;
-  version: string;
-  environment: string;
-}
-
-interface SupportedChain {
-  name: string;
-  id: string;
-  chainId: number;
-  displayName: string;
-  iconUrl: string;
-}
-
-interface WalletData {
-  account: string;
-  network: string;
-  items: any[];
-  lastUpdated: string;
-}
+import Panel from './Panel';
+import StatusBadge from './StatusBadge';
 
 const WalletDashboard: React.FC = () => {
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -39,9 +22,10 @@ const WalletDashboard: React.FC = () => {
   useEffect(() => {
     if (!walletData || !walletData.items) return;
     const chainTotals: Record<string, number> = {};
-    walletData.items.forEach(item => {
-      const chain = item.network || item.chain || 'Unknown';
-      const value = parseFloat(item.totalPrice || item.value || 0);
+    walletData.items.forEach((item: WalletItem) => {
+      const chain = (item.network || (item as any).chain || 'Unknown') as string;
+      const rawVal = item.totalPrice ?? item.value ?? 0;
+      const value = parseNumeric(rawVal, 0);
       if (!chainTotals[chain]) chainTotals[chain] = 0;
       chainTotals[chain] += value;
     });
@@ -58,196 +42,242 @@ const WalletDashboard: React.FC = () => {
     loadSupportedChains();
   }, []);
 
-  const checkApiHealth = async () => {
+  const checkApiHealth = useCallback(async () => {
     try {
-      const response = await axios.get(api.health());
-      setHealth(response.data);
+      const data = await getHealth();
+      setHealth(data);
     } catch (err) {
       console.error('Failed to check API health:', err);
       setError('Failed to connect to API');
     }
-  };
+  }, []);
 
-  const loadSupportedChains = async () => {
+  const loadSupportedChains = useCallback(async () => {
     try {
-      const response = await axios.get(api.getSupportedChains());
-      setChains(response.data.chains || []);
+      const data = await getSupportedChains();
+      setChains(data);
     } catch (err) {
       console.error('Failed to load supported chains:', err);
     }
+  }, []);
+
+  interface ApiErrorLike {
+    response?: { data?: { error?: string; title?: string } };
+    message?: string;
+  }
+
+  const getErrorMessage = (err: unknown): string => {
+    if (typeof err === 'string') return err;
+    if (err && typeof err === 'object') {
+      const e = err as ApiErrorLike;
+      return (
+        e.response?.data?.error ||
+        e.response?.data?.title ||
+        e.message ||
+        'Failed to load wallet data'
+      );
+    }
+    return 'Failed to load wallet data';
   };
 
-  const loadWalletData = async () => {
+  const loadWalletData = useCallback(async () => {
     if (!walletAddress) {
       setError('Please enter a wallet address');
       return;
     }
-
     setLoading(true);
     setError(null);
-    
     try {
-      const response = await axios.get(api.getWallet(walletAddress, selectedChains));
-      setWalletData(response.data);
-    } catch (err: any) {
+      const data = await getWallet(walletAddress, selectedChains);
+      setWalletData(data);
+    } catch (err) {
       console.error('Failed to load wallet data:', err);
-      setError(err.response?.data?.error || 'Failed to load wallet data');
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
-  };
+  }, [walletAddress, selectedChains]);
 
-  const handleChainToggle = (chainName: string) => {
-    setSelectedChains(prev => 
-      prev.includes(chainName) 
-        ? prev.filter(c => c !== chainName)
-        : [...prev, chainName]
+  const handleChainToggle = useCallback((chainName: string) => {
+    setSelectedChains((prev) =>
+      prev.includes(chainName) ? prev.filter((c) => c !== chainName) : [...prev, chainName]
     );
-  };
+  }, []);
 
   // Helper to mask address
   // Always return a fixed number of dots for mask mode
   const maskAddress = (_addr: string) => '••••••••••••••••••••••••••••••••••••••••';
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <h1>?? Defi10 - DeFi Portfolio Dashboard</h1>
-      <p style={{ color: '#666', marginBottom: '30px' }}>
+    <div className="page-container">
+      <h1>Defi10 - DeFi Portfolio Dashboard</h1>
+      <p className="muted mb-30">
         Multi-chain DeFi portfolio tracking with real-time data from Base and BNB chains
       </p>
-      
+
       {/* API Health Status */}
-      <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-        <h3>?? API Status</h3>
+      <Panel variant="neutral-light" className="mb-5">
+        <h3>API Status</h3>
         {health ? (
           <div>
-            <p><strong>Status:</strong> <span style={{ color: health.status === 'healthy' ? 'green' : 'red' }}>{health.status}</span></p>
-            <p><strong>Environment:</strong> {health.environment}</p>
-            <p><strong>Version:</strong> {health.version}</p>
-            <p><strong>Last Check:</strong> {new Date(health.timestamp).toLocaleString()}</p>
+            <p>
+              <strong>Status:</strong>{' '}
+              <StatusBadge status={health.status === 'healthy' ? 'healthy' : 'unhealthy'} />
+            </p>
+            <p>
+              <strong>Environment:</strong> {health.environment}
+            </p>
+            <p>
+              <strong>Version:</strong> {health.version}
+            </p>
+            <p>
+              <strong>Last Check:</strong> {new Date(health.timestamp).toLocaleString()}
+            </p>
           </div>
         ) : (
-          <p style={{ color: 'red' }}>API not responding</p>
+          <div>
+            {!error && <StatusBadge status="loading" />}
+            {error && <StatusBadge status="unhealthy" label="API not responding" />}
+          </div>
         )}
-      </div>
+      </Panel>
 
       {/* Chain Selection */}
-      <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '8px' }}>
-        <h3>?? Supported Blockchains</h3>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          {chains.map(chain => (
-            <label key={chain.id} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <input
-                type="checkbox"
-                checked={selectedChains.includes(chain.name)}
-                onChange={() => handleChainToggle(chain.name)}
-              />
-              {chain.iconUrl && (
-                <img 
-                  src={chain.iconUrl} 
-                  alt={chain.name} 
-                  style={{ width: '20px', height: '20px' }}
-                />
-              )}
-              <span>{chain.displayName}</span>
-              <small>({chain.chainId})</small>
-            </label>
-          ))}
+      <Panel variant="neutral-lighter" className="mb-5">
+        <h3>Supported Blockchains</h3>
+        <div className="chain-pill-bar" role="listbox" aria-label="Select blockchains">
+          {chains.map((chain) => {
+            const displayName = chain.displayName || chain.name || chain.id;
+            const chainKey = chain.name || chain.displayName || chain.id;
+            const active = chainKey ? selectedChains.includes(chainKey) : false;
+            return (
+              <button
+                type="button"
+                key={chain.id}
+                role="option"
+                aria-selected={active}
+                className={`chain-pill ${active ? 'is-active' : ''}`}
+                onClick={() => chainKey && handleChainToggle(chainKey)}
+                title={active ? 'Click to remove chain' : 'Click to add chain'}
+              >
+                {chain.iconUrl && (
+                  <img
+                    src={chain.iconUrl}
+                    alt=""
+                    aria-hidden="true"
+                    className="icon-14"
+                    style={{ width: 14, height: 14, borderRadius: '50%' }}
+                  />
+                )}
+                {displayName}
+              </button>
+            );
+          })}
         </div>
-      </div>
+        <p className="small muted mt-1">
+          Tip: Click a pill to {`add/remove`} a chain. Active chains are highlighted.
+        </p>
+      </Panel>
 
       {/* Wallet Input */}
-      <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '8px' }}>
+      <Panel className="mb-5 panel--surface-alt">
         <h3>?? Load DeFi Portfolio</h3>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div className="flex gap-10 align-center">
           <input
             type="text"
             placeholder="Enter wallet address (0x...)"
             value={walletAddress}
             onChange={(e) => setWalletAddress(e.target.value)}
-            style={{ 
-              flex: 1, 
-              padding: '10px', 
-              border: '1px solid #ccc', 
-              borderRadius: '4px',
-              fontFamily: 'monospace'
-            }}
+            className="input"
+            aria-label="Wallet address"
           />
+          <button
+            type="button"
+            className="btn-copy"
+            onClick={() => {
+              if (!walletAddress) return;
+              navigator.clipboard
+                .writeText(walletAddress)
+                .then(() => {
+                  const el = document.querySelector('.btn-copy');
+                  if (el) {
+                    el.classList.add('is-success');
+                    setTimeout(() => el.classList.remove('is-success'), 1400);
+                  }
+                })
+                .catch(() => {});
+            }}
+            disabled={!walletAddress}
+            aria-disabled={!walletAddress}
+            title={walletAddress ? 'Copy address to clipboard' : 'Enter an address first'}
+          >
+            Copy
+          </button>
           <button
             onClick={loadWalletData}
             disabled={loading || !walletAddress}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: loading ? '#ccc' : '#007bff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
+            className={`btn ${loading ? 'btn--loading' : ''}`}
           >
             {loading ? 'Loading...' : '?? Load Portfolio'}
           </button>
         </div>
-        <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+        <p className="small muted mt-1">
           Selected chains: {selectedChains.join(', ')} | Protocols: Aave, Uniswap V3, Moralis
         </p>
-      </div>
+      </Panel>
 
       {/* Error Display */}
       {error && (
-        <div style={{ 
-          padding: '15px', 
-          backgroundColor: '#f8d7da', 
-          color: '#721c24', 
-          border: '1px solid #f5c6cb', 
-          borderRadius: '8px',
-          marginBottom: '20px'
-        }}>
+        <Panel variant="error" className="mb-5">
           <strong>Error:</strong> {error}
-        </div>
+        </Panel>
       )}
 
       {/* Wallet Data Display */}
       {walletData && (
-        <div style={{ padding: '15px', backgroundColor: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '8px' }}>
+        <Panel variant="success">
           <h3>?? Portfolio Summary</h3>
-          <p><strong>Account:</strong> {
-            maskValues ? (
-              <span style={{ fontSize: 13, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', flex: '1 1 0%' }}>
-                {maskAddress(walletData.account)}
-              </span>
+          <p>
+            <strong>Account:</strong>{' '}
+            {maskValues ? (
+              <span className="mono mono-truncate">{maskAddress(walletData.account)}</span>
             ) : (
-              <span style={{ fontSize: 13, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', flex: '1 1 0%' }}>
-                {walletData.account}
-              </span>
-            )
-          }</p>
-          <p><strong>Network:</strong> {walletData.network}</p>
-          <p><strong>Positions:</strong> {walletData.items.length}</p>
-          <p><strong>Last Updated:</strong> {new Date(walletData.lastUpdated).toLocaleString()}</p>
-          
+              <span className="mono mono-truncate">{walletData.account}</span>
+            )}
+          </p>
+          <p>
+            <strong>Network:</strong> {walletData.network}
+          </p>
+          <p>
+            <strong>Positions:</strong> {walletData.items.length}
+          </p>
+          <p>
+            <strong>Aggregated Value (est.):</strong>{' '}
+            {formatNumber(
+              walletData.items.reduce((sum, it) => {
+                const v = parseNumeric(it.totalPrice ?? it.value ?? 0, 0);
+                return sum + v;
+              }, 0),
+              { decimals: 2, minCompact: 1_000 }
+            )}
+          </p>
+          <p>
+            <strong>Last Updated:</strong> {new Date(walletData.lastUpdated).toLocaleString()}
+          </p>
+
           {walletData.items.length > 0 && (
-            <details style={{ marginTop: '10px' }}>
-              <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>
+            <details className="mt-10">
+              <summary className="summary-toggle">
                 ?? View Detailed Data ({walletData.items.length} positions)
               </summary>
-              <pre style={{ 
-                backgroundColor: '#f8f9fa', 
-                padding: '10px', 
-                marginTop: '10px',
-                overflow: 'auto',
-                fontSize: '12px',
-                borderRadius: '4px'
-              }}>
-                {JSON.stringify(walletData, null, 2)}
-              </pre>
+              <pre className="code-block">{JSON.stringify(walletData, null, 2)}</pre>
             </details>
           )}
-        </div>
+        </Panel>
       )}
 
       {/* Footer */}
-      <div style={{ marginTop: '40px', textAlign: 'center', color: '#666', fontSize: '14px' }}>
+      <div className="mt-40 footer">
         <p>Defi10 - Multi-chain DeFi Portfolio Tracker | Powered by Moralis, Aave, Uniswap V3</p>
       </div>
     </div>

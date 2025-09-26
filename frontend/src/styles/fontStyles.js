@@ -7,7 +7,7 @@ export const getFontStyles = (theme) => ({
     fontSize: 13,
     fontWeight: 400,
     color: theme.textPrimary,
-    fontFamily: 'inherit'
+    fontFamily: 'inherit',
   },
 
   // Headers das tabelas
@@ -16,7 +16,7 @@ export const getFontStyles = (theme) => ({
     fontWeight: 400,
     color: theme.textSecondary,
     fontFamily: 'inherit',
-    letterSpacing: '0.4px'
+    letterSpacing: '0.4px',
   },
 
   // Headers dos menus (Wallet, Uniswap, Aavee...)
@@ -24,7 +24,7 @@ export const getFontStyles = (theme) => ({
     fontSize: 16,
     fontWeight: 700,
     color: theme.textPrimary,
-    fontFamily: 'inherit'
+    fontFamily: 'inherit',
   },
 
   // Texto secundário (subtítulos, descrições...)
@@ -32,7 +32,7 @@ export const getFontStyles = (theme) => ({
     fontSize: 12,
     fontWeight: 400,
     color: theme.textSecondary,
-    fontFamily: 'inherit'
+    fontFamily: 'inherit',
   },
 
   // Texto pequeno (labels, badges...)
@@ -40,7 +40,7 @@ export const getFontStyles = (theme) => ({
     fontSize: 11,
     fontWeight: 400,
     color: theme.textSecondary,
-    fontFamily: 'inherit'
+    fontFamily: 'inherit',
   },
 
   // Texto monospace (valores monetários, percentuais...)
@@ -48,7 +48,7 @@ export const getFontStyles = (theme) => ({
     fontSize: 13,
     fontWeight: 400,
     color: theme.textPrimary,
-    fontFamily: 'monospace'
+    fontFamily: 'monospace',
   },
 
   // Texto monospace pequeno (badges)
@@ -56,7 +56,7 @@ export const getFontStyles = (theme) => ({
     fontSize: 11,
     fontWeight: 400,
     color: theme.textSecondary,
-    fontFamily: 'monospace'
+    fontFamily: 'monospace',
   },
 
   // Botões
@@ -64,6 +64,6 @@ export const getFontStyles = (theme) => ({
     fontSize: 12,
     fontWeight: 600,
     color: theme.textSecondary,
-    fontFamily: 'monospace'
-  }
-})
+    fontFamily: 'monospace',
+  },
+});

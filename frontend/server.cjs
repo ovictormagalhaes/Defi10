@@ -15,14 +15,16 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(distPath, {
-  setHeaders: (res, filePath) => {
-    if (/(sw|service-worker)\.js$/.test(filePath)) {
-      // Ensure service workers aren't aggressively cached
-      res.setHeader('Cache-Control', 'no-cache');
-    }
-  }
-}));
+app.use(
+  express.static(distPath, {
+    setHeaders: (res, filePath) => {
+      if (/(sw|service-worker)\.js$/.test(filePath)) {
+        // Ensure service workers aren't aggressively cached
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
+  })
+);
 
 // SPA fallback - send index.html for any non-file route
 app.get('*', (req, res) => {

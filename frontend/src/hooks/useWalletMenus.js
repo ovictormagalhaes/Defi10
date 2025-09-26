@@ -1,124 +1,125 @@
-import { useState, useMemo } from 'react'
-import { 
-  ITEM_TYPES, 
+import { useState, useMemo } from 'react';
+
+import {
+  ITEM_TYPES,
   filterItemsByType,
   getWalletTokens,
   getLiquidityPools,
   getLendingAndBorrowingPositions,
-  getStakingPositions
-} from '../utils/walletUtils'
+  getStakingPositions,
+} from '../utils/walletUtils';
 
 export const useWalletMenus = (walletData) => {
   // Expansion states
-  const [tokensExpanded, setTokensExpanded] = useState(true)
-  const [liquidityPoolsExpanded, setLiquidityPoolsExpanded] = useState(false)
-  const [lendingAndBorrowingExpanded, setLendingAndBorrowingExpanded] = useState(false)
-  const [stakingExpanded, setStakingExpanded] = useState(false)
-  
+  const [tokensExpanded, setTokensExpanded] = useState(true);
+  const [liquidityPoolsExpanded, setLiquidityPoolsExpanded] = useState(false);
+  const [lendingAndBorrowingExpanded, setLendingAndBorrowingExpanded] = useState(false);
+  const [stakingExpanded, setStakingExpanded] = useState(false);
+
   // Options menu states
-  const [tokensOptionsExpanded, setTokensOptionsExpanded] = useState(false)
-  const [liquidityOptionsExpanded, setLiquidityOptionsExpanded] = useState(false)
-  const [lendingOptionsExpanded, setLendingOptionsExpanded] = useState(false)
-  const [stakingOptionsExpanded, setStakingOptionsExpanded] = useState(false)
-  
+  const [tokensOptionsExpanded, setTokensOptionsExpanded] = useState(false);
+  const [liquidityOptionsExpanded, setLiquidityOptionsExpanded] = useState(false);
+  const [lendingOptionsExpanded, setLendingOptionsExpanded] = useState(false);
+  const [stakingOptionsExpanded, setStakingOptionsExpanded] = useState(false);
+
   // Protocol expansion states
-  const [protocolExpansions, setProtocolExpansions] = useState({})
-  
+  const [protocolExpansions, setProtocolExpansions] = useState({});
+
   // Filter states
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedChains, setSelectedChains] = useState([])
-  const [selectedTokenTypes, setSelectedTokenTypes] = useState([])
-  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedChains, setSelectedChains] = useState([]);
+  const [selectedTokenTypes, setSelectedTokenTypes] = useState([]);
+
   // Helper functions to get data based on structure
   const getWalletTokensData = () => {
     // New unified structure with items array
     if (walletData.items && Array.isArray(walletData.items)) {
-      return filterItemsByType(walletData.items, ITEM_TYPES.WALLET)
+      return filterItemsByType(walletData.items, ITEM_TYPES.WALLET);
     }
     // Legacy structure support
     if (walletData.data && Array.isArray(walletData.data)) {
-      return getWalletTokens(walletData.data)
+      return getWalletTokens(walletData.data);
     }
-    return walletData.tokens || []
-  }
+    return walletData.tokens || [];
+  };
 
   const getLiquidityPoolsData = () => {
     // New unified structure with items array
     if (walletData.items && Array.isArray(walletData.items)) {
-      return filterItemsByType(walletData.items, ITEM_TYPES.LIQUIDITY_POOL)
+      return filterItemsByType(walletData.items, ITEM_TYPES.LIQUIDITY_POOL);
     }
     // Legacy structure support
     if (walletData.data && Array.isArray(walletData.data)) {
-      return getLiquidityPools(walletData.data)
+      return getLiquidityPools(walletData.data);
     }
-    return walletData.liquidityPools || []
-  }
+    return walletData.liquidityPools || [];
+  };
 
   const getLendingAndBorrowingData = () => {
     // New unified structure with items array
     if (walletData.items && Array.isArray(walletData.items)) {
-      return filterItemsByType(walletData.items, ITEM_TYPES.LENDING_AND_BORROWING)
+      return filterItemsByType(walletData.items, ITEM_TYPES.LENDING_AND_BORROWING);
     }
     // Legacy structure support
     if (walletData.data && Array.isArray(walletData.data)) {
-      return getLendingAndBorrowingPositions(walletData.data)
+      return getLendingAndBorrowingPositions(walletData.data);
     }
-    return walletData.lendingAndBorrowing || []
-  }
+    return walletData.lendingAndBorrowing || [];
+  };
 
   const getStakingData = () => {
     // New unified structure with items array
     if (walletData.items && Array.isArray(walletData.items)) {
-      return filterItemsByType(walletData.items, ITEM_TYPES.STAKING)
+      return filterItemsByType(walletData.items, ITEM_TYPES.STAKING);
     }
     // Legacy structure support
     if (walletData.data && Array.isArray(walletData.data)) {
-      return getStakingPositions(walletData.data)
+      return getStakingPositions(walletData.data);
     }
-    return walletData.staking || []
-  }
+    return walletData.staking || [];
+  };
 
   // Protocol expansion toggle
   const toggleProtocolExpansion = (protocolName) => {
-    setProtocolExpansions(prev => ({
+    setProtocolExpansions((prev) => ({
       ...prev,
-      [protocolName]: !prev[protocolName]
-    }))
-  }
+      [protocolName]: !prev[protocolName],
+    }));
+  };
 
   // Calculate total portfolio value
   const getTotalPortfolioValue = useMemo(() => {
-    if (!walletData) return 0
-    
+    if (!walletData) return 0;
+
     const tokensValue = getWalletTokensData().reduce((sum, token) => {
-      const price = parseFloat(token.totalPrice) || 0
-      return sum + (isNaN(price) ? 0 : price)
-    }, 0)
-    
+      const price = parseFloat(token.totalPrice) || 0;
+      return sum + (isNaN(price) ? 0 : price);
+    }, 0);
+
     const liquidityValue = getLiquidityPoolsData().reduce((sum, position) => {
-      const balance = parseFloat(position.balance) || 0
-      return sum + (isNaN(balance) ? 0 : balance)
-    }, 0)
-    
+      const balance = parseFloat(position.balance) || 0;
+      return sum + (isNaN(balance) ? 0 : balance);
+    }, 0);
+
     const lendingValue = getLendingAndBorrowingData().reduce((sum, position) => {
-      const balance = parseFloat(position.balance) || 0
-      return sum + (isNaN(balance) ? 0 : balance)
-    }, 0)
-    
+      const balance = parseFloat(position.balance) || 0;
+      return sum + (isNaN(balance) ? 0 : balance);
+    }, 0);
+
     const stakingValue = getStakingData().reduce((sum, position) => {
-      const balance = parseFloat(position.balance) || 0
-      return sum + (isNaN(balance) ? 0 : balance)
-    }, 0)
-    
-    return tokensValue + liquidityValue + lendingValue + stakingValue
-  }, [walletData])
+      const balance = parseFloat(position.balance) || 0;
+      return sum + (isNaN(balance) ? 0 : balance);
+    }, 0);
+
+    return tokensValue + liquidityValue + lendingValue + stakingValue;
+  }, [walletData]);
 
   // Calculate percentage helper
   const calculatePercentage = (value, total) => {
-    if (!total || total === 0) return "0.00%"
-    const percentage = (value / total) * 100
-    return `${percentage.toFixed(2)}%`
-  }
+    if (!total || total === 0) return '0.00%';
+    const percentage = (value / total) * 100;
+    return `${percentage.toFixed(2)}%`;
+  };
 
   return {
     // Data getters
@@ -126,7 +127,7 @@ export const useWalletMenus = (walletData) => {
     getLiquidityPoolsData,
     getLendingAndBorrowingData,
     getStakingData,
-    
+
     // Expansion states
     tokensExpanded,
     setTokensExpanded,
@@ -136,7 +137,7 @@ export const useWalletMenus = (walletData) => {
     setLendingAndBorrowingExpanded,
     stakingExpanded,
     setStakingExpanded,
-    
+
     // Options states
     tokensOptionsExpanded,
     setTokensOptionsExpanded,
@@ -146,11 +147,11 @@ export const useWalletMenus = (walletData) => {
     setLendingOptionsExpanded,
     stakingOptionsExpanded,
     setStakingOptionsExpanded,
-    
+
     // Protocol states
     protocolExpansions,
     toggleProtocolExpansion,
-    
+
     // Filter states
     searchTerm,
     setSearchTerm,
@@ -158,11 +159,11 @@ export const useWalletMenus = (walletData) => {
     setSelectedChains,
     selectedTokenTypes,
     setSelectedTokenTypes,
-    
+
     // Calculations
     getTotalPortfolioValue,
-    calculatePercentage
-  }
-}
+    calculatePercentage,
+  };
+};
 
-export default useWalletMenus
+export default useWalletMenus;

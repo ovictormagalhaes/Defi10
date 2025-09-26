@@ -28,15 +28,7 @@ namespace MyWebWallet.API.Services
 
         public IEnumerable<ChainEnum> GetSupportedChains()
         {
-            return new[] { ChainEnum.Base, ChainEnum.BNB };
-        }
-
-        public async Task<MoralisGetERC20TokenResponse> GetERC20TokenBalanceAsync(string address, ChainEnum chain)
-        {
-            if (!SupportsChain(chain))
-                throw new NotSupportedException($"Chain {chain} is not supported by {GetProtocolName()}");
-
-            return await GetERC20TokenBalanceAsync(address, chain.ToChainId());
+            return [ChainEnum.Base, ChainEnum.BNB, ChainEnum.Arbitrum];
         }
 
         public async Task<MoralisGetERC20TokenResponse> GetERC20TokenBalanceAsync(string address, string chain)
