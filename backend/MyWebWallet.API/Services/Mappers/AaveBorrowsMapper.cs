@@ -1,11 +1,18 @@
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
 using ChainEnum = MyWebWallet.API.Models.Chain;
+using MyWebWallet.API.Aggregation;
 
 namespace MyWebWallet.API.Services.Mappers;
 
 public class AaveBorrowsMapper : IWalletItemMapper<AaveGetUserBorrowsResponse>
 {
+    private readonly ITokenFactory _tokenFactory;
+    public AaveBorrowsMapper(ITokenFactory tokenFactory)
+    {
+        _tokenFactory = tokenFactory;
+    }
+
     public string ProtocolName => "Aave-Borrows";
     public string GetProtocolName() => ProtocolName;
 
@@ -16,7 +23,6 @@ public class AaveBorrowsMapper : IWalletItemMapper<AaveGetUserBorrowsResponse>
 
     public IEnumerable<ChainEnum> GetSupportedChains()
     {
-        // Aave V3 is currently only supported on Base in this implementation
         return new[] { ChainEnum.Base };
     }
 
@@ -27,9 +33,18 @@ public class AaveBorrowsMapper : IWalletItemMapper<AaveGetUserBorrowsResponse>
 
         return await Task.FromResult(response?.Data?.UserBorrows?.Select(supply =>
         {
-            decimal.TryParse(supply.Debt.Amount.Value, out var balance);
+            decimal.TryParse(supply.Debt.Amount.Value, out var amountFormatted);
             decimal.TryParse(supply.Debt.Usd, out var totalPrice);
-            var price = balance > 0 ? totalPrice / balance : 0;
+            var unitPrice = amountFormatted > 0 ? totalPrice / amountFormatted : 0m;
+
+            var borrowedToken = _tokenFactory.CreateBorrowed(
+                supply.Currency.Name,
+                supply.Currency.Symbol,
+                supply.Currency.Address,
+                chain,
+                0, // decimals unknown in payload
+                amountFormatted,
+                unitPrice);
 
             return new WalletItem
             {
@@ -38,24 +53,7 @@ public class AaveBorrowsMapper : IWalletItemMapper<AaveGetUserBorrowsResponse>
                 Position = new Position
                 {
                     Label = "Borrowed",
-                    Tokens = new List<Token>
-                    {
-                        new Token
-                        {
-                            Type = TokenType.Borrowed,
-                            Name = supply.Currency.Name,
-                            Symbol = supply.Currency.Symbol,
-                            Chain = chain.ToChainId(),
-                            ContractAddress = supply.Currency.Address,
-                            Financials = new TokenFinancials
-                            {
-                                Amount = balance,
-                                BalanceFormatted = balance,
-                                Price = price,
-                                TotalPrice = totalPrice
-                            }
-                        }
-                    }
+                    Tokens = new List<Token> { borrowedToken }
                 },
                 AdditionalData = new AdditionalData()
             };

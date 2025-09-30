@@ -78,7 +78,7 @@ export default function InfoIconWithTooltip({
 
   return (
     <span
-      className={`tooltip-wrapper ${open ? 'is-open' : ''}`.trim()}
+      className={`tooltip-wrapper ${open ? 'is-open info-active' : ''}`.trim()}
       ref={ref}
       data-max-width={maxWidth}
       onClick={(e) => {

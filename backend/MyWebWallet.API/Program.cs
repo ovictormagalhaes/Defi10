@@ -3,18 +3,40 @@ using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Mappers;
 using MyWebWallet.API.Services.Models;
 using StackExchange.Redis;
+using MyWebWallet.API.Messaging.Workers; // added
+using MyWebWallet.API.Messaging.Rabbit; // added
+using Microsoft.Extensions.Options;
+using MyWebWallet.API.Configuration;
+using MyWebWallet.API.Infrastructure;
+using MyWebWallet.API.Infrastructure.Redis;
+using MyWebWallet.API.Aggregation;
 
 var builder = WebApplication.CreateBuilder(args);
 var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
+// Options binding
+builder.Services.Configure<CoinMarketCapOptions>(builder.Configuration.GetSection("CoinMarketCap"));
+builder.Services.Configure<RedisOptions>(builder.Configuration.GetSection("Redis"));
+builder.Services.Configure<AggregationOptions>(builder.Configuration.GetSection("Aggregation"));
+
+// Core services
+builder.Services.AddSingleton<ISystemClock, SystemClock>();
+builder.Services.AddSingleton<IRedisDatabase, RedisDatabaseWrapper>();
+
 // Read allowed origins from configuration (env or appsettings) e.g. Cors:AllowedOrigins:0
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+
+// Bind RabbitMQ options
+builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMQ"));
 
 // Services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new() { Title = "MyWebWallet API", Version = "v1" }));
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new() { Title = "MyWebWallet API", Version = "v1" }));
+}
 
 builder.Services.AddCors(options =>
 {
@@ -36,14 +58,13 @@ builder.Services.AddHealthChecks();
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
-    var cs = cfg["Redis:ConnectionString"];
-    var user = cfg["Redis:User"]; var pwd = cfg["Redis:Password"];
+    var optCfg = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
+    var cs = optCfg.ConnectionString ?? cfg["Redis:ConnectionString"]; // fallback
     if (string.IsNullOrEmpty(cs)) throw new InvalidOperationException("Redis connection string is required");
     var opt = ConfigurationOptions.Parse(cs);
-    if (!string.IsNullOrEmpty(user)) opt.User = user;
-    if (!string.IsNullOrEmpty(pwd)) opt.Password = pwd;
-    opt.AbortOnConnectFail = false; opt.ConnectRetry = 5; opt.ConnectTimeout = 15000; opt.SyncTimeout = 15000;
-    Console.WriteLine("INFO: Redis: Connecting to Redis for production");
+    if (!string.IsNullOrEmpty(optCfg.User)) opt.User = optCfg.User;
+    if (!string.IsNullOrEmpty(optCfg.Password)) opt.Password = optCfg.Password;
+    opt.AbortOnConnectFail = false; opt.ConnectRetry = optCfg.ConnectRetry; opt.ConnectTimeout = optCfg.ConnectTimeoutMs; opt.SyncTimeout = optCfg.SyncTimeoutMs;
     return ConnectionMultiplexer.Connect(opt);
 });
 
@@ -51,7 +72,8 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddSingleton<ITokenLogoService, TokenLogoService>();
 builder.Services.AddScoped<MyWebWallet.API.Services.Helpers.TokenHydrationHelper>();
 
-builder.Services.AddScoped<IWalletService, WalletService>();
+// Removed WalletService/IWalletService registration (commented implementations)
+
 builder.Services.AddScoped<IBlockchainService, EthereumService>();
 builder.Services.AddScoped<IMoralisService, MoralisService>();
 builder.Services.AddScoped<IAaveeService, AaveeService>();
@@ -68,12 +90,26 @@ builder.Services.AddScoped<IWalletItemMapperFactory, WalletItemMapperFactory>();
 
 builder.Services.AddHttpClient<EthereumService>();
 builder.Services.AddHttpClient<MoralisService>();
+builder.Services.AddHttpClient<ICoinMarketCapService, CoinMarketCapService>();
 
 builder.Services.AddScoped<IRebalanceService, RebalanceService>();
 
+// Aggregation orchestration additions
+builder.Services.AddSingleton<IAggregationJobStore, AggregationJobStore>();
+builder.Services.AddSingleton<ITokenFactory, TokenFactory>();
+
+// RabbitMQ infrastructure
+builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
+builder.Services.AddSingleton<IMessagePublisher, RabbitMqPublisher>();
+
+// Messaging workers
+builder.Services.AddHostedService<IntegrationRequestWorker>();
+builder.Services.AddHostedService<IntegrationResultAggregatorWorker>();
+builder.Services.AddHostedService<AggregationTimeoutMonitorWorker>(); // timeout monitor
+
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
+if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
@@ -83,15 +119,17 @@ if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
     });
 }
 
+var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+
 try
 {
     var redis = app.Services.GetRequiredService<IConnectionMultiplexer>();
     await redis.GetDatabase().PingAsync();
-    Console.WriteLine("SUCCESS: Redis connection established successfully");
+    logger.LogInformation("Redis connection established successfully");
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"WARNING: Redis connection failed: {ex.Message}");
+    logger.LogWarning(ex, "Redis connection failed");
 }
 
 try
@@ -100,18 +138,17 @@ try
     await tokenLogoService.LoadAllTokensIntoMemoryAsync();
     var baseCount = await tokenLogoService.GetCachedTokenCountAsync(MyWebWallet.API.Models.Chain.Base);
     var bnbCount = await tokenLogoService.GetCachedTokenCountAsync(MyWebWallet.API.Models.Chain.BNB);
-    Console.WriteLine($"SUCCESS: Token logos loaded - Base: {baseCount}, BNB: {bnbCount}");
+    logger.LogInformation("Token logos loaded - Base: {Base}, BNB: {BNB}", baseCount, bnbCount);
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"WARNING: Token logo service initialization failed: {ex.Message}");
+    logger.LogWarning(ex, "Token logo service initialization failed");
 }
 
 app.MapHealthChecks("/health");
 app.UseCors();
 app.MapControllers();
 
-Console.WriteLine($"INFO: MyWebWallet API starting in {app.Environment.EnvironmentName} environment on port {port} (HTTP-only)");
-Console.WriteLine("INFO: CORS allowed origins: " + (allowedOrigins.Length > 0 ? string.Join(",", allowedOrigins) : "(fallback localhost)"));
+logger.LogInformation("MyWebWallet API starting env={Env} port={Port} cors={Cors}", app.Environment.EnvironmentName, port, allowedOrigins.Length > 0 ? string.Join(',', allowedOrigins) : "(fallback localhost)");
 
 app.Run();

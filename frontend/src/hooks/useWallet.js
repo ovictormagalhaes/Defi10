@@ -107,14 +107,11 @@ export function useWalletConnection() {
     setAccount(null);
   }
 
-  // Load account on mount
+  // Load account on mount (adiamos fetchSupportedChains para após agregação)
   useEffect(() => {
     const savedAccount = loadAccount();
-    if (savedAccount) {
-      setAccount(savedAccount);
-    }
-    fetchSupportedChains();
-  }, [fetchSupportedChains]);
+    if (savedAccount) setAccount(savedAccount);
+  }, []);
 
   // Listen for account changes
   useEffect(() => {
@@ -161,53 +158,7 @@ export function useWalletConnection() {
   };
 }
 
-// Custom hook for wallet data API calls
-export function useWalletData() {
-  const [walletData, setWalletData] = useState(null);
-
-  // Call API when account is available
-  const callAccountAPI = useCallback(async (accountAddress, setLoading) => {
-    if (!accountAddress) return;
-
-    try {
-      setLoading(true);
-      const response = await fetch(`${API_BASE}/wallets/accounts/${accountAddress}`);
-      if (response.ok) {
-        const data = await response.json();
-        setWalletData(data);
-      } else {
-        console.error('API error:', response.status, response.statusText);
-        setWalletData(null);
-      }
-    } catch (error) {
-      console.error('Failed to call API:', error);
-      setWalletData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Refresh wallet data - calls API again
-  const refreshWalletData = useCallback(
-    async (account, setLoading) => {
-      if (account) {
-        await callAccountAPI(account, setLoading);
-      }
-    },
-    [callAccountAPI]
-  );
-
-  const clearWalletData = useCallback(() => {
-    setWalletData(null);
-  }, []);
-
-  return {
-    walletData,
-    callAccountAPI,
-    refreshWalletData,
-    clearWalletData,
-  };
-}
+// useWalletData removed: legacy /wallets/accounts API deprecated in favor of aggregation jobs.
 
 // Custom hook for tooltip management
 export function useTooltip() {

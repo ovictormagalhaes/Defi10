@@ -204,7 +204,16 @@ const ProtocolsSection = ({
           const filtered = lendingPositions.map((p) => ({
             ...p,
             tokens: Array.isArray(p.tokens)
-              ? filterLendingDefiTokens(p.tokens, showLendingDefiTokens)
+              ? filterLendingDefiTokens(p.tokens, showLendingDefiTokens).map(tok => {
+                  // If token itself lacks collateral flags, inherit from position.additionalData
+                  const add = p.additionalData || p.AdditionalData;
+                  if (add && (add.isCollateral === true || add.IsCollateral === true)) {
+                    if (tok.isCollateral !== true && tok.IsCollateral !== true) {
+                      return { ...tok, isCollateral: true };
+                    }
+                  }
+                  return tok;
+                })
               : [],
           }));
           const grouped = groupTokensByType(filtered);

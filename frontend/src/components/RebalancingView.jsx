@@ -12,6 +12,7 @@ import IconButton from './IconButton';
 import StandardHeader from './table/StandardHeader';
 import Skeleton from './Skeleton';
 import CollapsibleMenu from './CollapsibleMenu';
+import RebalanceItemDialog from './RebalanceItemDialog';
 
 // Frontend mirror of backend enum
 const RebalanceReferenceType = {
@@ -616,161 +617,34 @@ export default function RebalancingView({
         </button>
       </div>
 
-      {/* Modal Dialog for adding item */}
-      {showDialog && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-title">{editingId ? 'Edit Rebalancing Item' : 'Add Rebalancing Item'}</div>
-            <div className="rebalance-form-grid">
-              {/* Asset Type */}
-              <div className="form-group">
-                <div className="text-secondary label-sm">
-                  Asset Type
-                </div>
-                <select
-                  value={assetType}
-                  onChange={(e) =>
-                    setAssetType(e.target.value === '' ? '' : Number(e.target.value))
-                  }
-                  className="input-base"
-                >
-                  <option value="">Select asset type…</option>
-                  {ASSET_TYPE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Asset (custom dropdown) */}
-              <div className="form-group">
-                <div className="text-secondary label-sm">
-                  Asset
-                </div>
-                <AssetDropdown
-                  theme={theme}
-                  assetType={assetType}
-                  value={assetId}
-                  options={assetOptions}
-                  onChange={setAssetId}
-                  tokensList={tokensList}
-                  placeholder="Select asset…"
-                />
-              </div>
-
-              {/* Reference Type */}
-              <div className="form-group">
-                <div className="text-secondary label-sm">
-                  Reference Type
-                </div>
-                <select
-                  value={referenceType}
-                  onChange={(e) => setReferenceType(e.target.value)}
-                  className="input-base"
-                >
-                  <option value="">Select reference type…</option>
-                  {Object.values(RebalanceReferenceType).map((rt) => (
-                    <option key={rt} value={rt}>
-                      {rt}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Reference Value (conditional) */}
-              <div className="form-group">
-                <div className="text-secondary label-sm">
-                  Reference Value
-                </div>
-                {referenceType === RebalanceReferenceType.TotalWallet ? (
-                  <div className="input-static">—</div>
-                ) : referenceType === RebalanceReferenceType.Token ? (
-                  <AssetDropdown
-                    theme={theme}
-                    assetType={ITEM_TYPES.WALLET}
-                    value={referenceValue}
-                    options={tokensList}
-                    onChange={setReferenceValue}
-                    tokensList={tokensList}
-                    placeholder="Select value…"
-                  />
-                ) : referenceType === RebalanceReferenceType.Protocol ? (
-                  <AssetDropdown
-                    theme={theme}
-                    assetType="PROTOCOL"
-                    value={referenceValue}
-                    options={protocolsList}
-                    onChange={setReferenceValue}
-                    placeholder="Select value…"
-                  />
-                ) : (
-                  <select
-                    value={referenceValue}
-                    onChange={(e) => setReferenceValue(e.target.value)}
-                    className="input-base"
-                  >
-                    <option value="">Select value…</option>
-                    {referenceOptions.map((opt, idx) => (
-                      <option key={`${opt.id}-${idx}`} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {/* Note 0..100 */}
-              <div className="form-group">
-                <div className="text-secondary label-sm">
-                  Note
-                </div>
-                <select
-                  value={note}
-                  onChange={(e) => setNote(Number(e.target.value))}
-                  className="input-base"
-                >
-                  {Array.from({ length: 101 }, (_, n) => n).map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            {/* Actions */}
-            <div className="dialog-actions">
-              <div className={`label-sm ${isDuplicateCandidate ? 'text-secondary' : 'text-transparent'}`}>
-                {isDuplicateCandidate ? 'This item is already in the list.' : ' '}
-              </div>
-              <div className="flex gap-8">
-                <button
-                  type="button"
-                  className="btn btn--outline"
-                  onClick={() => {
-                    setShowDialog(false);
-                    if (editingId) setEditingId(null);
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  disabled={!canAdd || isDuplicateCandidate}
-                  onClick={() => {
-                    if (!isDuplicateCandidate && canAdd) {
-                      handleSubmit();
-                    }
-                  }}
-                >
-                  {editingId ? 'Save' : 'Add'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Rebalance Item Dialog (glass UI) */}
+      <RebalanceItemDialog
+        open={showDialog}
+        editing={!!editingId}
+        assetType={assetType}
+        setAssetType={setAssetType}
+        assetId={assetId}
+        setAssetId={setAssetId}
+        assetOptions={assetOptions}
+        referenceType={referenceType}
+        setReferenceType={setReferenceType}
+        referenceValue={referenceValue}
+        setReferenceValue={setReferenceValue}
+        referenceOptions={referenceOptions}
+        note={note}
+        setNote={setNote}
+        ASSET_TYPE_OPTIONS={ASSET_TYPE_OPTIONS}
+        RebalanceReferenceType={RebalanceReferenceType}
+        ITEM_TYPES={ITEM_TYPES}
+        AssetDropdown={AssetDropdown}
+        tokensList={tokensList}
+        protocolsList={protocolsList}
+        canAdd={canAdd}
+        isDuplicateCandidate={isDuplicateCandidate}
+        onCancel={() => { setShowDialog(false); if (editingId) setEditingId(null); }}
+        onSubmit={handleSubmit}
+        theme={theme}
+      />
 
       {/* Entries List (Grouped Collapsible Sections) */}
       {entries.length > 0 && (
@@ -793,6 +667,7 @@ export default function RebalancingView({
                 <table className="table-unified text-primary">
                   <StandardHeader
                     columnDefs={[
+                      // Icon + name are merged in the first (token) column; remaining metric/action columns follow
                       { key: 'current', label: '% Current', align: 'right' },
                       { key: 'target', label: '% Target', align: 'right' },
                       { key: 'diff', label: '% Diff', align: 'right' },
@@ -805,7 +680,12 @@ export default function RebalancingView({
                     {isLoadingPrimary && groupEntries.length === 0
                       ? skeletonRows.map((_, i) => (
                         <tr key={"sk-" + group.type + i} className={`table-row ${i === skeletonRows.length - 1 ? '' : 'tbody-divider'}`}>
-                          <td className="td col-name"><Skeleton width={160} className="text" /></td>
+                          <td className="td col-name">
+                            <span className="flex align-center gap-8">
+                              <Skeleton width={26} height={26} className="circle" />
+                              <Skeleton width={140} className="text" />
+                            </span>
+                          </td>
                           <td className="td td-right col-current"><Skeleton width={60} className="text" /></td>
                           <td className="td td-right col-target"><Skeleton width={60} className="text" /></td>
                           <td className="td td-right col-diff"><Skeleton width={60} className="text" /></td>
@@ -891,9 +771,9 @@ export default function RebalancingView({
                         return (
                           <tr key={row.id} className={`table-row table-row-hover ${idx === groupEntries.length - 1 ? '' : 'tbody-divider'}`}>
                             <td className="td text-primary col-name">
-                              <span className="flex align-center gap-8">
+                              <span className="flex align-center gap-8" title={row.assetLabel}>
                                 {renderAssetIcons()}
-                                <span className="truncate">{row.assetLabel}</span>
+                                <span className="truncate" style={{maxWidth:'240px'}}>{row.assetLabel}</span>
                               </span>
                             </td>
                             <td className="td td-right td-mono tabular-nums text-primary col-current">
@@ -909,17 +789,18 @@ export default function RebalancingView({
                               />
                             </td>
                             <td className="td td-right td-mono tabular-nums text-primary col-diff">
-                              <ValueWithTooltip
-                                value={formatPercent(pctTarget - pctCurrent, { decimals: 2, sign: true })}
-                                tooltip={`Diff: ${fmtUSD(diffVal)}`}
-                                className={
-                                  pctTarget - pctCurrent > 0
-                                    ? 'text-positive'
-                                    : pctTarget - pctCurrent < 0
-                                      ? 'text-negative'
-                                      : ''
-                                }
-                              />
+                              {(() => {
+                                const diffPct = pctTarget - pctCurrent;
+                                const cls = diffPct > 0 ? 'text-positive' : diffPct < 0 ? 'text-negative' : 'text-secondary';
+                                const arrow = diffPct > 0 ? '▲' : diffPct < 0 ? '▼' : '•';
+                                return (
+                                  <ValueWithTooltip
+                                    value={`${arrow} ${formatPercent(diffPct, { decimals: 2, sign: true })}`}
+                                    tooltip={`Diff: ${fmtUSD(diffVal)}`}
+                                    className={cls}
+                                  />
+                                );
+                              })()}
                             </td>
                             <td className="td col-note text-secondary">
                               {row.note || '-'}

@@ -49,9 +49,11 @@ export default function HeaderBar({
   return (
     <header
       style={{
-        display: 'flex',
+        display: 'grid',
+        gridTemplateColumns: isVeryNarrow ? '1fr auto' : '1fr 1fr 1fr',
         alignItems: 'center',
-        gap: isVeryNarrow ? 10 : 20,
+        columnGap: isVeryNarrow ? 10 : 20,
+        rowGap: 10,
         padding: isVeryNarrow ? '8px 14px' : '10px 24px',
         borderBottom: `1px solid ${theme.border}`,
         background: theme.bgApp,
@@ -60,8 +62,8 @@ export default function HeaderBar({
         zIndex: 50,
       }}
     >
-      {/* Left Brand */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* Left Brand (Area 1) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <div
           style={{
             width: 40,
@@ -96,9 +98,9 @@ export default function HeaderBar({
         </div>
       </div>
 
-      {/* Center Search (hidden or compressed on very narrow) */}
+      {/* Center Search (Area 2) - hidden on very narrow */}
       {!isVeryNarrow && (
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', minWidth: 0 }}>
           <div
             style={{
               display: 'flex',
@@ -164,8 +166,8 @@ export default function HeaderBar({
         </div>
       )}
 
-      {/* Right Icons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto' }}>
+  {/* Right Icons / Account (Area 3) */}
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifySelf: isVeryNarrow ? 'end' : 'stretch', justifyContent: isVeryNarrow ? 'flex-end' : 'flex-end', minWidth: 0 }}>
         {/* Mobile hamburger (shows search overlay) */}
         {isVeryNarrow && (
           <IconButton

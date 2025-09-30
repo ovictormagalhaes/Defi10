@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 import { useMaskValues } from '../context/MaskValuesContext';
-import { getHealth, getSupportedChains, getWallet } from '../services/apiClient';
-import { HealthStatus, SupportedChain, WalletData, WalletItem } from '../types/api';
-import { parseNumeric, formatNumber } from '../utils/format';
+import { getHealth, getSupportedChains } from '../services/apiClient';
+import { HealthStatus, SupportedChain } from '../types/api';
+import AggregationPanel from './AggregationPanel';
 
 import Panel from './Panel';
 import StatusBadge from './StatusBadge';
@@ -13,28 +13,9 @@ const WalletDashboard: React.FC = () => {
   const [chains, setChains] = useState<SupportedChain[]>([]);
   const [walletAddress, setWalletAddress] = useState('');
   const [selectedChains, setSelectedChains] = useState<string[]>(['Base']);
-  const [walletData, setWalletData] = useState<WalletData | null>(null);
-  const [loading, setLoading] = useState(false);
+  // loading state removed (aggregation panel manages async state)
   const [error, setError] = useState<string | null>(null);
   const { maskValues } = useMaskValues();
-
-  // Log valor total e informações de cada chain sempre que selectedChains ou walletData mudam
-  useEffect(() => {
-    if (!walletData || !walletData.items) return;
-    const chainTotals: Record<string, number> = {};
-    walletData.items.forEach((item: WalletItem) => {
-      const chain = (item.network || (item as any).chain || 'Unknown') as string;
-      const rawVal = item.totalPrice ?? item.value ?? 0;
-      const value = parseNumeric(rawVal, 0);
-      if (!chainTotals[chain]) chainTotals[chain] = 0;
-      chainTotals[chain] += value;
-    });
-    const total = Object.values(chainTotals).reduce((a, b) => a + b, 0);
-    console.log('[WalletDashboard] Chains selecionadas:', selectedChains);
-    console.log('[WalletDashboard] Totais por chain:', chainTotals);
-    console.log('[WalletDashboard] Valor total:', total);
-    console.log('[WalletDashboard] Dados detalhados:', walletData.items);
-  }, [selectedChains, walletData]);
 
   // Check API health on component mount
   useEffect(() => {
@@ -80,23 +61,13 @@ const WalletDashboard: React.FC = () => {
     return 'Failed to load wallet data';
   };
 
-  const loadWalletData = useCallback(async () => {
+  const loadWalletData = useCallback(() => {
     if (!walletAddress) {
       setError('Please enter a wallet address');
       return;
     }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getWallet(walletAddress, selectedChains);
-      setWalletData(data);
-    } catch (err) {
-      console.error('Failed to load wallet data:', err);
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [walletAddress, selectedChains]);
+    setError(null); // AggregationPanel will auto ensure job; no direct API call here
+  }, [walletAddress]);
 
   const handleChainToggle = useCallback((chainName: string) => {
     setSelectedChains((prev) =>
@@ -215,10 +186,10 @@ const WalletDashboard: React.FC = () => {
           </button>
           <button
             onClick={loadWalletData}
-            disabled={loading || !walletAddress}
-            className={`btn ${loading ? 'btn--loading' : ''}`}
+            disabled={!walletAddress}
+            className="btn"
           >
-            {loading ? 'Loading...' : '?? Load Portfolio'}
+            ?? Load Portfolio
           </button>
         </div>
         <p className="small muted mt-1">
@@ -233,47 +204,9 @@ const WalletDashboard: React.FC = () => {
         </Panel>
       )}
 
-      {/* Wallet Data Display */}
-      {walletData && (
-        <Panel variant="success">
-          <h3>?? Portfolio Summary</h3>
-          <p>
-            <strong>Account:</strong>{' '}
-            {maskValues ? (
-              <span className="mono mono-truncate">{maskAddress(walletData.account)}</span>
-            ) : (
-              <span className="mono mono-truncate">{walletData.account}</span>
-            )}
-          </p>
-          <p>
-            <strong>Network:</strong> {walletData.network}
-          </p>
-          <p>
-            <strong>Positions:</strong> {walletData.items.length}
-          </p>
-          <p>
-            <strong>Aggregated Value (est.):</strong>{' '}
-            {formatNumber(
-              walletData.items.reduce((sum, it) => {
-                const v = parseNumeric(it.totalPrice ?? it.value ?? 0, 0);
-                return sum + v;
-              }, 0),
-              { decimals: 2, minCompact: 1_000 }
-            )}
-          </p>
-          <p>
-            <strong>Last Updated:</strong> {new Date(walletData.lastUpdated).toLocaleString()}
-          </p>
-
-          {walletData.items.length > 0 && (
-            <details className="mt-10">
-              <summary className="summary-toggle">
-                ?? View Detailed Data ({walletData.items.length} positions)
-              </summary>
-              <pre className="code-block">{JSON.stringify(walletData, null, 2)}</pre>
-            </details>
-          )}
-        </Panel>
+      {/* Aggregation-based Panel */}
+      {walletAddress && (
+        <AggregationPanel account={walletAddress} chain={selectedChains[0] || 'Base'} />
       )}
 
       {/* Footer */}

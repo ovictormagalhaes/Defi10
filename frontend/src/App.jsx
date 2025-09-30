@@ -13,12 +13,14 @@ import TokensMenu from './components/TokensMenu';
 import { ChainIconsProvider } from './context/ChainIconsProvider';
 import { MaskValuesProvider } from './context/MaskValuesContext';
 import { useTheme } from './context/ThemeProvider';
-import { useWalletConnection, useWalletData, useTooltip } from './hooks/useWallet';
+import { useWalletConnection, useTooltip } from './hooks/useWallet';
 import useWalletMenus from './hooks/useWalletMenus';
 import colors from './styles/colors';
 import WalletTokensTable from './components/WalletTokensTable';
 import SummaryView from './components/SummaryView';
 import RebalancingView from './components/RebalancingView';
+import AggregationPanel from './components/AggregationPanel';
+import { useAggregationJob } from './hooks/useAggregationJob';
 import { api } from './config/api';
 import {
   formatBalance,
@@ -110,8 +112,11 @@ function App() {
       return () => clearTimeout(t);
     }
   }, [account]);
-  // Wallet data API
-  const { walletData, callAccountAPI, refreshWalletData, clearWalletData } = useWalletData();
+  // Wallet data derivado da agregação (substitui fluxo legacy /wallets/accounts)
+  const [walletData, setWalletData] = useState(null);
+  const callAccountAPI = () => {};
+  const refreshWalletData = () => {};
+  const clearWalletData = () => {};
   const [rebalanceInfo, setRebalanceInfo] = useState(null);
   const fetchRebalancesFor = async (addr) => {
     if (!addr) {
@@ -130,29 +135,6 @@ function App() {
       setRebalanceInfo(null);
     }
   };
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!account) {
-        setRebalanceInfo(null);
-        return;
-      }
-      try {
-        const res = await fetch(api.getRebalances(account));
-        if (!res.ok) {
-          if (!cancelled) setRebalanceInfo(null);
-          return;
-        }
-        const data = await res.json();
-        if (!cancelled) setRebalanceInfo(data);
-      } catch (e) {
-        if (!cancelled) setRebalanceInfo(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [account]);
   // Tooltip
   const { tooltipVisible, tooltipPosition } = useTooltip();
 
@@ -233,35 +215,141 @@ function App() {
       alert('Please enter a wallet address');
       return;
     }
-    // Keep selectedChains; snapshot will update when walletData arrives
-    callAccountAPI(addr, setLoading);
-    refreshSupportedChains(true);
-    // Also fetch saved rebalances for this address
+    // Apenas rebalances; supported-chains já está em cache (evitar spam)
     fetchRebalancesFor(addr);
+    // Auto start aggregation para endereço pesquisado
+    setActiveAggregationAddress(addr);
   };
 
   // Refresh current account
   const handleRefreshWalletData = () => {
-    refreshWalletData(account, setLoading);
-    refreshSupportedChains(true);
     if (account) fetchRebalancesFor(account);
+    // Reinicia agregação para conta conectada
+    if (account) setRefreshNonce(n => n + 1);
   };
 
   // Load data when account changes
   useEffect(() => {
-    if (account) {
-      callAccountAPI(account, setLoading);
-      refreshSupportedChains(true);
-    } else {
-      clearWalletData();
+    if (!account) {
       walletDataSnapshotRef.current = null;
       setSelectedChains(null);
     }
-  }, [account, callAccountAPI, setLoading, clearWalletData]);
+    // Não forçamos refreshSupportedChains aqui para evitar requisições repetidas.
+  }, [account]);
+
+  // ----------------------
+  // Aggregation Integration (declarar antes de efeitos que dependem de aggSnapshot)
+  // ----------------------
+  const {
+    ensure: ensureAggregation,
+    jobId: aggJobId,
+    snapshot: aggSnapshot,
+    summary: aggSummary,
+    loading: aggLoading,
+    isCompleted: aggCompleted,
+    expired: aggExpired,
+    reset: resetAgg,
+    progress: aggProgress,
+    expected: aggExpected,
+    succeeded: aggSucceeded,
+    failed: aggFailed,
+    timedOut: aggTimedOut,
+    status: aggStatus,
+  } = useAggregationJob();
+  // Após agregação finalizada, buscar supported chains (adiado para evitar requisição inicial extra)
+  useEffect(() => {
+    if (aggCompleted) {
+      // force para garantir primeira carga mesmo se hook marcar fetch já feito
+      try { refreshSupportedChains(true); } catch {}
+    }
+  }, [aggCompleted, refreshSupportedChains]);
+  // Gated rebalances: só buscar após agregação completa para evitar dados inconsistentes
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!account || !aggCompleted) {
+        if (!account) setRebalanceInfo(null);
+        return;
+      }
+      try {
+        const res = await fetch(api.getRebalances(account));
+        if (!res.ok) {
+          if (!cancelled) setRebalanceInfo(null);
+          return;
+        }
+        const data = await res.json();
+        if (!cancelled) setRebalanceInfo(data);
+      } catch (e) {
+        if (!cancelled) setRebalanceInfo(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [account, aggCompleted]);
+  // Garantir Default antes de completar agregação (efeito precisa vir após aggCompleted existir)
+  useEffect(() => {
+    if (account && !aggCompleted && viewMode !== 'Default') setViewMode('Default');
+  }, [account, aggCompleted, viewMode]);
+  // TEMP: Force aggregation overlay always visible for visual review.
+  // Debug/QA: ativar overlay forçado via variável de ambiente VITE_FORCE_AGG_OVERLAY=1
+  const DEV_FORCE_AGG_OVERLAY = (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_FORCE_AGG_OVERLAY === '1' || import.meta.env?.VITE_FORCE_AGG_OVERLAY === 'true'));
+  // Ajuste: se overlay forçado não bloquear menu depois de pronto? Mantemos comportamento original (não mostra menus até ready) para consistência.
+  // Ready flag: only true when aggregation finished and walletData mapped
+  const isAggregationReady = aggCompleted && !!walletData;
 
   // Immutable snapshot of the last full walletData to ensure global aggregates (chainTotals) are independent from any UI filtering mutations.
   const walletDataSnapshotRef = React.useRef(null);
   const [snapshotVersion, setSnapshotVersion] = useState(0);
+
+  // Mapear items da agregação (strings) -> tipos numéricos esperados pelos utilitários
+  useEffect(() => {
+    if (!aggSnapshot || !Array.isArray(aggSnapshot.items)) {
+      setWalletData(null);
+      return;
+    }
+    const TYPE_MAP = {
+      Wallet: ITEM_TYPES.WALLET,
+      LiquidityPool: ITEM_TYPES.LIQUIDITY_POOL,
+      LendingAndBorrowing: ITEM_TYPES.LENDING_AND_BORROWING,
+      Staking: ITEM_TYPES.STAKING,
+    };
+    const mapped = aggSnapshot.items.map(it => {
+      const numericType = TYPE_MAP[it.type] ?? it.type;
+      return { ...it, type: numericType };
+    });
+    setWalletData({
+      items: mapped,
+      aggregationJobId: aggJobId,
+      aggregationSummary: aggSummary,
+      rawAggregation: aggSnapshot,
+    });
+  }, [aggSnapshot, aggJobId, aggSummary]);
+
+  // Endereço alvo para agregação pode ser conta conectada ou endereço buscado manualmente
+  const [activeAggregationAddress, setActiveAggregationAddress] = useState(null);
+  const [refreshNonce, setRefreshNonce] = useState(0); // força restart
+
+  // Sempre que conectar wallet e não houver endereço buscado manualmente, usar a conta conectada
+  useEffect(() => {
+    if (account && !searchAddress) {
+      setActiveAggregationAddress(account);
+    }
+  }, [account, searchAddress]);
+
+  // Se usuário digita novo searchAddress mas ainda não clicou buscar, não alterar; somente quando busca (handleSearch)
+
+  // Auto ensure: em conectar, buscar ou refresh (via refreshNonce)
+  useEffect(() => {
+    if (!activeAggregationAddress) return;
+    ensureAggregation(activeAggregationAddress, 'Base');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAggregationAddress, refreshNonce]);
+
+  // Expor função manual de restart (pode ser ligada a botão futuro)
+  const restartAggregation = () => {
+    if (!activeAggregationAddress) return;
+    resetAgg();
+    ensureAggregation(activeAggregationAddress, 'Base', { force: true });
+  };
   useEffect(() => {
     if (!walletData) {
       walletDataSnapshotRef.current = null;
@@ -917,8 +1005,8 @@ function App() {
             width: '100%',
           }}
         >
-          {/* Supported Chains only if wallet connected or data loaded from search */}
-          {(account || walletData) && (
+          {/* Supported Chains: only after aggregation ready */}
+          {isAggregationReady && (
             <div style={{ marginTop: 18 }}>
               {chainsLoading && (!supportedChains || supportedChains.length === 0) && (
                 <div style={{ fontSize: 12, color: theme.textSecondary }}>Loading chains...</div>
@@ -1095,10 +1183,14 @@ function App() {
             padding: `0 ${sidePadding} 64px ${sidePadding}`,
             boxSizing: 'border-box',
             width: '100%',
+            position: 'relative',
           }}
         >
-          {/* View Mode Toggle */}
-          {(account || walletData) && (
+          {/* View Mode Toggle: show only when aggregation ready; reserve space placeholder earlier to avoid layout shift */}
+          {!isAggregationReady && account && (
+            <div style={{ marginTop: 16, marginBottom: 16, height: 44 }} />
+          )}
+          {isAggregationReady && (
             <div
               style={{
                 marginTop: 16,
@@ -1160,10 +1252,82 @@ function App() {
             </div>
           )}
 
-          {/* Content */}
-          {walletData && (
+          {/* Overlay de sincronização bloqueando interação até conclusão */}
+          {(DEV_FORCE_AGG_OVERLAY || aggJobId) && (
+            <div
+              aria-busy={!aggCompleted}
+              aria-live="polite"
+              style={{
+                position: 'fixed', // cobre viewport inteira
+                inset: 0,
+                background: 'linear-gradient(155deg, rgba(0,0,0,0.72), rgba(0,0,0,0.55))',
+                backdropFilter: 'blur(5px)',
+                WebkitBackdropFilter: 'blur(5px)',
+                zIndex: 2000,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: isMobile ? '24px 16px 32px 16px' : '32px 32px 48px 32px',
+                color: theme.textPrimary,
+                overflowY: 'auto',
+                pointerEvents: !aggCompleted ? 'auto' : 'none',
+                opacity: aggCompleted ? 0 : 1,
+                transition: 'opacity .55s ease',
+              }}
+            >
+              {/* Centered card with circular loader */}
+              <div style={{ width: '100%', maxWidth: isMobile ? 380 : 520, textAlign: 'center', padding: '0 12px' }}>
+                <div
+                  style={{
+                    width: isMobile ? 52 : 72,
+                    height: isMobile ? 52 : 72,
+                    margin: isMobile ? '0 auto 22px auto' : '0 auto 32px auto',
+                    border: isMobile ? '5px solid rgba(255,255,255,0.15)' : '6px solid rgba(255,255,255,0.15)',
+                    borderTop: isMobile ? '5px solid #35f7a5' : '6px solid #35f7a5',
+                    borderRight: isMobile ? '5px solid #2fbfd9' : '6px solid #2fbfd9',
+                    borderRadius: '50%',
+                    animation: !aggCompleted ? 'defiSpin 0.85s linear infinite' : 'none',
+                  }}
+                />
+                <h2 style={{ margin: '0 0 12px 0', fontSize: isMobile ? 20 : 24, fontWeight: 600, letterSpacing: '.5px' }}>
+                  {aggCompleted ? 'Synchronized' : 'Synchronizing your account'}
+                </h2>
+                <p style={{ fontSize: isMobile ? 13 : 14, lineHeight: 1.5, opacity: 0.9, margin: '0 0 18px 0' }}>
+                  {aggCompleted ? 'Data ready – unlocking interface.' : 'Aggregating your DeFi positions across multiple providers. The interface unlocks once we have complete data to avoid partial insights.'}
+                </p>
+                <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 500, marginBottom: 6 }}>
+                  {(() => {
+                    const expected = aggExpected || aggSnapshot?.expected;
+                    const succeeded = aggSucceeded || aggSnapshot?.succeeded || 0;
+                    const failed = aggFailed || aggSnapshot?.failed || 0;
+                    const timedOut = aggTimedOut || aggSnapshot?.timedOut || 0;
+                    if (!expected || expected <= 0) return 'Initializing sources...';
+                    const done = succeeded + failed + timedOut;
+                    const pct = Math.min(100, Math.max(0, Math.round((done / expected) * 100)));
+                    return aggCompleted ? 'Complete' : `Sources ${done}/${expected} • ${pct}%`;
+                  })()}
+                </div>
+                <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.75, marginBottom: 4 }}>
+                  Status: {aggCompleted ? 'Done' : (aggStatus || aggSnapshot?.status || 'Running')}
+                </div>
+                <div style={{ fontSize: isMobile ? 10 : 11, opacity: 0.5 }}>
+                  {aggCompleted ? 'Closing...' : 'This may take a few seconds depending on the number of protocols.'}
+                </div>
+                <div style={{ marginTop: isMobile ? 16 : 22, fontSize: isMobile ? 10 : 11, opacity: 0.55 }}>
+                  {(() => {
+                    const failed = aggFailed || aggSnapshot?.failed || 0;
+                    const timedOut = aggTimedOut || aggSnapshot?.timedOut || 0;
+                    if (failed === 0 && timedOut === 0) return null;
+                    return `Partial issues - failed: ${failed}${timedOut>0?`, timed out: ${timedOut}`:''}`;
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+          {isAggregationReady && (
             <div>
-              {viewMode === 'Summary' && (
+              {viewMode === 'Summary' && isAggregationReady && (
                 <SummaryView
                   walletTokens={walletTokens}
                   getLiquidityPoolsData={getLiquidityPoolsData}
@@ -1178,7 +1342,7 @@ function App() {
                   showLendingDefiTokens={showLendingDefiTokens}
                 />
               )}
-              {viewMode === 'Rebalancing' && (
+              {viewMode === 'Rebalancing' && isAggregationReady && (
                 <RebalancingView
                   walletTokens={walletTokens}
                   getLiquidityPoolsData={getLiquidityPoolsData}
@@ -1191,7 +1355,7 @@ function App() {
                   initialSavedItems={rebalanceInfo?.items}
                 />
               )}
-              {viewMode !== 'Summary' && viewMode !== 'Rebalancing' && (
+              {viewMode !== 'Summary' && viewMode !== 'Rebalancing' && isAggregationReady && (
                 <>
                   {/* Default view - Tokens using SectionTable */}
                   {walletTokens.length > 0 &&

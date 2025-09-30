@@ -34,10 +34,15 @@ public class TokenFinancials
     {
         get
         {
-            if (Amount > 0 && DecimalPlaces > 0)
+            if (Amount.HasValue && Amount.Value > 0 && DecimalPlaces.HasValue && DecimalPlaces.Value >= 0)
             {
-                var divisor = (decimal)Math.Pow(10, (double)DecimalPlaces.Value);
-                return Amount.Value / divisor;
+                var places = (int)DecimalPlaces.Value;
+                if (places <= MaxCachedPower)
+                {
+                    return Amount.Value / DecimalPow10(places);
+                }
+                // Fallback: cap at max cached (avoids overflow beyond 10^28 which decimal cannot represent)
+                return Amount.Value / DecimalPow10(MaxCachedPower);
             }
             return null;
         }
@@ -45,6 +50,24 @@ public class TokenFinancials
     public decimal? BalanceFormatted { get; set; }
     public decimal? Price { get; set; }
     public decimal? TotalPrice { get; set; }
+
+    // Decimal max ~7.9e28, so 10^29 would overflow. Cache 0..28.
+    private const int MaxCachedPower = 28;
+    private static readonly decimal[] Pow10Cache = BuildCache();
+    private static decimal[] BuildCache()
+    {
+        var arr = new decimal[MaxCachedPower + 1]; // 0..28
+        arr[0] = 1m;
+        for (int i = 1; i < arr.Length; i++) arr[i] = arr[i - 1] * 10m; // safe within decimal range
+        return arr;
+    }
+    public static decimal DecimalPow10(int n)
+    {
+        if (n < 0) return 1m;
+        if (n <= MaxCachedPower) return Pow10Cache[n];
+        // Cap at largest exact power representable to avoid OverflowException
+        return Pow10Cache[MaxCachedPower];
+    }
 }
 
 public class Token
@@ -77,6 +100,8 @@ public class AdditionalData
     public long? CreatedAt { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public RangeInfo? Range { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? PriceUnavailable { get; set; }
 }
 
 public class RangeInfo

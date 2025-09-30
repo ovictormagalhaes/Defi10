@@ -32,13 +32,18 @@ export default function StandardHeader({
   let sequence = null;
   let advanced = null;
   if (Array.isArray(columnDefs) && columnDefs.length) {
-    advanced = columnDefs.map((d) => ({
-      key: d.key,
-      label: d.label || merged[d.key] || d.key,
-      align: d.align || (d.key === 'range' ? 'center' : 'right'),
-      className: d.className || `col-${d.key}`,
-      thProps: d.thProps || {},
-    }));
+    advanced = columnDefs.map((d) => {
+      // Preserve intentionally empty string labels (e.g., blank placeholder column header)
+      const provided = Object.prototype.hasOwnProperty.call(d, 'label');
+      const finalLabel = provided ? d.label : (merged[d.key] || d.key);
+      return {
+        key: d.key,
+        label: finalLabel,
+        align: d.align || (d.key === 'range' ? 'center' : 'right'),
+        className: d.className || `col-${d.key}`,
+        thProps: d.thProps || {},
+      };
+    });
   } else {
     sequence = columns && Array.isArray(columns) && columns.length ? columns : null;
     if (!sequence) {

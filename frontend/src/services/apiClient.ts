@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 import { api } from '../config/api';
-import { HealthStatus, SupportedChain, WalletData } from '../types/api';
+import { HealthStatus, SupportedChain } from '../types/api';
 
 // Generic GET helper with simple error normalization
 async function getJSON<T>(url: string): Promise<T> {
@@ -18,6 +18,4 @@ export async function getSupportedChains(): Promise<SupportedChain[]> {
   return data.chains || [];
 }
 
-export async function getWallet(address: string, chains: string[]): Promise<WalletData> {
-  return getJSON<WalletData>(api.getWallet(address, chains));
-}
+// getWallet removed (replaced by aggregation workflow)

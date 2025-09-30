@@ -65,6 +65,18 @@ GET /api/v1/wallets/supported-chains
 - ? Base
 - ? BNB Smart Chain (use PancakeSwap instead)
 
+#### UI Note (2025-09)
+Na interface agora as posições de Liquidity Pool do Uniswap V3 são agrupadas por chain. Ex.:
+
+```
+Uniswap V3 (Base)
+  - Pools da Base...
+Uniswap V3 (Arbitrum)
+  - Pools da Arbitrum...
+```
+
+Isso facilita comparar liquidez e distribuição de valor entre chains diferentes sem misturar as posições em um único bloco.
+
 ## Example Responses
 
 ### Single Chain (Base)

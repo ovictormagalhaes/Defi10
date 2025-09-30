@@ -4,7 +4,7 @@ using MyWebWallet.API.Services.Helpers;
 
 namespace MyWebWallet.API.Services;
 
-public class WalletService : IWalletService
+/*public class WalletService : IWalletService
 {
     private readonly IEnumerable<IBlockchainService> _blockchainServices;
     private readonly ICacheService _cacheService;
@@ -195,4 +195,4 @@ public class WalletService : IWalletService
         public bool Success { get; set; }
         public string? Error { get; set; }
     }
-}
+}*/

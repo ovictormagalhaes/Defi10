@@ -1,11 +1,18 @@
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
 using ChainEnum = MyWebWallet.API.Models.Chain;
+using MyWebWallet.API.Aggregation;
 
 namespace MyWebWallet.API.Services.Mappers;
 
 public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
 {
+    private readonly ITokenFactory _tokenFactory;
+    public AaveSuppliesMapper(ITokenFactory tokenFactory)
+    {
+        _tokenFactory = tokenFactory;
+    }
+
     public string ProtocolName => "Aave-Supplies";
     public string GetProtocolName() => ProtocolName;
 
@@ -32,6 +39,19 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
 
         foreach (var supply in response.Data.UserBorrows)
         {
+            if (!decimal.TryParse(supply.Balance.Amount.Value, out var amountFormatted)) amountFormatted = 0m;
+            if (!decimal.TryParse(supply.Balance.Usd, out var totalUsd)) totalUsd = 0m;
+            var unitPrice = amountFormatted > 0 ? totalUsd / amountFormatted : 0m;
+
+            var suppliedToken = _tokenFactory.CreateSupplied(
+                supply.Currency.Name,
+                supply.Currency.Symbol,
+                supply.Currency.Address,
+                chain,
+                0, // decimals unknown in current payload
+                amountFormatted,
+                unitPrice);
+
             var walletItem = new WalletItem
             {
                 Type = WalletItemType.LendingAndBorrowing,
@@ -39,24 +59,7 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
                 Position = new Position
                 {
                     Label = "Supplied",
-                    Tokens = new List<Token>
-                    {
-                        new Token
-                        {
-                            Type = TokenType.Supplied,
-                            Name = supply.Currency.Name,
-                            Symbol = supply.Currency.Symbol,
-                            ContractAddress = supply.Currency.Address,
-                            Chain = chain.ToChainId(),
-                            Financials = new TokenFinancials
-                            {
-                                Amount = decimal.Parse(supply.Balance.Amount.Value),
-                                BalanceFormatted = decimal.Parse(supply.Balance.Amount.Value),
-                                Price = decimal.Parse(supply.Balance.Usd) / decimal.Parse(supply.Balance.Amount.Value),
-                                TotalPrice = decimal.Parse(supply.Balance.Usd)
-                            }
-                        }
-                    }
+                    Tokens = new List<Token> { suppliedToken }
                 },
                 AdditionalData = new AdditionalData
                 {
@@ -68,7 +71,7 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
             walletItems.Add(walletItem);
         }
 
-        return walletItems;
+        return await Task.FromResult(walletItems);
     }
 
     private static Protocol GetProtocol(ChainEnum chain) => new()

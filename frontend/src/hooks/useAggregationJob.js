@@ -1,0 +1,235 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from '../config/api';
+
+/**
+ * Hook para gerenciar ciclo de vida de um job de agregação.
+ * Passos:
+ * 1. start(account, chains?) -> cria job (POST /api/v1/aggregations  body: { account, chains? })
+ * 2. polling até isCompleted=true usando GET /api/v1/aggregations/{jobId}
+ * Endpoint único já traz parciais (pending/processed/progress)
+ */
+export function useAggregationJob() {
+  const [jobId, setJobId] = useState(null);
+  const [snapshot, setSnapshot] = useState(null); // resposta bruta da API
+  const [summary, setSummary] = useState(null); // resumo opcional
+  const [expired, setExpired] = useState(false); // 404 após início
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+
+  const pollTimer = useRef(null);
+  const attemptRef = useRef(0);
+  const cancelled = useRef(false);
+  // Controle de idempotência / anti-loop
+  const lastAccountRef = useRef(null);
+  const lastChainRef = useRef(null);
+  const ensureInFlightRef = useRef(false);
+  const lastEnsureTsRef = useRef(0);
+
+  const clearTimer = () => {
+    if (pollTimer.current) {
+      clearTimeout(pollTimer.current);
+      pollTimer.current = null;
+    }
+  };
+
+  const reset = useCallback(() => {
+    clearTimer();
+    setJobId(null);
+    setSnapshot(null);
+    setSummary(null);
+    setExpired(false);
+    setError(null);
+    setLoading(false);
+    setIsCompleted(false);
+    attemptRef.current = 0;
+    cancelled.current = false;
+  }, []);
+
+  const start = useCallback(async (account, chains = null) => {
+    // Evita starts concorrentes
+    if (ensureInFlightRef.current) return null;
+    ensureInFlightRef.current = true;
+    try {
+      reset();
+      setLoading(true);
+      const res = await fetch(api.startAggregation(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: api.buildStartAggregationBody(account, chains || undefined),
+      });
+      if (!res.ok) throw new Error(`Start failed: ${res.status}`);
+      const data = await res.json();
+      // Novo formato: { account, jobs: [ { chain, jobId }, ... ] }
+      let pickedJobId = data.jobId;
+      if (!pickedJobId && Array.isArray(data.jobs)) {
+        pickedJobId = api.pickAggregationJob(data.jobs);
+      }
+      if (!pickedJobId) throw new Error('Missing jobId in start response');
+      setJobId(pickedJobId);
+      lastAccountRef.current = account;
+      lastChainRef.current = null; // multi-chain ou indefinido
+      attemptRef.current = 0;
+      return pickedJobId;
+    } catch (err) {
+      setError(err);
+      setLoading(false);
+      return null;
+    } finally {
+      ensureInFlightRef.current = false;
+    }
+  }, [reset]);
+
+  // Tenta reutilizar job ativo antes de criar outro
+  const ensure = useCallback(async (account, _unusedChain = null, { force = false } = {}) => {
+    if (!account) return null;
+    const now = Date.now();
+    // Throttle: ignora ensures repetidos em < 500ms
+    if (!force && now - lastEnsureTsRef.current < 500) return jobId;
+    lastEnsureTsRef.current = now;
+
+    // Se já temos job para mesmo account/chain ativo e não expirado e não force -> reutiliza
+    if (!force && jobId && !expired && lastAccountRef.current === account) {
+      return jobId;
+    }
+    if (ensureInFlightRef.current) return jobId; // evita corrida
+    ensureInFlightRef.current = true;
+    try {
+      setLoading(true);
+      // Endpoint GET por account deprecado: sempre inicia (idempotente no backend)
+      reset(); // agora sim reset global antes de criar
+      setLoading(true);
+      const res = await fetch(api.startAggregation(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: api.buildStartAggregationBody(account),
+      });
+      if (!res.ok) throw new Error(`Start failed: ${res.status}`);
+      const data = await res.json();
+      let pickedJobId = data.jobId;
+      if (!pickedJobId && Array.isArray(data.jobs)) {
+        pickedJobId = api.pickAggregationJob(data.jobs);
+      }
+      if (!pickedJobId) throw new Error('Missing jobId in start response');
+      setJobId(pickedJobId);
+      lastAccountRef.current = account;
+      lastChainRef.current = null;
+      attemptRef.current = 0;
+      return pickedJobId;
+    } catch (err) {
+      setError(err);
+      setLoading(false);
+      return null;
+    } finally {
+      ensureInFlightRef.current = false;
+    }
+  }, [jobId, expired, reset]);
+
+  const fetchSnapshot = useCallback(async (id) => {
+    try {
+      const res = await fetch(api.getAggregation(id));
+      if (res.status === 404) {
+        setExpired(true);
+        throw new Error('Job not found (expired or invalid id)');
+      }
+      if (!res.ok) throw new Error(`Aggregation fetch failed: ${res.status}`);
+      const data = await res.json();
+      // Normalização de summary (aceita camelCase / PascalCase / TitleCase variando backend)
+      if (data.summary && typeof data.summary === 'object') {
+        const s = data.summary;
+        const norm = {
+          TotalTokens: s.TotalTokens ?? s.totalTokens ?? s.total_tokens ?? s.tokens ?? null,
+          TotalAaveSupplies: s.TotalAaveSupplies ?? s.totalAaveSupplies ?? s.aaveSupplies ?? null,
+            TotalAaveBorrows: s.TotalAaveBorrows ?? s.totalAaveBorrows ?? s.aaveBorrows ?? null,
+          TotalUniswapPositions: s.TotalUniswapPositions ?? s.totalUniswapPositions ?? s.uniswapPositions ?? null,
+          ProvidersCompleted: s.ProvidersCompleted || s.providersCompleted || s.providers || s.providers_completed || [],
+        };
+        setSummary(norm);
+      }
+      // Deduplicar processed por provider (último vence) e detectar lista inválida
+      if (Array.isArray(data.processed)) {
+        const allSameZero = data.processed.length > 0 && data.processed.every(p => !p || p.provider === '0');
+        if (allSameZero && data.summary) {
+          // Reconstruir processed a partir de summary.providersCompleted
+          const pcs = (data.summary.ProvidersCompleted || data.summary.providersCompleted || data.summary.providers || [])
+            .filter(p => typeof p === 'string')
+            .map(name => ({ provider: name, status: 'Success', error: null }));
+          data.processed = pcs;
+        } else {
+          const map = new Map();
+          data.processed.forEach(p => {
+            if (!p || !p.provider) return;
+            map.set(p.provider, p); // sobrescreve duplicados
+          });
+          data.processed = Array.from(map.values());
+        }
+      } else if ((!data.processed || !data.processed.length) && data.summary) {
+        const pcs = (data.summary.ProvidersCompleted || data.summary.providersCompleted || data.summary.providers || [])
+          .filter(p => typeof p === 'string')
+          .map(name => ({ provider: name, status: 'Success', error: null }));
+        if (pcs.length) data.processed = pcs;
+      }
+      setSnapshot(data);
+      if (data.isCompleted || /^(Completed|CompletedWithErrors|TimedOut)$/i.test(data.status)) {
+        setIsCompleted(true);
+      }
+    } catch (err) {
+      // Em erro de snapshot não marcamos completado; apenas paramos polling na próxima checagem
+      setError(err);
+    }
+  }, []);
+
+  // Polling loop (interval fixo de 5 segundos conforme requisito)
+  useEffect(() => {
+    if (!jobId) return;
+    if (cancelled.current) return;
+
+    const run = async () => {
+      if (cancelled.current) return;
+      await fetchSnapshot(jobId);
+      if (!cancelled.current && !isCompleted) {
+        // Sempre agenda próximo ciclo em 5000ms
+        pollTimer.current = setTimeout(run, 5000);
+      } else {
+        setLoading(false);
+      }
+    };
+
+    // Dispara imediatamente a primeira consulta
+    run();
+
+    return () => {
+      cancelled.current = true;
+      clearTimer();
+    };
+  }, [jobId, isCompleted, fetchSnapshot]);
+
+  // Derivados convenientes
+  const progress = snapshot?.progress ?? (snapshot && snapshot.expected > 0
+    ? ((snapshot.succeeded || 0) + (snapshot.failed || 0) + (snapshot.timedOut || 0)) / snapshot.expected
+    : 0);
+
+  return {
+    jobId,
+    snapshot,
+    error,
+    loading,
+    isCompleted,
+    progress,
+    // Métricas de progresso expostas para UI granular
+    expected: snapshot?.expected ?? null,
+    succeeded: snapshot?.succeeded ?? null,
+    failed: snapshot?.failed ?? null,
+    timedOut: snapshot?.timedOut ?? null,
+    status: snapshot?.status || (isCompleted ? 'Completed' : 'Running'),
+    summary,
+    expired,
+    pending: snapshot?.pending || [],
+    processed: snapshot?.processed || [],
+    start,
+    ensure, // start com reutilização de job existente por account (idempotente)
+    reset,
+  };
+}
+
+export default useAggregationJob;

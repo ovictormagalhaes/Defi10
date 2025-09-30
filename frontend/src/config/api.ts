@@ -109,6 +109,7 @@ export const config = {
     CACHE: '/api/v1/cache',
     SUPPORTED_CHAINS: '/api/v1/wallets/supported-chains',
     REBALANCES: '/api/v1/rebalances',
+  AGGREGATIONS: '/api/v1/aggregations',
   },
 
   // Default configuration
@@ -167,14 +168,8 @@ export const api = {
   // Health check
   health: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.HEALTH}`,
 
-  // Wallet endpoints
-  getWallet: (address: string, chains?: string[]) => {
-    const baseUrl = `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLETS}/accounts/${address}`;
-    if (chains && chains.length > 0) {
-      return `${baseUrl}?chains=${chains.join(',')}`;
-    }
-    return baseUrl;
-  },
+  // (Deprecated) getWallet endpoint removed in favor of aggregation jobs.
+  // getWallet: (address: string, chains?: string[]) => { /* removed */ },
 
   // Token endpoints
   getTokenLogo: (address: string, chain: string = 'Base') =>
@@ -188,6 +183,28 @@ export const api = {
   // Rebalances
   getRebalances: (accountId: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.REBALANCES}/${accountId}`,
+
+  // Aggregation jobs (pluralized backend: /api/v1/aggregations)
+  // Contrato atual: POST /api/v1/aggregations  body: { account, chains? }
+  startAggregation: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.AGGREGATIONS}`,
+  buildStartAggregationBody: (account: string, chains?: string[] | string) => {
+    const body: any = { account };
+    if (chains) body.chains = Array.isArray(chains) ? chains : [chains];
+    return JSON.stringify(body);
+  },
+  // Helper: escolher jobId da lista retornada (prioriza Base, depois BNB, depois primeiro)
+  pickAggregationJob: (jobs: any[]) => {
+    if (!Array.isArray(jobs) || !jobs.length) return null;
+    const prefs = ['Base', 'BASE', 'base', 'Bnb', 'BNB', 'bnb'];
+    for (const p of prefs) {
+      const found = jobs.find(j => (j.chain || '').toString().toLowerCase() === p.toString().toLowerCase());
+      if (found) return found.jobId || found.jobID || found.id || null;
+    }
+    const first = jobs[0];
+    return first.jobId || first.jobID || first.id || null;
+  },
+  getAggregation: (jobId: string) =>
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.AGGREGATIONS}/${encodeURIComponent(jobId)}`,
 };
 
 export default config;

@@ -30,11 +30,18 @@ export default function LendingTables({ supplied = [], borrowed = [], rewards = 
 
   const Section = ({ title, tokens, negative }) => {
     if (!tokens || tokens.length === 0) return null;
+    const isSupplied = title === 'Supplied';
+    const isBorrowed = title === 'Borrowed';
     return (
       <div className="table-wrapper">
         <table className="table-unified text-primary">
           <StandardHeader
-            columns={["price","amount","value"]}
+            columnDefs={[
+              { key: 'collateral', label: isSupplied ? 'Collateral' : (isBorrowed ? '' : 'Collateral'), align: 'center', className: 'col-collateral' },
+              { key: 'price', label: 'Price', align: 'right', className: 'col-price' },
+              { key: 'amount', label: 'Amount', align: 'right', className: 'col-amount' },
+              { key: 'value', label: 'Value', align: 'right', className: 'col-value' },
+            ]}
             labels={{ token: title === 'Supplied' ? 'Supply' : title === 'Borrowed' ? 'Borrow' : 'Token' }}
           />
           <tbody>
@@ -42,6 +49,19 @@ export default function LendingTables({ supplied = [], borrowed = [], rewards = 
               const valueRaw = parseFloat(t.totalPrice) || 0;
               const value = negative ? -Math.abs(valueRaw) : valueRaw;
               const unitPrice = parseFloat(t.priceUsd || t.priceUSD || t.price || 0) || 0;
+              // Attempt to derive collateral flag from multiple possible shapes (token object or wrapping position token)
+              const tokenObj = t?.token ? t.token : t; // some lending datasets nest the token under t.token
+              const isCollateral = [
+                tokenObj?.isCollateral,
+                tokenObj?.IsCollateral,
+                tokenObj?.additionalData?.isCollateral,
+                tokenObj?.additionalData?.IsCollateral,
+                tokenObj?.AdditionalData?.IsCollateral,
+                tokenObj?.additionalInfo?.IsCollateral,
+                tokenObj?.additional_info?.is_collateral,
+                t?.position?.additionalData?.IsCollateral,
+                t?.position?.additionalData?.isCollateral,
+              ].some(v => v === true);
               return (
                 <tr
                   key={idx}
@@ -49,6 +69,16 @@ export default function LendingTables({ supplied = [], borrowed = [], rewards = 
                 >
                   <td className="td text-primary col-name">
                     <TokenDisplay tokens={[t]} size={22} showChain={false} />
+                  </td>
+                  <td className="td th-center col-collateral">
+                    {isSupplied && (
+                      isCollateral ? (
+                        <span className="toggle-pill on" aria-label="Collateral" role="switch" aria-checked="true" />
+                      ) : (
+                        <span className="toggle-pill" aria-label="Not collateral" role="switch" aria-checked="false" />
+                      )
+                    )}
+                    {isBorrowed && null /* empty cell for layout parity */}
                   </td>
                   <td className="td td-right td-mono text-primary col-price">
                     {maskValue(formatPrice(unitPrice))}
@@ -63,6 +93,7 @@ export default function LendingTables({ supplied = [], borrowed = [], rewards = 
             {tokens.length > 1 && (
               <tr className="table-summary">
                 <td className="td text-primary col-name">Subtotal</td>
+                <td className="td th-center col-collateral">{isSupplied ? '-' : ''}</td>
                 <td className="td td-right td-mono text-primary col-price">-</td>
                 <td className="td td-right td-mono text-primary col-amount">
                   {maskValue(formatTokenAmount({ amount: tokens.reduce((s, t) => s + (parseFloat(t.amount)||0), 0) }))}

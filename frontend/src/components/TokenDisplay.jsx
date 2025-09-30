@@ -112,30 +112,10 @@ export default function TokenDisplay({
 
   const chainKey = chainNormalization[lowerRaw] || lowerRaw;
 
-  // Simple internal mapping (can be expanded / replaced)
-  const builtinChainIcons = {
-    ethereum: 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
-    eth: 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
-    arbitrum: 'https://cryptologos.cc/logos/arbitrum-arb-logo.png',
-    arb: 'https://cryptologos.cc/logos/arbitrum-arb-logo.png',
-    base: 'https://assets.coingecko.com/coins/images/31069/small/base-network_200x200.png',
-    polygon: 'https://cryptologos.cc/logos/polygon-matic-logo.png',
-    matic: 'https://cryptologos.cc/logos/polygon-matic-logo.png',
-    avalanche: 'https://cryptologos.cc/logos/avalanche-avax-logo.png',
-    avax: 'https://cryptologos.cc/logos/avalanche-avax-logo.png',
-    optimism: 'https://cryptologos.cc/logos/optimism-ethereum-op-logo.png',
-    op: 'https://cryptologos.cc/logos/optimism-ethereum-op-logo.png',
-    bsc: 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
-    binance: 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
-    fantom: 'https://cryptologos.cc/logos/fantom-ftm-logo.png',
-    ftm: 'https://cryptologos.cc/logos/fantom-ftm-logo.png',
-  };
-
   let resolvedIcon = undefined;
   if (showChain && chainKey) {
     if (getChainIcon) resolvedIcon = getChainIcon(chainKey); // explicit prop resolver
     if (!resolvedIcon && getChainIconFromContext) resolvedIcon = getChainIconFromContext(chainKey); // context mapping
-    if (!resolvedIcon) resolvedIcon = builtinChainIcons[chainKey]; // builtin fallback
   }
 
   // Hooks MUST run before any conditional returns
@@ -208,7 +188,7 @@ export default function TokenDisplay({
             </div>
           );
         })}
-        {resolvedIcon && !chainFailed && (
+        {resolvedIcon && !chainFailed ? (
           <div
             style={{
               position: 'absolute',
@@ -237,6 +217,29 @@ export default function TokenDisplay({
                 setChainFailed(true);
               }}
             />
+          </div>
+        ) : showChain && chainKey && (
+          <div
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              width: Math.round(size * 0.45),
+              height: Math.round(size * 0.45),
+              borderRadius: '50%',
+              background: theme.bgPanel,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: Math.round(size * 0.22),
+              fontWeight: 600,
+              color: theme.textSecondary,
+              letterSpacing: '.5px',
+              boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06), 0 0 0 1px rgba(0,0,0,0.35)'
+            }}
+            title={chainKey}
+          >
+            {chainKey.slice(0,2).toUpperCase()}
           </div>
         )}
       </div>
