@@ -158,20 +158,3 @@ public class RateLimitingMiddleware
         public List<DateTimeOffset> Timestamps { get; } = new();
     }
 }
-
-
-public class RateLimitOptions
-{
-    public bool Enabled { get; set; } = true;
-    public int MaxRequests { get; set; } = 100;
-    public TimeSpan Window { get; set; } = TimeSpan.FromMinutes(1);
-}
-
-
-public static class RateLimitingMiddlewareExtensions
-{
-    public static IApplicationBuilder UseRateLimiting(this IApplicationBuilder builder)
-    {
-        return builder.UseMiddleware<RateLimitingMiddleware>();
-    }
-}

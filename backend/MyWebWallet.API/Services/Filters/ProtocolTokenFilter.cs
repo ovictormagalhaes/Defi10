@@ -8,18 +8,6 @@ namespace MyWebWallet.API.Services.Filters
     public static class ProtocolTokenFilter
     {
 
-        private static readonly HashSet<string> ProtocolTokenPrefixes = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "a",
-            "st",
-            "c",
-            "j",
-            "m",
-            "b",
-            "variableDebt",
-            "stableDebt",
-        };
-
         private static readonly HashSet<string> ProtocolTokenExceptions = new(StringComparer.OrdinalIgnoreCase)
         {
             "WETH",

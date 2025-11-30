@@ -7,11 +7,6 @@ using System.Text.Json.Serialization;
 
 namespace MyWebWallet.API.Messaging.Rabbit;
 
-public interface IMessagePublisher
-{
-    Task PublishAsync(string routingKey, object message, CancellationToken ct = default);
-}
-
 public class RabbitMqPublisher : IMessagePublisher, IDisposable
 {
     private readonly IRabbitMqConnectionFactory _connectionFactory;

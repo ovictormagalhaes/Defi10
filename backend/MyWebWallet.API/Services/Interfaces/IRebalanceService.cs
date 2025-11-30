@@ -1,4 +1,4 @@
-using MyWebWallet.API.DTOs;
+using MyWebWallet.API.Controllers.Requests;
 
 namespace MyWebWallet.API.Services.Interfaces;
 

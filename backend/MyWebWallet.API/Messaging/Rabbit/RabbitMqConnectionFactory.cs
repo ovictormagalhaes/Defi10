@@ -5,11 +5,6 @@ using System.Security.Authentication;
 
 namespace MyWebWallet.API.Messaging.Rabbit;
 
-public interface IRabbitMqConnectionFactory
-{
-    IConnection GetConnection();
-}
-
 public class RabbitMqConnectionFactory : IRabbitMqConnectionFactory, IDisposable
 {
     private readonly RabbitMqOptions _options;

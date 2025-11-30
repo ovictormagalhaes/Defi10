@@ -1,7 +1,7 @@
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
-using Nethereum.ABI.FunctionEncoding.Attributes;
+using MyWebWallet.API.Services.DTOs.UniswapV3;
 using Nethereum.ABI;
 using Nethereum.Contracts;
 using Nethereum.Util;
@@ -14,86 +14,8 @@ using Microsoft.Extensions.Logging;
 
 namespace MyWebWallet.API.Services
 {
-    #region DTO / Function / Event Definitions (unchanged)
-    [FunctionOutput]
-    public class PositionDTO : IFunctionOutputDTO
-    {
-        [Parameter("uint96", "nonce", 1)]
-        public BigInteger Nonce { get; set; }
-        [Parameter("address", "operator", 2)]
-        public string Operator { get; set; } = string.Empty;
-        [Parameter("address", "token0", 3)]
-        public string Token0 { get; set; } = string.Empty;
-        [Parameter("address", "token1", 4)]
-        public string Token1 { get; set; } = string.Empty;
-        [Parameter("uint24", "fee", 5)]
-        public uint Fee { get; set; }
-        [Parameter("int24", "tickLower", 6)]
-        public int TickLower { get; set; }
-        [Parameter("int24", "tickUpper", 7)]
-        public int TickUpper { get; set; }
-        [Parameter("uint128", "liquidity", 8)]
-        public BigInteger Liquidity { get; set; }
-        [Parameter("uint256", "feeGrowthInside0LastX128", 9)]
-        public BigInteger FeeGrowthInside0LastX128 { get; set; }
-        [Parameter("uint256", "feeGrowthInside1LastX128", 10)]
-        public BigInteger FeeGrowthInside1LastX128 { get; set; }
-        [Parameter("uint128", "tokensOwed0", 11)]
-        public BigInteger TokensOwed0 { get; set; }
-        [Parameter("uint128", "tokensOwed1", 12)]
-        public BigInteger TokensOwed1 { get; set; }
-    }
-    [Function("positions", typeof(PositionDTO))]
-    public class PositionsFunction : FunctionMessage
-    {
-        [Parameter("uint256", "tokenId", 1)]
-        public BigInteger TokenId { get; set; }
-    }
-    [Function("token0", "address")] public class Token0Function : FunctionMessage { }
-    [Function("token1", "address")] public class Token1Function : FunctionMessage { }
-    [Function("fee", "uint24")] public class FeeFunction : FunctionMessage { }
-    [Function("tickSpacing", "int24")] public class TickSpacingFunction : FunctionMessage { }
-    [Function("feeGrowthGlobal0X128", "uint256")] public class FeeGrowthGlobal0X128Function : FunctionMessage { }
-    [Function("feeGrowthGlobal1X128", "uint256")] public class FeeGrowthGlobal1X128Function : FunctionMessage { }
-    [Function("slot0", typeof(Slot0OutputDTO))] public class Slot0Function : FunctionMessage { }
-    [FunctionOutput]
-    public class Slot0OutputDTO : IFunctionOutputDTO
-    {
-        [Parameter("uint160", "sqrtPriceX96", 1)] public BigInteger SqrtPriceX96 { get; set; }
-        [Parameter("int24", "tick", 2)] public int Tick { get; set; }
-    }
-    [Function("ticks", typeof(TickInfoDTO))] public class TicksFunction : FunctionMessage { [Parameter("int24", "tick", 1)] public int Tick { get; set; } }
-    [FunctionOutput]
-    public class TickInfoDTO : IFunctionOutputDTO
-    {
-        [Parameter("uint128", "liquidityGross", 1)] public BigInteger LiquidityGross { get; set; }
-        [Parameter("int128", "liquidityNet", 2)] public BigInteger LiquidityNet { get; set; }
-        [Parameter("uint256", "feeGrowthOutside0X128", 3)] public BigInteger FeeGrowthOutside0X128 { get; set; }
-        [Parameter("uint256", "feeGrowthOutside1X128", 4)] public BigInteger FeeGrowthOutside1X128 { get; set; }
-    }
-    [Event("PoolCreated")] public class PoolCreatedEventDTO : IEventDTO { [Parameter("address","token0",1,true)] public string Token0 {get;set;} [Parameter("address","token1",2,true)] public string Token1 {get;set;} [Parameter("uint24","fee",3,false)] public uint Fee {get;set;} [Parameter("int24","tickSpacing",4,false)] public int TickSpacing {get;set;} [Parameter("address","pool",5,true)] public string Pool {get;set;} }
-    [Function("balanceOf","uint256")] public class BalanceOfFunction : FunctionMessage { [Parameter("address","owner",1)] public string Owner {get;set;} }
-    [Function("tokenOfOwnerByIndex","uint256")] public class TokenOfOwnerByIndexFunction : FunctionMessage { [Parameter("address","owner",1)] public string Owner {get;set;} [Parameter("uint256","index",2)] public BigInteger Index {get;set;} }
-    [Function("decimals","uint8")] public class ERC20DecimalsFunction : FunctionMessage { }
-    [Function("symbol","string")] public class ERC20SymbolFunction : FunctionMessage { }
-    [Function("name","string")] public class ERC20NameFunction : FunctionMessage { }
-    [Function("getPool","address")] public class GetPoolFunction : FunctionMessage { [Parameter("address","token0",1)] public string Token0 {get;set;} [Parameter("address","token1",2)] public string Token1 {get;set;} [Parameter("uint24","fee",3)] public uint Fee {get;set;} }
-    #endregion
-
     public class UniswapV3OnChainService : IUniswapV3OnChainService
     {
-
-        [Function("latestRoundData", typeof(LatestRoundDataOutputDTO))]
-        private class LatestRoundDataFunction : FunctionMessage { }
-        [FunctionOutput]
-        private class LatestRoundDataOutputDTO : IFunctionOutputDTO
-        {
-            [Parameter("uint80","roundId",1)] public BigInteger RoundId { get; set; }
-            [Parameter("int256","answer",2)] public BigInteger Answer { get; set; }
-            [Parameter("uint256","startedAt",3)] public BigInteger StartedAt { get; set; }
-            [Parameter("uint256","updatedAt",4)] public BigInteger UpdatedAt { get; set; }
-            [Parameter("uint80","answeredInRound",5)] public BigInteger AnsweredInRound { get; set; }
-        }
 
         private async Task<double?> TryGetNativeUsdFromChainlinkAsync(ChainContext ctx)
         {

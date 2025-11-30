@@ -4,17 +4,10 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Options;
 using MyWebWallet.API.Services.Interfaces;
-using ChainEnum = MyWebWallet.API.Models.Chain;
+using MyWebWallet.API.Configuration;
+using MyWebWallet.API.Services.Models.CoinMarketCap;
 
 namespace MyWebWallet.API.Services;
-
-public sealed class CoinMarketCapOptions
-{
-    public string? ApiKey { get; set; }
-    public string BaseUrl { get; set; } = "https://pro-api.coinmarketcap.com/v1";
-    public bool Enabled { get; set; } = true;
-    public int TimeoutMs { get; set; } = 5000;
-}
 
 public class CoinMarketCapService : ICoinMarketCapService
 {

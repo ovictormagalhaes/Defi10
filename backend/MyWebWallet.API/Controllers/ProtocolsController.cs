@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Plugins;
+using MyWebWallet.API.Controllers.Responses;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 using MyWebWallet.API.Services;
 
@@ -120,18 +121,5 @@ namespace MyWebWallet.API.Controllers
             }
             catch (Exception ex) { _logger.LogError(ex, "Error getting position {PositionId} for protocol {ProtocolId}, chain {Chain}", positionId, protocolId, chain); return StatusCode(500, $"Failed to get position {positionId} for protocol {protocolId}"); }
         }
-    }
-
-
-    public class ProtocolInfo
-    {
-        public string Id { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string Version { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
-        public string WebsiteUrl { get; set; } = string.Empty;
-        public string LogoUrl { get; set; } = string.Empty;
-        public List<ChainEnum> SupportedChains { get; set; } = new();
-        public List<WalletItemType> SupportedPositionTypes { get; set; } = new();
     }
 }

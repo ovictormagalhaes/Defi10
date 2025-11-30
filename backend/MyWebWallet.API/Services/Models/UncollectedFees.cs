@@ -1,5 +1,6 @@
 using System.Numerics;
 using Microsoft.Extensions.Logging;
+using MyWebWallet.API.Services.DTOs.UniswapV3;
 
 namespace MyWebWallet.API.Services.Models
 {

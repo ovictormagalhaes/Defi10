@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using MyWebWallet.API.DTOs;
+using MyWebWallet.API.Controllers.Requests;
+using MyWebWallet.API.Controllers.Responses;
 using MyWebWallet.API.Services.Interfaces;
 
 namespace MyWebWallet.API.Controllers;

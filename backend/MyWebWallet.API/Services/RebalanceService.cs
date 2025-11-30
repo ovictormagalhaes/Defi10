@@ -1,5 +1,5 @@
 using System.Text.Json;
-using MyWebWallet.API.DTOs;
+using MyWebWallet.API.Controllers.Requests;
 using MyWebWallet.API.Services.Interfaces;
 
 namespace MyWebWallet.API.Services;

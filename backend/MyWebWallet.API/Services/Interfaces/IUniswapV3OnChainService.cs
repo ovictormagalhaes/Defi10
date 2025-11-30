@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Json.Serialization;
 using System.Collections.Generic;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.DTOs.UniswapV3;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services.Interfaces

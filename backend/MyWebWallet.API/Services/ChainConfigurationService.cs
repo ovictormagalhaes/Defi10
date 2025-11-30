@@ -1,4 +1,3 @@
-using MyWebWallet.API.Models;
 using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Services.Interfaces;
 using Microsoft.Extensions.Options;

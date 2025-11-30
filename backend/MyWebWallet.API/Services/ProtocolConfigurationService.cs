@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Options;
 using MyWebWallet.API.Configuration;
-using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 

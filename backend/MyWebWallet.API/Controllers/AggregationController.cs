@@ -9,6 +9,7 @@ using MyWebWallet.API.Services;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 using MyWebWallet.API.Aggregation; 
 using System.Text.RegularExpressions;
+using MyWebWallet.API.Controllers.Requests;
 
 namespace MyWebWallet.API.Controllers;
 
@@ -39,16 +40,6 @@ public class AggregationController : ControllerBase
         _blockchainService = blockchainService;
         _chainConfig = chainConfigurationService;
         _logger = logger;
-    }
-
-    public sealed class AggregationStartRequest
-    {
-
-        public string? Account { get; set; }
-
-        public Guid? WalletGroupId { get; set; }
-        
-        public string[]? Chains { get; set; }
     }
 
     private static string ActiveJobKey(string accountLower, ChainEnum chain) => RedisKeys.ActiveSingle(accountLower, chain);

@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
+using MyWebWallet.API.Controllers.Requests;
 
 namespace MyWebWallet.API.Controllers;
 
@@ -161,27 +162,5 @@ public class WalletGroupsController : ControllerBase
             _logger.LogError(ex, "Failed to delete wallet group {GroupId}", id);
             return StatusCode(500, new { error = "Failed to delete wallet group" });
         }
-    }
-
-    public sealed class CreateWalletGroupRequest
-    {
-        [Required]
-        [MinLength(1, ErrorMessage = "At least one wallet address is required")]
-        [MaxLength(3, ErrorMessage = "Maximum of 3 wallet addresses allowed")]
-        public List<string> Wallets { get; set; } = new();
-
-        [MaxLength(100)]
-        public string? DisplayName { get; set; }
-    }
-
-    public sealed class UpdateWalletGroupRequest
-    {
-        [Required]
-        [MinLength(1, ErrorMessage = "At least one wallet address is required")]
-        [MaxLength(3, ErrorMessage = "Maximum of 3 wallet addresses allowed")]
-        public List<string> Wallets { get; set; } = new();
-
-        [MaxLength(100)]
-        public string? DisplayName { get; set; }
     }
 }

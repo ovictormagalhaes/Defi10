@@ -1,8 +1,6 @@
 using MyWebWallet.API.Infrastructure.Http;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
-using MyWebWallet.API.Models;
-using MyWebWallet.API.Configuration;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services;
@@ -29,13 +27,13 @@ public class MoralisEVMService : BaseHttpService, IMoralisService, IChainSupport
     public string GetProtocolName() => "Moralis";
     public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
 
-    public IEnumerable<ChainEnum> GetSupportedChains() => new [] 
-    { 
+    public IEnumerable<ChainEnum> GetSupportedChains() =>
+    [
         ChainEnum.Base, 
         ChainEnum.BNB, 
         ChainEnum.Arbitrum, 
         ChainEnum.Ethereum 
-    };
+    ];
 
     private string ResolveApiChain(ChainEnum chain)
     {

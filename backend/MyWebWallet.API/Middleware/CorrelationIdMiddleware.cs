@@ -70,12 +70,3 @@ public class CorrelationIdMiddleware
         }
     }
 }
-
-
-public static class CorrelationIdMiddlewareExtensions
-{
-    public static IApplicationBuilder UseCorrelationId(this IApplicationBuilder builder)
-    {
-        return builder.UseMiddleware<CorrelationIdMiddleware>();
-    }
-}
