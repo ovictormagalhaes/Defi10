@@ -4,6 +4,7 @@ namespace MyWebWallet.API.Configuration;
 
 public sealed class PendleOptions : IValidateOptions<PendleOptions>
 {
+    public bool Enabled { get; set; } = true;
     public string? VeContract { get; set; }
     public string? RpcOverride { get; set; }
 

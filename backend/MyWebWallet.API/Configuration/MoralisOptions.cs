@@ -4,6 +4,7 @@ namespace MyWebWallet.API.Configuration;
 
 public sealed class MoralisOptions : IValidateOptions<MoralisOptions>
 {
+    public bool Enabled { get; set; } = true;
     public string ApiKey { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = "https://deep-index.moralis.io/api/v2.2";
     public string SolanaBaseUrl { get; set; } = "https://solana-gateway.moralis.io";

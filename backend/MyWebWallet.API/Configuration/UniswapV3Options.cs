@@ -4,6 +4,7 @@ namespace MyWebWallet.API.Configuration;
 
 public sealed class UniswapV3Options : IValidateOptions<UniswapV3Options>
 {
+    public bool Enabled { get; set; } = true;
     public string GraphQLEndpoint { get; set; } = string.Empty;
     public string? ApiKey { get; set; }
 

@@ -3,6 +3,7 @@ using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Plugins;
 using MyWebWallet.API.Controllers.Responses;
+using MyWebWallet.API.DTOs;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 using MyWebWallet.API.Services;
 
@@ -14,10 +15,20 @@ namespace MyWebWallet.API.Controllers
     {
         private readonly IProtocolPluginRegistry _pluginRegistry;
         private readonly IChainConfigurationService _chainConfig;
+        private readonly IProtocolStatusService _protocolStatusService;
         private readonly ILogger<ProtocolsController> _logger;
 
-        public ProtocolsController(IProtocolPluginRegistry pluginRegistry, IChainConfigurationService chainConfig, ILogger<ProtocolsController> logger)
-        { _pluginRegistry = pluginRegistry; _chainConfig = chainConfig; _logger = logger; }
+        public ProtocolsController(
+            IProtocolPluginRegistry pluginRegistry, 
+            IChainConfigurationService chainConfig, 
+            IProtocolStatusService protocolStatusService,
+            ILogger<ProtocolsController> logger)
+        { 
+            _pluginRegistry = pluginRegistry; 
+            _chainConfig = chainConfig; 
+            _protocolStatusService = protocolStatusService;
+            _logger = logger; 
+        }
 
 
         [HttpGet]
@@ -105,6 +116,28 @@ namespace MyWebWallet.API.Controllers
                 var walletItems = await plugin.GetWalletItemsAsync(accountAddress, targetChain); return Ok(walletItems);
             }
             catch (Exception ex) { _logger.LogError(ex, "Error getting wallet items for protocol {ProtocolId}, account {Account}, chain {Chain}", protocolId, accountAddress, chain); return StatusCode(500, $"Failed to get wallet items for protocol {protocolId}"); }
+        }
+
+
+        /// <summary>
+        /// Get the enabled/disabled status of all protocols across all chains
+        /// </summary>
+        /// <returns>List of protocols with their enabled status per chain</returns>
+        [HttpGet("status")]
+        [ProducesResponseType(typeof(ProtocolStatusListResponse), 200)]
+        public ActionResult<ProtocolStatusListResponse> GetProtocolStatus()
+        {
+            try
+            {
+                var result = _protocolStatusService.GetProtocolStatus();
+                _logger.LogInformation("Protocol status retrieved - Protocols: {Count}", result.Protocols.Count);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving protocol status");
+                return StatusCode(500, new { error = "Failed to retrieve protocol status" });
+            }
         }
 
 

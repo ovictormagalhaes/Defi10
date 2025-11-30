@@ -4,6 +4,7 @@ namespace MyWebWallet.API.Configuration;
 
 public sealed class RaydiumOptions : IValidateOptions<RaydiumOptions>
 {
+    public bool Enabled { get; set; } = true;
     public string ApiUrl { get; set; } = string.Empty;
 
     public ValidateOptionsResult Validate(string? name, RaydiumOptions options)
