@@ -9,10 +9,8 @@ using MyWebWallet.API.Services.Models.Solana.Raydium;
 
 namespace MyWebWallet.API.Services.Solana.RaydiumClmm
 {
-    /// <summary>
-    /// Service híbrido que tenta buscar dados da API do Raydium primeiro,
-    /// com fallback para leitura on-chain direta
-    /// </summary>
+
+
     public class RaydiumHybridService
     {
         private readonly RaydiumApiService _apiService;
@@ -29,21 +27,16 @@ namespace MyWebWallet.API.Services.Solana.RaydiumClmm
             _logger = logger;
         }
 
-        /// <summary>
-        /// Busca informações de pool da API Raydium
-        /// Retorna dados da API que incluem price, TVL, volume, APR, etc
-        /// </summary>
+
         public async Task<RaydiumPoolInfo?> GetPoolInfoFromApiAsync(string poolId)
         {
             return await _apiService.GetPoolInfoAsync(poolId);
         }
 
-        /// <summary>
-        /// Busca posições on-chain (fallback se API não disponível)
-        /// </summary>
+
         public async Task<List<RaydiumPosition>> GetPositionsByOwnerAsync(string ownerAddress)
         {
-            // Por enquanto, API de posições não está disponível, usar on-chain direto
+
             _logger.LogInformation("Fetching positions on-chain for owner {Owner}", ownerAddress);
             return await _onChainService.GetPositionsAsync(ownerAddress);
         }

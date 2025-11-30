@@ -1,12 +1,10 @@
-using MyWebWallet.API.Messaging;
+﻿using MyWebWallet.API.Messaging;
 using MyWebWallet.API.Messaging.Contracts.Enums;
 using MyWebWallet.API.Messaging.Contracts.Results;
 using MyWebWallet.API.Messaging.Rabbit;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using System;
 using Microsoft.Extensions.Logging;
 using System.Linq;
@@ -40,20 +38,16 @@ namespace MyWebWallet.API.Plugins.Protocols
 
         public Task InitializeAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
         {
-            // No initialization required
             return Task.CompletedTask;
         }
 
         public Task<ValidationResult> ValidateConfigurationAsync(ChainEnum chain, CancellationToken cancellationToken = default)
         {
-            // No specific configuration to validate
             return Task.FromResult(new ValidationResult { IsValid = true });
         }
 
         public async Task<List<WalletItem>> GetWalletItemsAsync(string accountAddress, ChainEnum chain, CancellationToken cancellationToken = default)
         {
-            // This plugin uses a message-based approach, so this method is not directly used for data fetching.
-            // It could be implemented to provide a direct, synchronous-like call if needed in the future.
             _logger.LogInformation("GetWalletItemsAsync called for SolanaTokensPlugin, but it operates via messaging. Returning empty list.");
             return await Task.FromResult(new List<WalletItem>());
         }
@@ -62,7 +56,6 @@ namespace MyWebWallet.API.Plugins.Protocols
         {
             try
             {
-                // Check a well-known address to see if the service is responsive
                 var testAddress = "So11111111111111111111111111111111111111112";
                 await _solanaService.GetTokensAsync(testAddress, ChainEnum.Solana);
                 return HealthCheckResult.Healthy(TimeSpan.Zero);

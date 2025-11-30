@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MyWebWallet.API.Services.Interfaces;
@@ -26,7 +26,6 @@ public class PendleService : IPendleService
     private const string PROTOCOL_ID = "pendle-v2";
     private const string PENDLE_API_BASE = "https://api-v2.pendle.finance/core";
     
-    // Cache for PT tokens discovered from Pendle API
     private static List<PendlePTToken>? _cachedPTTokens = null;
     private static DateTime _cacheExpiry = DateTime.MinValue;
     private static readonly TimeSpan CACHE_DURATION = TimeSpan.FromHours(1);
@@ -132,7 +131,6 @@ public class PendleService : IPendleService
 
         try
         {
-            // Get PT tokens from Pendle API (with caching)
             var ptTokens = await GetPTTokensFromAPIAsync();
             
             if (ptTokens == null || ptTokens.Count == 0)
@@ -151,7 +149,6 @@ public class PendleService : IPendleService
                 
                 try
                 {
-                    // Query ERC20 balanceOf for this PT token
                     var handler = web3.Eth.GetContractQueryHandler<ERC20BalanceOfFunction>();
                     var balance = await handler.QueryAsync<BigInteger>(
                         ptToken.Address, 
@@ -206,7 +203,6 @@ public class PendleService : IPendleService
 
     private async Task<List<PendlePTToken>?> GetPTTokensFromAPIAsync()
     {
-        // Check cache first
         if (_cachedPTTokens != null && DateTime.UtcNow < _cacheExpiry)
         {
             _logger.LogDebug("[Pendle] Using cached PT tokens (expires in {Minutes} minutes)", 
@@ -216,8 +212,7 @@ public class PendleService : IPendleService
 
         try
         {
-            // Base chain ID for Pendle API
-            const string chainId = "8453"; // Base
+            const string chainId = "8453";
             var url = $"{PENDLE_API_BASE}/v1/{chainId}/markets";
             
             _logger.LogInformation("[Pendle] ?? Fetching PT tokens from Pendle API: {Url}", url);
@@ -271,7 +266,6 @@ public class PendleService : IPendleService
 
             _logger.LogInformation("[Pendle] ? Successfully discovered {Count} PT tokens from Pendle API", ptTokens.Count);
 
-            // Update cache
             _cachedPTTokens = ptTokens;
             _cacheExpiry = DateTime.UtcNow.Add(CACHE_DURATION);
 
@@ -320,7 +314,6 @@ public class PendleService : IPendleService
         return (decimal)v; 
     }
 
-    // Contract function definitions
     [Function("positionData", typeof(PositionDataOutput))]
     public class PositionDataFunction : FunctionMessage 
     { 
@@ -348,7 +341,6 @@ public class PendleService : IPendleService
     [Function("totalSupplyStored", "uint128")]
     public class TotalSupplyStoredFunction : FunctionMessage { }
     
-    // ERC20 standard functions for PT tokens
     [Function("balanceOf", "uint256")]
     public class ERC20BalanceOfFunction : FunctionMessage 
     { 
@@ -359,7 +351,6 @@ public class PendleService : IPendleService
     [Function("name", "string")]
     public class ERC20NameFunction : FunctionMessage { }
 
-    // Models for Pendle API
     private class PendleMarketsResponse
     {
         public List<PendleMarket> Results { get; set; } = new();
@@ -372,7 +363,6 @@ public class PendleService : IPendleService
     {
         public string Address { get; set; } = string.Empty;
         
-        // Pendle API returns expiry as string, not number
         [JsonPropertyName("expiry")]
         public string? ExpiryString { get; set; }
         

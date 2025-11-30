@@ -1,4 +1,4 @@
-﻿using Solnet.Wallet;
+using Solnet.Wallet;
 using System;
 using System.Numerics;
 
@@ -6,7 +6,7 @@ namespace MyWebWallet.API.Services.Solana
 {
     public class RaydiumClmmPositionLayout
     {
-        // Anchor discriminator – 8 bytes
+
         public byte[] Discriminator { get; set; } = new byte[8];
 
         public string NftMint { get; set; } = string.Empty;

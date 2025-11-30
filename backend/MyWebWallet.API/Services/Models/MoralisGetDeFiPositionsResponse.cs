@@ -99,7 +99,7 @@ namespace MyWebWallet.API.Services.Models
 
     public class AccountData
     {
-        //[JsonPropertyName("health_factor")]
-        //public string? HealthFactory { get; set; } // Changed from decimal? to string? to handle large values
+
+
     }
 }

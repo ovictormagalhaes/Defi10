@@ -19,8 +19,7 @@ public sealed class RaydiumPosition
     
     [JsonPropertyName("fees24h")]
     public decimal? Fees24h { get; set; }
-    
-    // Range information
+
     [JsonPropertyName("sqrtPriceX96")]
     public string? SqrtPriceX96 { get; set; }
     

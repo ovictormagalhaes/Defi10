@@ -19,9 +19,8 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
     public AaveSuppliesMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
     { _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; }
 
-    // Only claim support if protocol enabled on chain
     public bool SupportsChain(ChainEnum chain) => IsProtocolEnabled(chain);
-    public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Base }; // declared possible
+    public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Base };
 
     private bool IsProtocolEnabled(ChainEnum chain)
     {

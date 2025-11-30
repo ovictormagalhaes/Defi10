@@ -19,7 +19,6 @@ public class RebalanceController : ControllerBase
         _walletGroupService = walletGroupService;
     }
 
-    // Save targets for one or many accounts
     [HttpPost]
     public async Task<ActionResult<RebalanceSavedResponse>> Save([FromBody] RebalanceRequest request)
     {
@@ -28,8 +27,7 @@ public class RebalanceController : ControllerBase
         if (items.Count == 0) return BadRequest(new { error = "Items are required" });
 
         var accounts = new List<string>();
-        
-        // Option 1: Load accounts from wallet group
+
         if (request.WalletGroupId.HasValue)
         {
             var walletGroup = await _walletGroupService.GetAsync(request.WalletGroupId.Value);
@@ -39,12 +37,10 @@ public class RebalanceController : ControllerBase
             }
             accounts.AddRange(walletGroup.Wallets);
         }
-        
-        // Option 2: Use provided account IDs
+
         if (!string.IsNullOrWhiteSpace(request.AccountId)) accounts.Add(request.AccountId!);
         if (request.AccountIds != null && request.AccountIds.Count > 0) accounts.AddRange(request.AccountIds);
-        
-        // Clean up and deduplicate
+
         accounts = accounts.Select(a => a.Trim()).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         if (accounts.Count == 0)
@@ -60,7 +56,7 @@ public class RebalanceController : ControllerBase
         }
         else
         {
-            // If walletGroupId was provided, save with single group key
+
             if (request.WalletGroupId.HasValue)
             {
                 await _rebalanceService.SaveForWalletGroupAsync(request.WalletGroupId.Value, items);
@@ -74,7 +70,7 @@ public class RebalanceController : ControllerBase
             }
             else
             {
-                // Multiple accounts without wallet group - save individually
+
                 await _rebalanceService.SaveManyAsync(accounts, items);
                 return Ok(new RebalanceSavedResponse 
                 { 
@@ -87,7 +83,6 @@ public class RebalanceController : ControllerBase
         }
     }
 
-    // Get targets for a single account
     [HttpGet("{accountId}")]
     public async Task<ActionResult<object>> Get(string accountId)
     {
@@ -97,7 +92,6 @@ public class RebalanceController : ControllerBase
         return Ok(new { accountId, items, count = items.Count, key = _getKey(accountId) });
     }
 
-    // Get targets for a wallet group
     [HttpGet("group/{walletGroupId}")]
     public async Task<ActionResult<object>> GetByGroup(Guid walletGroupId)
     {
@@ -107,12 +101,11 @@ public class RebalanceController : ControllerBase
             return NotFound(new { error = $"Wallet group {walletGroupId} not found" });
         }
 
-        // Try to get rebalance data saved with walletGroupId key
         var items = await _rebalanceService.GetByWalletGroupAsync(walletGroupId);
         
         if (items != null)
         {
-            // Found data saved with walletGroupId
+
             return Ok(new 
             { 
                 walletGroupId,
@@ -123,7 +116,6 @@ public class RebalanceController : ControllerBase
             });
         }
 
-        // Fallback: get data from individual accounts (legacy behavior)
         var accounts = walletGroup.Wallets;
         if (accounts.Count == 0)
         {
@@ -153,7 +145,7 @@ public class RebalanceController : ControllerBase
 
     private string _getKey(string accountId)
     {
-        // Compose the same key as service/cache
+
         return HttpContext.RequestServices.GetRequiredService<ICacheService>().GenerateRebalanceCacheKey(accountId);
     }
 }

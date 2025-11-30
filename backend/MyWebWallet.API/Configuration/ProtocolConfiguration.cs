@@ -4,18 +4,16 @@ using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Configuration;
 
-// Root options object bound from configuration section: ProtocolConfiguration
 public class ProtocolConfigurationOptions
 {
     public ProtocolDefinition? AaveV3 { get; set; }
     public ProtocolDefinition? Moralis { get; set; }
     public ProtocolDefinition? UniswapV3 { get; set; }
-    public ProtocolDefinition? PendleV2 { get; set; } // novo protocolo
+    public ProtocolDefinition? PendleV2 { get; set; }
 
-    // Generic support (in case future protocols want to register dynamically)
     public Dictionary<string, ProtocolDefinition> Extra { get; set; } = new();
 
-    private Dictionary<string, ProtocolDefinition>? _index; // normalized key/alias -> definition
+    private Dictionary<string, ProtocolDefinition>? _index;
     private readonly object _lock = new();
 
     private void EnsureIndex()
@@ -89,7 +87,6 @@ public class ProtocolConfigurationOptions
     }
 }
 
-// Unified protocol definition (all protocols use / inherit this structure)
 public class ProtocolDefinition
 {
     public string? Key { get; set; }

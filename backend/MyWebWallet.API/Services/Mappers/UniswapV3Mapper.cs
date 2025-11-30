@@ -1,4 +1,4 @@
-using MyWebWallet.API.Models;
+ï»¿using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Interfaces;
 using System.Globalization;
@@ -16,7 +16,6 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
 
-    // Agora somente Base
     private static readonly HashSet<ChainEnum> Supported = new() { ChainEnum.Base };
     private const string PROTOCOL_ID = "uniswap-v3";
 
@@ -111,7 +110,6 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
         catch (Exception ex) { _logger.LogError(ex, "UniV3 process position failed id={Id}", position.Id); return null; }
     }
 
-    // Métodos utilitários originais
     private decimal ValidateTokenAmount(decimal amount, string positionId, string fieldName)
     { const decimal MAX_REASONABLE_AMOUNT = 100_000_000m; if (amount > MAX_REASONABLE_AMOUNT) { _logger.LogWarning("UniV3 capping extreme amount pos={Id} field={Field} original={Original} capped={Capped}", positionId, fieldName, amount, MAX_REASONABLE_AMOUNT); return MAX_REASONABLE_AMOUNT; } if (amount < 0) { _logger.LogWarning("UniV3 negative amount pos={Id} field={Field} amount={Amount}", positionId, fieldName, amount); return 0; } if (amount > 1_000_000) { _logger.LogInformation("UniV3 large amount detected pos={Id} field={Field} amount={Amount}", positionId, fieldName, amount); } return amount; }
     private static decimal SafeMultiply(decimal a, decimal b) { try { if (a == 0 || b == 0) return 0; if (a > 0 && b > 0 && a > decimal.MaxValue / b) return decimal.MaxValue; if (a < 0 && b < 0 && a < decimal.MaxValue / b) return decimal.MaxValue; if ((a > 0 && b < 0 && b < decimal.MinValue / a) || (a < 0 && b > 0 && a < decimal.MinValue / b)) return decimal.MinValue; return a * b; } catch (OverflowException) { return a > 0 == b > 0 ? decimal.MaxValue : decimal.MinValue; } }

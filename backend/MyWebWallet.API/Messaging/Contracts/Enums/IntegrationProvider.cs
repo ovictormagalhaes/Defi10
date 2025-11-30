@@ -9,18 +9,16 @@ public enum IntegrationProvider
     AaveBorrows = 5,
     AlchemyNfts = 6,
     TokenLogos = 7,
-    
-    // Novos eventos granulares para Uniswap V3
-    UniswapV3PositionData = 10,      // GetPositionAsync individual
-    UniswapV3PoolMetadata = 11,      // GetPoolMetadataAsync
-    UniswapV3PoolState = 12,         // GetCurrentPoolStateAsync
-    UniswapV3TickInfo = 13,          // GetTickInfoAsync + GetTickRangeInfoAsync
-    UniswapV3FeeGrowth = 14,         // GetPoolFeeGrowthAsync
-    UniswapV3PositionRange = 15,     // GetPositionRangeAsync
-    UniswapV3TokenMetadata = 16,     // GetErc20MetadataAsync
-    UniswapV3PositionEnumeration = 17, // Enumerate positions by owner
 
-    // Pendle
+    UniswapV3PositionData = 10,
+    UniswapV3PoolMetadata = 11,
+    UniswapV3PoolState = 12,
+    UniswapV3TickInfo = 13,
+    UniswapV3FeeGrowth = 14,
+    UniswapV3PositionRange = 15,
+    UniswapV3TokenMetadata = 16,
+    UniswapV3PositionEnumeration = 17,
+
     PendleVePositions = 30,
     PendleDeposits = 31,
 

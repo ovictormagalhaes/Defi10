@@ -3,9 +3,8 @@ using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Configuration
 {
-    /// <summary>
-    /// Configuration model for blockchain chains
-    /// </summary>
+
+
     public class ChainConfiguration
     {
         public Dictionary<string, ChainConfig> Chains { get; set; } = new();
@@ -28,7 +27,7 @@ namespace MyWebWallet.API.Configuration
         public int ChainId { get; set; }
         public string NativeCurrency { get; set; } = "ETH";
         public string IconUrl { get; set; } = string.Empty;
-        public string? Slug { get; set; } // new configurable chain slug (e.g. base, bsc, arbitrum)
+        public string? Slug { get; set; }
         public RpcConfiguration Rpc { get; set; } = new();
         public ProtocolSupport Protocols { get; set; } = new();
         public PriceFeeds PriceFeeds { get; set; } = new();

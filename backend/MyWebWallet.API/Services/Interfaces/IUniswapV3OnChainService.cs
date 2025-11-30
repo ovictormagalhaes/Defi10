@@ -1,7 +1,7 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
 using System.Collections.Generic;
-using MyWebWallet.API.Services.Models; // Added for UniswapV3GetActivePoolsResponse
+using MyWebWallet.API.Services.Models;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services.Interfaces
@@ -15,58 +15,43 @@ namespace MyWebWallet.API.Services.Interfaces
         Task<int> GetCurrentTickAsync(string poolAddress);
         Task<TickInfoDTO> GetTickInfoAsync(string poolAddress, int tick);
         Task<(TickInfoDTO lowerTick, TickInfoDTO upperTick)> GetTickRangeInfoAsync(string poolAddress, int tickLower, int tickUpper);
-        // Analytics additions
+
         Task<UniswapV3PoolMetadata?> GetPoolMetadataAsync(string poolAddress);
         Task<UniswapV3PoolState?> GetCurrentPoolStateAsync(string poolAddress);
         Task<PositionRangeInfo> GetPositionRangeAsync(BigInteger positionTokenId);
-        // Build active pools response fully on-chain from provided position tokenIds
+
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(IEnumerable<BigInteger> positionTokenIds);
-        // Overload with filter for only open positions
+
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(IEnumerable<BigInteger> positionTokenIds, bool onlyOpenPositions);
-        // NEW: Chain-aware overload for tokenId list (used by granular flow)
+
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(IEnumerable<BigInteger> positionTokenIds, ChainEnum chain, bool onlyOpenPositions);
-        // Enumerate positions by owner (no subgraph dependency)
+
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress);
-        // Overload with filter for only open positions
+
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress, bool onlyOpenPositions);
-        // Chain-aware overload for multi-chain support (Base, Arbitrum)
+
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress, bool onlyOpenPositions, ChainEnum chain);
 
-        // Novos métodos para operações granulares resilientes
-        /// <summary>
-        /// Enumera apenas os IDs das posições de um owner sem buscar detalhes completos
-        /// </summary>
+
         Task<IEnumerable<BigInteger>> EnumeratePositionIdsAsync(string ownerAddress, ChainEnum chain, bool onlyOpen = true);
-        
-        /// <summary>
-        /// Busca dados básicos de uma posição específica (sem pool state)
-        /// </summary>
+
+
         Task<PositionDataResult> GetPositionDataSafeAsync(BigInteger tokenId, ChainEnum chain);
-        
-        /// <summary>
-        /// Busca metadados de um pool específico com fallback
-        /// </summary>
+
+
         Task<PoolMetadataResult> GetPoolMetadataSafeAsync(string poolAddress, ChainEnum chain);
-        
-        /// <summary>
-        /// Busca estado atual de um pool com fallback
-        /// </summary>
+
+
         Task<PoolStateResult> GetPoolStateSafeAsync(string poolAddress, ChainEnum chain);
-        
-        /// <summary>
-        /// Busca informações de ticks com fallback
-        /// </summary>
+
+
         Task<TickRangeResult> GetTickRangeSafeAsync(string poolAddress, int tickLower, int tickUpper, ChainEnum chain);
-        
-        /// <summary>
-        /// Busca metadados de tokens ERC20 com cache
-        /// </summary>
+
+
         Task<TokenMetadataResult> GetTokenMetadataSafeAsync(string tokenAddress, ChainEnum chain);
     }
 
-    /// <summary>
-    /// Resultado seguro para dados de posição
-    /// </summary>
+
     public class PositionDataResult
     {
         public BigInteger TokenId { get; init; }
@@ -83,9 +68,7 @@ namespace MyWebWallet.API.Services.Interfaces
             => new() { TokenId = tokenId, Success = false, ErrorMessage = errorMessage };
     }
 
-    /// <summary>
-    /// Resultado seguro para metadados de pool
-    /// </summary>
+
     public class PoolMetadataResult
     {
         public string PoolAddress { get; init; } = string.Empty;
@@ -101,9 +84,7 @@ namespace MyWebWallet.API.Services.Interfaces
             => new() { PoolAddress = poolAddress, Success = false, ErrorMessage = errorMessage };
     }
 
-    /// <summary>
-    /// Resultado seguro para estado de pool
-    /// </summary>
+
     public class PoolStateResult
     {
         public string PoolAddress { get; init; } = string.Empty;
@@ -119,9 +100,7 @@ namespace MyWebWallet.API.Services.Interfaces
             => new() { PoolAddress = poolAddress, Success = false, ErrorMessage = errorMessage };
     }
 
-    /// <summary>
-    /// Resultado seguro para informações de tick range
-    /// </summary>
+
     public class TickRangeResult
     {
         public string PoolAddress { get; init; } = string.Empty;
@@ -143,9 +122,7 @@ namespace MyWebWallet.API.Services.Interfaces
                       Success = false, ErrorMessage = errorMessage };
     }
 
-    /// <summary>
-    /// Resultado seguro para metadados de token
-    /// </summary>
+
     public class TokenMetadataResult
     {
         public string TokenAddress { get; init; } = string.Empty;
@@ -163,9 +140,7 @@ namespace MyWebWallet.API.Services.Interfaces
             => new() { TokenAddress = tokenAddress, Success = false, ErrorMessage = errorMessage };
     }
 
-    /// <summary>
-    /// Static pool metadata (does not change after creation)
-    /// </summary>
+
     public class UniswapV3PoolMetadata
     {
         [JsonPropertyOrder(0)][JsonPropertyName("poolAddress")] public string PoolAddress { get; init; } = string.Empty;
@@ -182,9 +157,7 @@ namespace MyWebWallet.API.Services.Interfaces
         }
     }
 
-    /// <summary>
-    /// Snapshot of dynamic pool state.
-    /// </summary>
+
     public class UniswapV3PoolState
     {
         [JsonPropertyOrder(0)][JsonPropertyName("poolAddress")] public string PoolAddress { get; init; } = string.Empty;
@@ -201,9 +174,7 @@ namespace MyWebWallet.API.Services.Interfaces
         }
     }
 
-    /// <summary>
-    /// Range info for an LP position (prices are token1 per token0).
-    /// </summary>
+
     public class PositionRangeInfo
     {
         [JsonPropertyOrder(0)][JsonPropertyName("tokenId")] public BigInteger TokenId { get; init; }

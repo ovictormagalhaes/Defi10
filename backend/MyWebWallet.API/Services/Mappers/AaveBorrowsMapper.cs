@@ -19,7 +19,7 @@ public class AaveBorrowsMapper : IWalletItemMapper<AaveGetUserBorrowsResponse>
     { _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; }
 
     public bool SupportsChain(ChainEnum chain) => IsProtocolEnabled(chain);
-    public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Base }; // potential
+    public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Base };
 
     private bool IsProtocolEnabled(ChainEnum chain)
     {

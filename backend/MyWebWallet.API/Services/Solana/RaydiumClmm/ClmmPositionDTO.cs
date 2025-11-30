@@ -1,4 +1,4 @@
-﻿using MyWebWallet.API.Services.Solana.RaydiumClmm;
+using MyWebWallet.API.Services.Solana.RaydiumClmm;
 using Solnet.Wallet;
 using System;
 using System.Numerics;
@@ -29,13 +29,8 @@ namespace MyWebWallet.API.Services.Solana.DTO
 
         public static ClmmPositionDTO Parse(ReadOnlySpan<byte> data)
         {
-            // Layout da struct PersonalPositionState do Raydium CLMM v2:
-            // discriminator(8) + bump(1) + nft_mint(32) + pool_id(32) + 
-            // tick_lower(4) + tick_upper(4) + liquidity(16) + 
-            // fee_growth_inside_0(16) + fee_growth_inside_1(16) +
-            // token_fees_owed_0(8) + token_fees_owed_1(8) +
-            // reward_infos[3](growth_inside_last_x64(16) + reward_amount_owed(8)) * 3 = 72 bytes
-            // recent_epoch(8) + padding(56) = Total: 281 bytes
+
+
             if (data.Length < 217) throw new Exception($"Invalid CLMM Position account size={data.Length}, expected at least 217");
             
             var dto = new ClmmPositionDTO();
@@ -53,8 +48,7 @@ namespace MyWebWallet.API.Services.Solana.DTO
             
             dto.FeesOwedTokenA = BitConverter.ToUInt64(data.Slice(o)); o += 8;
             dto.FeesOwedTokenB = BitConverter.ToUInt64(data.Slice(o)); o += 8;
-            
-            // Parse reward_infos array (3 elements)
+
             dto.RewardInfos = new PositionRewardInfo[3];
             for (int i = 0; i < 3; i++)
             {
@@ -63,7 +57,7 @@ namespace MyWebWallet.API.Services.Solana.DTO
                     GrowthInsideLastX64 = ReadU128(data.Slice(o, 16)),
                     RewardAmountOwed = BitConverter.ToUInt64(data.Slice(o + 16))
                 };
-                o += 24; // 16 bytes (u128) + 8 bytes (u64)
+                o += 24;
             }
             
             if (data.Length >= o + 8)

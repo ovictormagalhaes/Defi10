@@ -82,7 +82,7 @@ namespace MyWebWallet.API.Services
 
     public class UniswapV3OnChainService : IUniswapV3OnChainService
     {
-        // Chainlink Aggregator (only fields we need)
+
         [Function("latestRoundData", typeof(LatestRoundDataOutputDTO))]
         private class LatestRoundDataFunction : FunctionMessage { }
         [FunctionOutput]
@@ -99,17 +99,17 @@ namespace MyWebWallet.API.Services
         {
             try
             {
-                // Allow configuration override per chain: Chainlink:<Chain>:EthUsd (e.g. Chainlink:Base:EthUsd)
+
                 string configured = _configuration[$"Chainlink:{ctx.Chain}:EthUsd"]
                                      ?? _configuration[$"Chainlink:{ctx.Chain}:ETHUSD"]
                                      ?? _configuration[$"Chainlink:{ctx.Chain}:EthUSD:Aggregator"];
 
                 string aggregator = configured ?? ctx.Chain switch
                 {
-                    // Keep Arbitrum hard-coded fallback (ETH / USD 8 decimals)
+
                     ChainEnum.Arbitrum => "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",
-                    // For Base we require config unless a verified address is supplied later
-                    // (avoid hard-coding possibly stale or incorrect feed address)
+
+
                     ChainEnum.Base => string.Empty,
                     _ => string.Empty
                 };
@@ -133,7 +133,7 @@ namespace MyWebWallet.API.Services
                     _logger.LogWarning("CHAINLINK_NATIVE_PRICE_WARN: chain={Chain} reason=non-positive-answer value={Answer}", ctx.Chain, answer);
                     return null;
                 }
-                // ETH / USD feeds use 8 decimals
+
                 double val = (double)answer / Math.Pow(10, 8);
                 _logger.LogInformation("CHAINLINK_NATIVE_PRICE: chain={Chain} priceUSD={Price:G17} source={Source}", ctx.Chain, val, configured != null ? "config" : "default");
                 return val;
@@ -195,7 +195,7 @@ namespace MyWebWallet.API.Services
         private static string Normalize(string? a) 
         {
             if (string.IsNullOrEmpty(a)) 
-                return "0x0000000000000000000000000000000000000000"; // endere�o zero como fallback
+                return "0x0000000000000000000000000000000000000000";
             
             return a.StartsWith("0x") ? a.ToLowerInvariant() : "0x" + a.ToLowerInvariant();
         }
@@ -282,7 +282,7 @@ namespace MyWebWallet.API.Services
         {
             try
             {
-                // Get position details from contract
+
                 var positionResult = await ctx.Web3.Eth.GetContractHandler(ctx.PositionManager)
                     .QueryDeserializingToObjectAsync<PositionsFunction, PositionDTO>(new PositionsFunction { TokenId = id });
                 
@@ -370,7 +370,6 @@ namespace MyWebWallet.API.Services
         private static decimal ScaleToken(BigInteger v,int d){ if(v==0) return 0; var pow=(decimal)Math.Pow(10,d); if(pow==0) pow=1; if(v>(BigInteger)decimal.MaxValue) v=(BigInteger)decimal.MaxValue; return (decimal)v/pow; }
         private static decimal TickToPrice(int tick,int d0,int d1)=> (decimal)(Math.Pow(1.0001,tick)*Math.Pow(10,d0-d1));
 
-        // Interface: tokenId list (Base default)
         public Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(IEnumerable<BigInteger> positionTokenIds) => GetActivePoolsOnChainAsync(positionTokenIds, false);
         public async Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(IEnumerable<BigInteger> positionTokenIds, bool onlyOpenPositions)
         {
@@ -378,14 +377,12 @@ namespace MyWebWallet.API.Services
             return await BuildFromIds(ctx, positionTokenIds, onlyOpenPositions);
         }
 
-        // NEW: Chain-aware overload for granular pipeline
         public async Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(IEnumerable<BigInteger> positionTokenIds, ChainEnum chain, bool onlyOpenPositions)
         {
             var ctx = GetContext(chain);
             return await BuildFromIds(ctx, positionTokenIds, onlyOpenPositions);
         }
 
-        // Interface: owner (Base default wrappers)
         public Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress) => GetActivePoolsOnChainAsync(ownerAddress, false, ChainEnum.Base);
         public Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress, bool onlyOpenPositions) => GetActivePoolsOnChainAsync(ownerAddress, onlyOpenPositions, ChainEnum.Base);
 
@@ -411,8 +408,7 @@ namespace MyWebWallet.API.Services
             var resp = new UniswapV3GetActivePoolsResponse();
             if (ids == null) { resp.Data.Bundles.Add(new UniswapV3Bundle { NativePriceUSD = "0" }); return resp; }
             double nativePrice = 0d;
-            
-            // Pre-fetch Chainlink price fallback (only if chain supports and we have any ids)
+
             var chainlinkPriceTask = TryGetNativeUsdFromChainlinkAsync(ctx);
             
             foreach (var id in ids)
@@ -602,8 +598,7 @@ namespace MyWebWallet.API.Services
                     EstimatedUncollectedToken1 = finalOwed1.ToString("G17")
                 });
             }
-            
-            // If nativePrice still zero, try chainlink fallback result at end (maybe no positions produced ratio)
+
             if (nativePrice <= 0)
             {
                 var chainlink = await chainlinkPriceTask;
@@ -629,7 +624,7 @@ namespace MyWebWallet.API.Services
                 return null;
             }
         }
-        // Interface single calls (Base chain default)
+
         private ChainContext BaseCtx => GetContext(ChainEnum.Base);
         public async Task<PositionDTO> GetPositionAsync(BigInteger tokenId) => await TryGetPositionAsync(BaseCtx, tokenId) ?? new PositionDTO();
         public async Task<BigInteger> GetFeeGrowthGlobal0X128Async(string poolAddress) => (await TryGetFeeGrowthAsync(BaseCtx, poolAddress))?.Item1 ?? 0;
@@ -649,8 +644,7 @@ namespace MyWebWallet.API.Services
         { var slot=await TryGetSlot0Async(BaseCtx,poolAddress); var fg=await TryGetFeeGrowthAsync(BaseCtx,poolAddress); if(slot==null||fg==null) return null; return new UniswapV3PoolState(poolAddress,DateTimeOffset.UtcNow.ToUnixTimeSeconds(),slot.SqrtPriceX96,slot.Tick,fg.Value.Item1,fg.Value.Item2); }
         public async Task<PositionRangeInfo> GetPositionRangeAsync(BigInteger positionTokenId)
         { var pos=await GetPositionAsync(positionTokenId); var ctx=BaseCtx; var pool=await ResolvePoolAsync(ctx,pos.Token0,pos.Token1,pos.Fee); var slot=await TryGetSlot0Async(ctx,pool); int currentTick=slot?.Tick??0; var min=TickToPrice(pos.TickLower,0,0); var max=TickToPrice(pos.TickUpper,0,0); var cur=TickToPrice(currentTick,0,0); var status=currentTick<pos.TickLower?"below":(currentTick>pos.TickUpper?"above":"in-range"); return new PositionRangeInfo(positionTokenId,pool,pos.TickLower,pos.TickUpper,currentTick,min,max,cur,status); }
-        
-        // Implementa��es dos novos m�todos granulares resilientes
+
         public async Task<IEnumerable<BigInteger>> EnumeratePositionIdsAsync(string ownerAddress, ChainEnum chain, bool onlyOpen = true)
         {
             try
@@ -710,13 +704,11 @@ namespace MyWebWallet.API.Services
                     return PositionDataResult.CreateFailure(tokenId, "Position not found or inaccessible");
                 }
 
-                // Valida��o extra de campos obrigat�rios
                 if (string.IsNullOrEmpty(position.Token0) || string.IsNullOrEmpty(position.Token1))
                 {
                     return PositionDataResult.CreateFailure(tokenId, "Position has invalid token addresses");
                 }
 
-                // Tenta resolver o endere�o do pool
                 string? poolAddress = null;
                 try
                 {
@@ -816,8 +808,7 @@ namespace MyWebWallet.API.Services
 
                 var ctx = GetContext(chain);
                 var (symbol, name, decimals) = await GetErc20MetadataAsync(ctx, tokenAddress);
-                
-                // Considera sucesso mesmo se alguns campos est�o vazios
+
                 return TokenMetadataResult.CreateSuccess(tokenAddress, symbol, name, decimals);
             }
             catch (Exception ex)

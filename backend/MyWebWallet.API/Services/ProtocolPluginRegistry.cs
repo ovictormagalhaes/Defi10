@@ -5,44 +5,30 @@ using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services
 {
-    /// <summary>
-    /// Service for discovering, registering and managing protocol plugins
-    /// </summary>
+
+
     public interface IProtocolPluginRegistry
     {
-        /// <summary>
-        /// Discover and register all available plugins
-        /// </summary>
+
+
         Task<int> DiscoverAndRegisterPluginsAsync();
 
-        /// <summary>
-        /// Register a specific plugin
-        /// </summary>
+
         void RegisterPlugin<T>() where T : class, IProtocolPlugin;
 
-        /// <summary>
-        /// Get all registered plugins
-        /// </summary>
+
         IEnumerable<IProtocolPlugin> GetAllPlugins();
 
-        /// <summary>
-        /// Get plugin by protocol ID
-        /// </summary>
+
         IProtocolPlugin? GetPlugin(string protocolId);
 
-        /// <summary>
-        /// Get plugins that support a specific chain
-        /// </summary>
+
         IEnumerable<IProtocolPlugin> GetPluginsForChain(ChainEnum chain);
 
-        /// <summary>
-        /// Get plugins that support specific wallet item types
-        /// </summary>
+
         IEnumerable<IDeFiProtocolPlugin> GetPluginsForType(WalletItemType walletItemType);
 
-        /// <summary>
-        /// Check health of all plugins or a specific one
-        /// </summary>
+
         Task<Dictionary<string, HealthCheckResult>> CheckPluginHealthAsync(string? protocolId = null);
     }
 
@@ -64,7 +50,7 @@ namespace MyWebWallet.API.Services
             
             try
             {
-                // Discover plugins in current assembly
+
                 var assembly = Assembly.GetExecutingAssembly();
                 var pluginTypes = assembly.GetTypes()
                     .Where(type => type.IsClass && !type.IsAbstract && typeof(IProtocolPlugin).IsAssignableFrom(type))

@@ -1,4 +1,4 @@
-using MyWebWallet.API.Models;
+﻿using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Models.Solana.Kamino;
@@ -9,18 +9,6 @@ using Chain = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services.Solana
 {
-    /// <summary>
-    /// Kamino Finance Service
-    /// Uses official Kamino API via Hubble Protocol: https://api.hubbleprotocol.io
-    /// 
-    /// API Documentation: https://github.com/Kamino-Finance/kamino-api-docs
-    /// 
-    /// Benefits:
-    /// - No RPC rate limiting issues (dedicated API)
-    /// - Pre-computed positions (no Borsh deserialization needed)
-    /// - Clean JSON responses
-    /// - Reliable and fast
-    /// </summary>
     public class KaminoService : ISolanaService
     {
         private readonly HttpClient _httpClient;
@@ -29,8 +17,6 @@ namespace MyWebWallet.API.Services.Solana
         private const string KaminoApiBaseUrl = "https://api.kamino.finance";
         private const string MainMarketPubkey = "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF";
 
-        // Hardcoded reserve mapping for Kamino Main Market
-        // TODO: Future improvement - fetch from API dynamically
         private static readonly Dictionary<string, (string Symbol, int Decimals, string? Name)> ReserveMapping = new()
         {
             ["d4A2prbA2whesmvHaL88BH6Ewn5N4bTSU2Ze8P6Bc4Q"] = ("SOL", 9, "Wrapped SOL"),
@@ -41,7 +27,6 @@ namespace MyWebWallet.API.Services.Solana
             ["5sjkv6HD8wycocJ4tC4U36HHbvgcXYqcyiPRUkncnwWs"] = ("mSOL", 9, "Marinade Staked SOL"),
             ["ERNbDCASbqnGSaaSDiZiHBzmsbgZZnRdJKTBYXNfRRZK"] = ("bSOL", 9, "BlazeStake SOL"),
             ["Ez2coQZiHYJfS54vVjKFmq7YAp8TiNqs9EHy93JbZXDE"] = ("JLP", 6, "Jupiter LP Token"),
-            // Add more as needed
         };
 
         public KaminoService(
@@ -55,7 +40,6 @@ namespace MyWebWallet.API.Services.Solana
             _httpClient.BaseAddress = new System.Uri(KaminoApiBaseUrl);
             _httpClient.Timeout = System.TimeSpan.FromSeconds(30);
             
-            // Read rate limit delay from config
             _rateLimitDelayMs = int.TryParse(configuration["Solana:RateLimitDelayMs"], out var delay) 
                 ? delay / 2 
                 : 1000;
@@ -72,7 +56,6 @@ namespace MyWebWallet.API.Services.Solana
 
         public Task<SolanaTokenResponse> GetTokensAsync(string address, Chain chain)
         {
-            // This service focuses on Kamino lending positions
             return Task.FromResult(new SolanaTokenResponse());
         }
 
@@ -84,7 +67,6 @@ namespace MyWebWallet.API.Services.Solana
                 return Enumerable.Empty<KaminoPosition>();
             }
 
-            // Apply rate limiting
             if (_rateLimitDelayMs > 0)
             {
                 await Task.Delay(_rateLimitDelayMs);
@@ -92,7 +74,6 @@ namespace MyWebWallet.API.Services.Solana
 
             _logger.LogInformation("========== KAMINO: Fetching positions for address {Address} ==========", address);
 
-            // Endpoint: /kamino-market/{marketPubkey}/users/{wallet}/obligations
             var endpoint = $"kamino-market/{MainMarketPubkey}/users/{address}/obligations";
             
             try
@@ -122,7 +103,6 @@ namespace MyWebWallet.API.Services.Solana
                 _logger.LogDebug("KAMINO: Raw response: {Content}", 
                     responseContent.Substring(0, Math.Min(1000, responseContent.Length)));
 
-                // Parse as array of obligations directly
                 var obligations = await response.Content.ReadFromJsonAsync<List<KaminoObligationDto>>();
                 
                 if (obligations == null || !obligations.Any())
@@ -133,7 +113,6 @@ namespace MyWebWallet.API.Services.Solana
 
                 _logger.LogInformation("KAMINO: Found {Count} obligations", obligations.Count);
 
-                // Map obligations to positions
                 var positions = obligations.Select(MapObligationToPosition).ToList();
 
                 _logger.LogInformation("KAMINO: Successfully mapped {Count} positions", positions.Count);
@@ -166,14 +145,12 @@ namespace MyWebWallet.API.Services.Solana
                 obligation.State?.Deposits?.Count ?? 0,
                 obligation.State?.Borrows?.Count ?? 0);
 
-            // Parse stats FIRST to calculate accurate prices
             var stats = obligation.RefreshedStats;
             var totalDepositUsd = ParseDecimal(stats?.UserTotalDeposit);
             var totalBorrowUsd = ParseDecimal(stats?.UserTotalBorrow);
             
             _logger.LogDebug("KAMINO Stats: TotalDeposit=${Dep}, TotalBorrow=${Bor}", totalDepositUsd, totalBorrowUsd);
 
-            // Map deposits from RAW state data (with reserve mapping)
             if (obligation.State?.Deposits != null)
             {
                 _logger.LogDebug("KAMINO Processing {Count} deposits from state", obligation.State.Deposits.Count);
@@ -183,7 +160,6 @@ namespace MyWebWallet.API.Services.Solana
                     _logger.LogDebug("KAMINO Deposit raw: Reserve={Reserve}, Amount={Amount}",
                         deposit.DepositReserve, deposit.DepositedAmount);
 
-                    // Skip empty reserves (11111111111111111111111111111111)
                     if (string.IsNullOrEmpty(deposit.DepositReserve) || 
                         deposit.DepositReserve == "11111111111111111111111111111111")
                     {
@@ -198,18 +174,15 @@ namespace MyWebWallet.API.Services.Solana
                         continue;
                     }
 
-                    // Get reserve info from mapping
                     var (symbol, decimals, name) = ReserveMapping.TryGetValue(deposit.DepositReserve, out var info) 
                         ? info 
                         : ($"Token-{deposit.DepositReserve.Substring(0, 4)}", 9, null);
 
-                    // Convert raw amount to human-readable
                     var humanAmount = ConvertRawToHuman(rawAmount, decimals);
                     
                     _logger.LogDebug("KAMINO Deposit - humanAmount={Amount}, marketValueSf={MarketValueSf}",
                         humanAmount, deposit.MarketValueSf);
                     
-                    // Calculate proportional value from total deposits
                     decimal depositValueUsd = 0;
                     decimal unitPriceUsd = 0;
                     
@@ -217,7 +190,6 @@ namespace MyWebWallet.API.Services.Solana
                     {
                         if (decimal.TryParse(deposit.MarketValueSf, out var marketValueSf))
                         {
-                            // Calculate this deposit's proportion of total using scaled factor
                             decimal totalScaledValue = 0;
                             foreach (var d in obligation.State.Deposits)
                             {
@@ -258,14 +230,12 @@ namespace MyWebWallet.API.Services.Solana
                 _logger.LogWarning("KAMINO No deposits in state!");
             }
 
-            // Map borrows from RAW state data (with reserve mapping)
             if (obligation.State?.Borrows != null)
             {
                 _logger.LogDebug("KAMINO Processing {Count} borrows from state", obligation.State.Borrows.Count);
                 
                 foreach (var borrow in obligation.State.Borrows)
                 {
-                    // Skip empty reserves
                     if (string.IsNullOrEmpty(borrow.BorrowReserve) || 
                         borrow.BorrowReserve == "11111111111111111111111111111111")
                     {
@@ -273,7 +243,6 @@ namespace MyWebWallet.API.Services.Solana
                         continue;
                     }
 
-                    // Use borrowedAmountOutsideElevationGroups or fallback to borrowedAmountSf
                     var rawAmount = borrow.BorrowedAmountOutsideElevationGroups 
                                     ?? borrow.BorrowedAmountSf 
                                     ?? "0";
@@ -287,18 +256,15 @@ namespace MyWebWallet.API.Services.Solana
                         continue;
                     }
 
-                    // Get reserve info from mapping
                     var (symbol, decimals, name) = ReserveMapping.TryGetValue(borrow.BorrowReserve, out var info) 
                         ? info 
                         : ($"Token-{borrow.BorrowReserve.Substring(0, 4)}", 9, null);
 
-                    // Convert raw amount to human-readable
                     var humanAmount = ConvertRawToHuman(rawAmount, decimals);
                     
                     _logger.LogDebug("KAMINO Borrow - humanAmount={Amount}, marketValueSf={MarketValueSf}",
                         humanAmount, borrow.MarketValueSf);
                     
-                    // Calculate proportional value from total borrows
                     decimal borrowValueUsd = 0;
                     decimal unitPriceUsd = 0;
                     
@@ -306,7 +272,6 @@ namespace MyWebWallet.API.Services.Solana
                     {
                         if (decimal.TryParse(borrow.MarketValueSf, out var marketValueSf))
                         {
-                            // Calculate this borrow's proportion of total using scaled factor
                             decimal totalScaledValue = 0;
                             foreach (var b in obligation.State.Borrows)
                             {
@@ -349,14 +314,12 @@ namespace MyWebWallet.API.Services.Solana
 
             _logger.LogInformation("KAMINO Total tokens mapped: {Count}", tokens.Count);
             
-            // Log each token before adding to position
             foreach (var token in tokens)
             {
                 _logger.LogInformation("KAMINO Token in list before return: Symbol={Symbol}, Amount={Amount}, PriceUsd={Price}, Type={Type}",
                     token.Symbol, token.Amount, token.PriceUsd, token.Type);
             }
 
-            // Calculate health factor using existing logic
             var loanToValue = ParseDecimal(stats?.LoanToValue);
             var liquidationLtv = ParseDecimal(stats?.LiquidationLtv);
 
@@ -368,7 +331,7 @@ namespace MyWebWallet.API.Services.Solana
             var position = new KaminoPosition
             {
                 Id = obligation.ObligationAddress ?? "unknown",
-                Market = "Kamino Main Market", // User-friendly name instead of pubkey
+                Market = "Kamino Main Market",
                 SuppliedUsd = totalDepositUsd,
                 BorrowedUsd = totalBorrowUsd,
                 HealthFactor = healthFactor,
@@ -378,7 +341,6 @@ namespace MyWebWallet.API.Services.Solana
             _logger.LogInformation("KAMINO Position created: ID={Id}, Market={Market}, TokensCount={Count}, HealthFactor={HF}",
                 position.Id, position.Market, position.Tokens.Count, position.HealthFactor);
             
-            // Verify tokens are in the position
             foreach (var token in position.Tokens)
             {
                 _logger.LogInformation("KAMINO Token in position object: Symbol={Symbol}, Amount={Amount}, PriceUsd={Price}, Type={Type}",
@@ -424,18 +386,14 @@ namespace MyWebWallet.API.Services.Solana
 
         private static decimal CalculateHealthFactor(decimal deposited, decimal borrowed, decimal liquidationLtv)
         {
-            // Health factor calculation from Kamino
-            // HF = (Deposited * Liquidation LTV) / Borrowed
             if (borrowed <= 0)
-                return decimal.MaxValue; // No borrows = infinite health
+                return decimal.MaxValue;
 
             if (deposited <= 0)
                 return 0;
 
-            // Use liquidation LTV from stats (already a percentage/decimal)
             var healthFactor = (deposited * liquidationLtv) / borrowed;
             
-            // Cap at 999.99 for display purposes
             return Math.Min(healthFactor, 999.99m);
         }
 
@@ -446,10 +404,6 @@ namespace MyWebWallet.API.Services.Solana
 
         #region Kamino API Models
         
-        /// <summary>
-        /// Kamino Obligation DTO - matches REAL API response structure
-        /// Based on actual API response from: /kamino-market/{market}/users/{wallet}/obligations
-        /// </summary>
         private class KaminoObligationDto
         {
             [JsonPropertyName("obligationAddress")]

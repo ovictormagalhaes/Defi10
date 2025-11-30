@@ -10,6 +10,5 @@ public interface IAaveeService
     Task<AaveGetUserSuppliesResponse> GetUserSupplies(string address, string chain);
     Task<AaveGetUserBorrowsResponse> GetUserBorrows(string address, string chain);
 
-    // New: returns set of wrapper token addresses (aToken, variableDebt, stableDebt) for the Aave market on the specified chain
     Task<HashSet<string>> GetWrapperTokenAddressesAsync(ChainEnum chain);
 }

@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -123,7 +123,6 @@ public class CoinMarketCapService : ICoinMarketCapService
             {
                 _logger.LogInformation("[CMC] Processing {Count} assets from response", dataNode.Count);
                 
-                // ? LOG: Mostrar todas as chaves retornadas pelo CMC
                 var returnedKeys = string.Join(", ", dataNode.Select(kv => $"\"{kv.Key}\""));
                 _logger.LogInformation("[CMC] Keys returned by CMC: {Keys}", returnedKeys);
                 

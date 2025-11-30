@@ -9,6 +9,6 @@ namespace MyWebWallet.API.Models
         Borrowed = 2,
         LiquidityUncollectedFee = 3,
         LiquidityCollectedFee = 4,
-        GovernancePower = 5 // novo para vePENDLE / voting power
+        GovernancePower = 5
     }
 }

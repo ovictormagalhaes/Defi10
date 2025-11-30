@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -73,7 +73,6 @@ namespace MyWebWallet.API.Services.Solana.RaydiumClmm
             {
                 _logger.LogInformation("Fetching positions from Raydium API for owner {Owner}", ownerAddress);
                 
-                // Endpoint hipotético - ajustar se existir
                 var url = $"{API_BASE_URL}/clmm/positions?owner={ownerAddress}";
                 var response = await _httpClient.GetAsync(url);
 

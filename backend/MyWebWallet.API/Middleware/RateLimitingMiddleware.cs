@@ -4,17 +4,13 @@ using System.Text.Json;
 
 namespace MyWebWallet.API.Middleware;
 
-/// <summary>
-/// Rate limiting middleware that limits requests per IP address
-/// using a sliding window algorithm with distributed Redis storage.
-/// </summary>
+
 public class RateLimitingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<RateLimitingMiddleware> _logger;
     private readonly RateLimitOptions _options;
-    
-    // In-memory fallback when Redis is unavailable
+
     private static readonly ConcurrentDictionary<string, RateLimitCounter> _localCache = new();
 
     public RateLimitingMiddleware(
@@ -29,7 +25,7 @@ public class RateLimitingMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Skip rate limiting for health checks
+
         if (context.Request.Path.StartsWithSegments("/health"))
         {
             await _next(context);
@@ -51,14 +47,13 @@ public class RateLimitingMiddleware
 
     private string GetClientIdentifier(HttpContext context)
     {
-        // Try to get IP from X-Forwarded-For header (reverse proxy/load balancer)
+
         var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
         if (!string.IsNullOrEmpty(forwardedFor))
         {
             return forwardedFor.Split(',')[0].Trim();
         }
 
-        // Fallback to direct connection IP
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 
@@ -76,12 +71,12 @@ public class RateLimitingMiddleware
 
         lock (counter)
         {
-            // Remove expired timestamps (outside the window)
+
             counter.Timestamps.RemoveAll(t => now - t > _options.Window);
 
             if (counter.Timestamps.Count >= _options.MaxRequests)
             {
-                // Calculate retry after based on oldest timestamp
+
                 var oldestTimestamp = counter.Timestamps.Min();
                 var windowEnd = oldestTimestamp + _options.Window;
                 retryAfter = (int)(windowEnd - now).TotalSeconds + 1;
@@ -97,11 +92,9 @@ public class RateLimitingMiddleware
                 return true;
             }
 
-            // Add current request timestamp
             counter.Timestamps.Add(now);
         }
 
-        // Cleanup old entries periodically (every 100 requests)
         if (_localCache.Count > 1000)
         {
             CleanupExpiredEntries();
@@ -166,9 +159,7 @@ public class RateLimitingMiddleware
     }
 }
 
-/// <summary>
-/// Configuration options for rate limiting
-/// </summary>
+
 public class RateLimitOptions
 {
     public bool Enabled { get; set; } = true;
@@ -176,9 +167,7 @@ public class RateLimitOptions
     public TimeSpan Window { get; set; } = TimeSpan.FromMinutes(1);
 }
 
-/// <summary>
-/// Extension method to register the rate limiting middleware
-/// </summary>
+
 public static class RateLimitingMiddlewareExtensions
 {
     public static IApplicationBuilder UseRateLimiting(this IApplicationBuilder builder)

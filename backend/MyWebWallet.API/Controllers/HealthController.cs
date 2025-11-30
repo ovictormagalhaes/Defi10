@@ -6,10 +6,8 @@ namespace MyWebWallet.API.Controllers;
 [Route("")]
 public class HealthController : ControllerBase
 {
-    /// <summary>
-    /// Health check endpoint for monitoring and deployment services
-    /// </summary>
-    /// <returns>Health status</returns>
+
+
     [HttpGet("health")]
     public ActionResult GetHealth()
     {

@@ -17,12 +17,11 @@ public interface IWalletItemMapperFactory
     IWalletItemMapper<UniswapV3GetActivePoolsResponse> CreateUniswapV3Mapper();
     IWalletItemMapper<PendleVePositionsResponse> CreatePendleVeMapper();
     IWalletItemMapper<PendleDepositsResponse> CreatePendleDepositsMapper();
-    // Solana mappers
+
     IWalletItemMapper<SolanaTokenResponse> CreateSolanaTokenMapper();
     IWalletItemMapper<IEnumerable<KaminoPosition>> CreateSolanaKaminoMapper();
     IWalletItemMapper<IEnumerable<RaydiumPosition>> CreateSolanaRaydiumMapper();
-    
-    // Chain validation methods
+
     bool ValidateChainSupport<T>(ChainEnum chain) where T : class;
     IEnumerable<IChainSupportService> GetAllMappers();
 }
@@ -79,7 +78,7 @@ public class WalletItemMapperFactory : IWalletItemMapperFactory
             CreateUniswapV3Mapper(),
             CreatePendleVeMapper(),
             CreatePendleDepositsMapper(),
-            // Solana
+
             CreateSolanaTokenMapper(),
             CreateSolanaKaminoMapper(),
             CreateSolanaRaydiumMapper()

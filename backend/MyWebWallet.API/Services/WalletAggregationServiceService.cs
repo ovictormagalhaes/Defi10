@@ -4,44 +4,41 @@ using MyWebWallet.API.Services.Mappers;
 using System.Text.RegularExpressions;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 using MyWebWallet.API.Messaging.Rabbit;
-using MyWebWallet.API.Messaging.Contracts.Enums;
-using MyWebWallet.API.Messaging.Contracts.Requests;
 using StackExchange.Redis;
-using Microsoft.Extensions.Logging;
 using MyWebWallet.API.Configuration;
 using Microsoft.Extensions.Options;
 using MyWebWallet.API.Infrastructure;
 using MyWebWallet.API.Aggregation;
+using MyWebWallet.API.Messaging.Contracts.Requests;
+using MyWebWallet.API.Messaging.Contracts.Enums;
 
 namespace MyWebWallet.API.Services;
 
-
-public class WalletAggregationService : IWalletAggregationService
+public class WalletAggregationServiceService : IWalletAggregationService
 {
     private readonly TimeSpan _aggregationTtl;
     private readonly IWalletItemMapperFactory _mapperFactory;
     private readonly IMessagePublisher _publisher;
     private readonly IConnectionMultiplexer _redis;
-    private readonly ILogger<WalletAggregationService> _logger;
+    private readonly ILogger<WalletAggregationServiceService> _logger;
     private readonly ISystemClock _clock;
     private readonly IConfiguration _configuration;
 
     private readonly string _instanceId = Guid.NewGuid().ToString("N");
     private const ChainEnum DEFAULT_CHAIN = ChainEnum.Base;
-    public string NetworkName => "Multi-Chain";
+    public string NetworkName => "Ethereum";
 
     private static readonly Regex EthAddressRegex = new("^0x[a-fA-F0-9]{40}$", RegexOptions.Compiled);
-
     private static readonly Regex SolAddressRegex = new("^[1-9A-HJ-NP-Za-km-z]{32,44}$", RegexOptions.Compiled);
 
-    public WalletAggregationService(
+    public WalletAggregationServiceService(
         IMoralisService moralisService,
         IConfiguration configuration,
         IWalletItemMapperFactory mapperFactory,
         IMessagePublisher publisher,
         IConnectionMultiplexer redis,
         IOptions<AggregationOptions> aggOptions,
-        ILogger<WalletAggregationService> logger,
+        ILogger<WalletAggregationServiceService> logger,
         ISystemClock clock)
     {
         _mapperFactory = mapperFactory;
@@ -52,7 +49,7 @@ public class WalletAggregationService : IWalletAggregationService
         _configuration = configuration;
         var ttlSeconds = Math.Clamp(aggOptions.Value.JobTtlSeconds, 30, 1800);
         _aggregationTtl = TimeSpan.FromSeconds(ttlSeconds);
-        _logger.LogInformation("WalletAggregationService instance created id={Id} ttl={Ttl}s", _instanceId, ttlSeconds);
+        _logger.LogInformation("EthereumService instance created id={Id} ttl={Ttl}s", _instanceId, ttlSeconds);
     }
 
     public bool IsValidAddress(string account) => EthAddressRegex.IsMatch(account);
@@ -88,8 +85,7 @@ public class WalletAggregationService : IWalletAggregationService
         if (!IsValidAddressForChain(account, chain)) throw new ArgumentException($"Invalid address for chain {chain}");
         ValidateChainSupport(chain);
         var db = _redis.GetDatabase();
-
-
+        
         var acct = chain == ChainEnum.Solana ? account : account.ToLowerInvariant();
         
         var activeKey = GetActiveJobKey(acct.ToLowerInvariant(), chain);
@@ -115,7 +111,6 @@ public class WalletAggregationService : IWalletAggregationService
     {
         var list = chains.Distinct().ToList();
         if (list.Count == 0) throw new ArgumentException("No chains provided");
-
         foreach (var c in list)
         {
             if (!IsValidAddressForChain(account, c))
@@ -123,8 +118,7 @@ public class WalletAggregationService : IWalletAggregationService
         }
         foreach (var c in list) ValidateChainSupport(c);
         var db = _redis.GetDatabase();
-
-
+        
         var hasSolana = list.Contains(ChainEnum.Solana);
         var acct = hasSolana ? account : account.ToLowerInvariant();
         
@@ -146,7 +140,6 @@ public class WalletAggregationService : IWalletAggregationService
         return newJob;
     }
 
-
     public async Task<Guid> StartAsyncAggregationMultiWallet(IReadOnlyList<string> accounts, IEnumerable<ChainEnum> chains, Guid? walletGroupId = null)
     {
         var accountsList = accounts.Distinct().ToList();
@@ -154,33 +147,9 @@ public class WalletAggregationService : IWalletAggregationService
         
         if (accountsList.Count == 0) throw new ArgumentException("No accounts provided");
         if (chainsList.Count == 0) throw new ArgumentException("No chains provided");
-
-        var db = _redis.GetDatabase();
-        if (walletGroupId.HasValue)
-        {
-            var activeGroupKey = RedisKeys.ActiveWalletGroup(walletGroupId.Value, chainsList);
-            var existing = await db.StringGetAsync(activeGroupKey);
-            
-            if (existing.HasValue && Guid.TryParse(existing.ToString(), out var existingJobId))
-            {
-                var metaKeyCheck = RedisKeys.Meta(existingJobId);
-                if (await db.KeyExistsAsync(metaKeyCheck))
-                {
-                    _logger.LogInformation(
-                        "Aggregation reuse multi-wallet group={GroupId} job={Job} chains={Chains}",
-                        walletGroupId.Value,
-                        existingJobId,
-                        string.Join(',', chainsList)
-                    );
-                    return existingJobId;
-                }
-            }
-        }
-
-
+        
         foreach (var account in accountsList)
         {
-
             var compatibleChains = chainsList.Where(c => IsValidAddressForChain(account, c)).ToList();
             
             if (compatibleChains.Count == 0)
@@ -202,8 +171,9 @@ public class WalletAggregationService : IWalletAggregationService
         
         foreach (var c in chainsList) ValidateChainSupport(c);
         
+        var db = _redis.GetDatabase();
         var jobId = Guid.NewGuid();
-
+        
         var candidate = new List<IntegrationProvider>
         {
             IntegrationProvider.MoralisTokens,
@@ -214,16 +184,15 @@ public class WalletAggregationService : IWalletAggregationService
             IntegrationProvider.PendleDeposits,
             IntegrationProvider.SolanaTokens,
             IntegrationProvider.SolanaKaminoPositions,
-            IntegrationProvider.SolanaRaydiumPositions,
+            IntegrationProvider.SolanaRaydiumPositions, // Raydium CLMM pools
         };
 
         var combos = new List<(string account, ChainEnum chain, IntegrationProvider provider)>();
-
+        
         foreach (var account in accountsList)
         {
             foreach (var chain in chainsList)
             {
-
                 if (!IsValidAddressForChain(account, chain))
                 {
                     _logger.LogDebug(
@@ -259,15 +228,9 @@ public class WalletAggregationService : IWalletAggregationService
             chainsList.Count,
             combos.Count
         );
-
+        
         await InitializeAggregationMetaMultiWalletAsync(jobId, accountsList, combos, chainsList, walletGroupId);
-
-        if (walletGroupId.HasValue)
-        {
-        var activeGroupKey = RedisKeys.ActiveWalletGroup(walletGroupId.Value, chainsList);
-            await db.StringSetAsync(activeGroupKey, jobId.ToString(), _aggregationTtl);
-        }
-
+        
         var now = _clock.UtcNow;
         var tasks = combos.Select(c => PublishAsync(jobId, c.account, new List<string> { c.chain.ToString() }, c.provider, now));
         await Task.WhenAll(tasks);
@@ -379,7 +342,7 @@ public class WalletAggregationService : IWalletAggregationService
         }
         
         await db.HashSetAsync(metaKey, hashEntries.ToArray());
-
+        
         foreach (var combo in combos)
         {
             var pendingEntry = $"{ProviderSlug(combo.provider)}:{combo.chain.ToString().ToLowerInvariant()}:{combo.account.ToLowerInvariant()}";
@@ -399,14 +362,13 @@ public class WalletAggregationService : IWalletAggregationService
         {
             return provider switch
             {
-
                 IntegrationProvider.MoralisTokens => chain != ChainEnum.Solana && _mapperFactory.CreateMoralisTokenMapper().SupportsChain(chain),
                 IntegrationProvider.AaveSupplies => _mapperFactory.CreateAaveSuppliesMapper().SupportsChain(chain),
                 IntegrationProvider.AaveBorrows => _mapperFactory.CreateAaveBorrowsMapper().SupportsChain(chain),
                 IntegrationProvider.UniswapV3Positions => _mapperFactory.CreateUniswapV3Mapper().SupportsChain(chain),
                 IntegrationProvider.PendleVePositions => _mapperFactory.CreatePendleVeMapper().SupportsChain(chain),
                 IntegrationProvider.PendleDeposits => _mapperFactory.CreatePendleDepositsMapper().SupportsChain(chain),
-
+                
                 IntegrationProvider.SolanaTokens => chain == ChainEnum.Solana && _mapperFactory.CreateSolanaTokenMapper().SupportsChain(chain),
                 IntegrationProvider.SolanaKaminoPositions => chain == ChainEnum.Solana && _mapperFactory.CreateSolanaKaminoMapper().SupportsChain(chain),
                 IntegrationProvider.SolanaRaydiumPositions => chain == ChainEnum.Solana && _mapperFactory.CreateSolanaRaydiumMapper().SupportsChain(chain),
@@ -419,7 +381,6 @@ public class WalletAggregationService : IWalletAggregationService
 
     private async Task PublishIntegrationRequestsAsync(Guid jobId, string account, ChainEnum chain)
     {
-
         var candidate = new List<IntegrationProvider>
         {
             IntegrationProvider.MoralisTokens,
@@ -432,7 +393,7 @@ public class WalletAggregationService : IWalletAggregationService
             IntegrationProvider.SolanaKaminoPositions,
             IntegrationProvider.SolanaRaydiumPositions,
         };
-
+        
         var supported = candidate.Where(p => ProviderSupportsChain(p, chain)).ToList();
         
         if (supported.Count == 0) 
@@ -461,8 +422,7 @@ public class WalletAggregationService : IWalletAggregationService
             IntegrationProvider.SolanaKaminoPositions,
             IntegrationProvider.SolanaRaydiumPositions,
         };
-
-
+        
         var combos = new List<(IntegrationProvider provider, ChainEnum chain)>();
         foreach (var c in chains)
         {

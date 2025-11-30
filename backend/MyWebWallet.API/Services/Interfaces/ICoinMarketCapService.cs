@@ -9,7 +9,6 @@ public interface ICoinMarketCapService
     Task<CmcQuotesLatestV2Response?> GetQuotesLatestV2Async(IEnumerable<string> symbols, CancellationToken ct = default);
 }
 
-// DTOs for CMC Quotes Latest v2
 public sealed class CmcQuotesLatestV2Response
 {
     [JsonPropertyName("data")] public Dictionary<string, CmcAssetQuote> Data { get; set; } = new();
@@ -42,7 +41,7 @@ public sealed class CmcAssetQuote
     [JsonPropertyName("cmc_rank")] public int? CmcRank { get; set; }
     [JsonPropertyName("last_updated")] public DateTime? LastUpdated { get; set; }
     [JsonPropertyName("tags")] public List<string>? Tags { get; set; }
-    // quote map e.g. { "USD": { ... } }
+
     [JsonPropertyName("quote")] public Dictionary<string, CmcFiatQuote> Quote { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 

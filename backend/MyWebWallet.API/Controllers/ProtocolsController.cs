@@ -18,9 +18,7 @@ namespace MyWebWallet.API.Controllers
         public ProtocolsController(IProtocolPluginRegistry pluginRegistry, IChainConfigurationService chainConfig, ILogger<ProtocolsController> logger)
         { _pluginRegistry = pluginRegistry; _chainConfig = chainConfig; _logger = logger; }
 
-        /// <summary>
-        /// Get all available protocol plugins
-        /// </summary>
+
         [HttpGet]
         public ActionResult<IEnumerable<ProtocolInfo>> GetAllProtocols()
         {
@@ -30,7 +28,7 @@ namespace MyWebWallet.API.Controllers
                 var protocols = plugins.Select(plugin => new ProtocolInfo
                 {
                     Id = plugin.ProtocolId,
-                    Name = plugin.ProtocolId, // Name fallback to ProtocolId (GetProtocolName removed)
+                    Name = plugin.ProtocolId, 
                     Version = plugin.Version,
                     Description = plugin.Description,
                     WebsiteUrl = plugin.WebsiteUrl,
@@ -44,9 +42,7 @@ namespace MyWebWallet.API.Controllers
             catch (Exception ex) { _logger.LogError(ex, "Error getting protocol list"); return StatusCode(500, "Failed to get protocol list"); }
         }
 
-        /// <summary>
-        /// Get protocols that support a specific chain
-        /// </summary>
+
         [HttpGet("chain/{chain}")]
         public ActionResult<IEnumerable<ProtocolInfo>> GetProtocolsForChain(ChainEnum chain)
         {
@@ -70,9 +66,7 @@ namespace MyWebWallet.API.Controllers
             catch (Exception ex) { _logger.LogError(ex, "Error getting protocols for chain {Chain}", chain); return StatusCode(500, $"Failed to get protocols for chain {chain}"); }
         }
 
-        /// <summary>
-        /// Get health status of all protocols or a specific one
-        /// </summary>
+
         [HttpGet("health")]
         public async Task<ActionResult<Dictionary<string, object>>> GetProtocolHealth([FromQuery] string? protocolId = null)
         {
@@ -85,9 +79,7 @@ namespace MyWebWallet.API.Controllers
             catch (Exception ex) { _logger.LogError(ex, "Error checking protocol health"); return StatusCode(500, "Failed to check protocol health"); }
         }
 
-        /// <summary>
-        /// Validate configuration for a specific protocol and chain
-        /// </summary>
+
         [HttpGet("{protocolId}/validate/{chain}")]
         public async Task<ActionResult<object>> ValidateProtocolConfiguration(string protocolId, ChainEnum chain)
         {
@@ -100,9 +92,7 @@ namespace MyWebWallet.API.Controllers
             catch (Exception ex) { _logger.LogError(ex, "Error validating protocol {ProtocolId} configuration for chain {Chain}", protocolId, chain); return StatusCode(500, $"Failed to validate protocol {protocolId} configuration"); }
         }
 
-        /// <summary>
-        /// Get wallet items for a specific protocol
-        /// </summary>
+
         [HttpGet("{protocolId}/wallet/{accountAddress}")]
         public async Task<ActionResult<List<WalletItem>>> GetWalletItems(string protocolId, string accountAddress, [FromQuery] ChainEnum? chain = null)
         {
@@ -116,9 +106,7 @@ namespace MyWebWallet.API.Controllers
             catch (Exception ex) { _logger.LogError(ex, "Error getting wallet items for protocol {ProtocolId}, account {Account}, chain {Chain}", protocolId, accountAddress, chain); return StatusCode(500, $"Failed to get wallet items for protocol {protocolId}"); }
         }
 
-        /// <summary>
-        /// Get specific position data
-        /// </summary>
+
         [HttpGet("{protocolId}/position/{positionId}")]
         public async Task<ActionResult<WalletItem>> GetPosition(string protocolId, string positionId, [FromQuery] ChainEnum? chain = null)
         {
@@ -134,9 +122,7 @@ namespace MyWebWallet.API.Controllers
         }
     }
 
-    /// <summary>
-    /// DTO for protocol information
-    /// </summary>
+
     public class ProtocolInfo
     {
         public string Id { get; set; } = string.Empty;

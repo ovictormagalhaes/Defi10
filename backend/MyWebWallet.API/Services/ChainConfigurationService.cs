@@ -57,12 +57,11 @@ namespace MyWebWallet.API.Services
         public AaveConfig? GetAaveConfig(ChainEnum chain) => GetProtocolConfig<AaveConfig>(chain);
         public MoralisConfig? GetMoralisConfig(ChainEnum chain) => GetProtocolConfig<MoralisConfig>(chain);
 
-        // New helpers to replace ChainExtensions
         public string GetChainSlug(ChainEnum chain)
         {
             var cfg = GetChainConfig(chain);
             if (!string.IsNullOrWhiteSpace(cfg?.Slug)) return cfg.Slug!;
-            // fallback convert enum name to lowercase (ethereum, base, arbitrum, etc.)
+
             return chain.ToString().ToLowerInvariant();
         }
 

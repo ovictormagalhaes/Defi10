@@ -52,6 +52,6 @@ public class RabbitMqConnectionFactory : IRabbitMqConnectionFactory, IDisposable
 
     public void Dispose()
     {
-        try { _connection?.Dispose(); } catch { /* ignore */ }
+        try { _connection?.Dispose(); } catch {  }
     }
 }

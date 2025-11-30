@@ -10,21 +10,14 @@ using StackExchange.Redis;
 
 namespace MyWebWallet.API.Messaging.Workers;
 
-/// <summary>
-/// Periodically scans aggregation jobs in Redis and marks overdue ones as TimedOut,
-/// emitting a WalletAggregationCompleted event (status TimedOut).
-/// 
-/// Configuration:
-/// - Aggregation:TimeoutScanSeconds (default 60s) - How often to scan for timed out jobs
-/// - Aggregation:JobTimeoutSeconds (default 180s) - Max age of a job before timing out (3 minutes)
-/// </summary>
+
 public class AggregationTimeoutMonitorWorker : BackgroundService
 {
     private readonly ILogger<AggregationTimeoutMonitorWorker> _logger;
     private readonly IConnectionMultiplexer _redis;
     private readonly IMessagePublisher _publisher;
     private readonly TimeSpan _scanInterval;
-    private readonly TimeSpan _jobTimeout; // Max age since created_at before timing out
+    private readonly TimeSpan _jobTimeout;
 
     public AggregationTimeoutMonitorWorker(
         ILogger<AggregationTimeoutMonitorWorker> logger,
@@ -75,7 +68,7 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
 
         try
         {
-            // Pattern: wallet:agg:*:meta
+
             foreach (var key in server.Keys(pattern: "wallet:agg:*:meta"))
             {
                 ct.ThrowIfCancellationRequested();
@@ -91,29 +84,25 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
                     if (!meta.TryGetValue("created_at", out var createdStr)) continue;
                     if (!meta.TryGetValue("final_emitted", out var finalEmittedStr)) finalEmittedStr = "0";
 
-                    if (finalEmittedStr == "1") continue; // already finalized
+                    if (finalEmittedStr == "1") continue;
 
                     if (!Enum.TryParse<AggregationStatus>(statusStr, true, out var aggStatus)) continue;
                     if (aggStatus is AggregationStatus.Completed or AggregationStatus.CompletedWithErrors or AggregationStatus.TimedOut or AggregationStatus.Cancelled)
-                        continue; // finished states
+                        continue;
 
-                    // This is an active job
                     activeJobs++;
 
                     if (!DateTime.TryParse(createdStr, out var createdAt)) continue;
                     var age = now - createdAt;
-                    
-                    // Log active jobs for visibility
+
                     var jobIdFromKey = ExtractJobIdFromKey(key.ToString());
                     _logger.LogDebug("Active job found: {JobId} status={Status} age={Age}s remaining={Remaining}s", 
                         jobIdFromKey, aggStatus, (int)age.TotalSeconds, (int)(_jobTimeout - age).TotalSeconds);
                     
-                    if (age < _jobTimeout) continue; // not expired yet
+                    if (age < _jobTimeout) continue;
 
-                    // This job needs to be timed out
                     if (!Guid.TryParse(jobIdFromKey, out var jobId)) continue;
 
-                    // Get additional info for logging
                     var account = meta.TryGetValue("account", out var acc) ? acc : "unknown";
                     var expectedTotal = meta.TryGetValue("expected_total", out var exp) ? exp : "0";
                     var succeeded = meta.TryGetValue("succeeded", out var succ) ? succ : "0";
@@ -122,11 +111,9 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
                     _logger.LogWarning("Job exceeds timeout: {JobId} account={Account} age={Age}s expected={Expected} succeeded={Succeeded} failed={Failed}", 
                         jobId, account, (int)age.TotalSeconds, expectedTotal, succeeded, failed);
 
-                    // Pending providers length
                     var pendingKey = $"wallet:agg:{jobId}:pending";
                     var pendingCount = (int)await db.SetLengthAsync(pendingKey);
 
-                    // Avoid race: re-check final_emitted just before updating
                     var finalCheck = await db.HashGetAsync(key, "final_emitted");
                     if (finalCheck == "1") 
                     {
@@ -134,7 +121,6 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
                         continue;
                     }
 
-                    // Mark timed out - increment timed_out by remaining pending, set status + final_emitted
                     var tran = db.CreateTransaction();
                     if (pendingCount > 0)
                     {
@@ -152,7 +138,6 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
                         continue;
                     }
 
-                    // Gather counts for event
                     int succeededCount = (int)(long)(await db.HashGetAsync(key, "succeeded"));
                     int failedCount = (int)(long)(await db.HashGetAsync(key, "failed"));
                     int timedOutCount = (int)(long)(await db.HashGetAsync(key, "timed_out"));
@@ -185,8 +170,7 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
         {
             _logger.LogError(ex, "Error during Redis key enumeration");
         }
-        
-        // Summary log every scan cycle
+
         if (scannedJobs > 0 || activeJobs > 0 || timedOutJobs > 0)
         {
             _logger.LogInformation("Timeout scan completed: scanned={Scanned} active={Active} timedOut={TimedOut}", 
@@ -200,7 +184,7 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
 
     private static string ExtractJobIdFromKey(string key)
     {
-        // Extract jobId from key format: wallet:agg:{jobId}:meta
+
         var parts = key.Split(':', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length >= 3 ? parts[2] : "unknown";
     }

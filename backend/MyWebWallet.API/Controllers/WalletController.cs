@@ -15,9 +15,7 @@ public class WalletController : ControllerBase
         _chainConfig = chainConfigurationService;
     }
 
-    /// <summary>
-    /// Gets supported chains for wallet operations (driven by configuration)
-    /// </summary>
+
     [HttpGet("supported-chains")]
     public ActionResult<SupportedChainsResponse> GetSupportedChains()
     {

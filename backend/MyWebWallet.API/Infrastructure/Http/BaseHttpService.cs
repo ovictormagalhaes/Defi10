@@ -2,10 +2,7 @@ using System.Text.Json;
 
 namespace MyWebWallet.API.Infrastructure.Http;
 
-/// <summary>
-/// Base class for HTTP-based services to eliminate duplicated HTTP client code.
-/// Implements DRY principle for HTTP operations.
-/// </summary>
+
 public abstract class BaseHttpService
 {
     protected readonly HttpClient HttpClient;
@@ -19,9 +16,7 @@ public abstract class BaseHttpService
         JsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
     }
 
-    /// <summary>
-    /// Generic GET request with automatic deserialization and error handling
-    /// </summary>
+
     protected async Task<TResponse> GetAsync<TResponse>(
         string url,
         Dictionary<string, string>? headers = null,
@@ -45,9 +40,7 @@ public abstract class BaseHttpService
             ?? throw new InvalidOperationException($"Failed to deserialize {typeof(TResponse).Name}");
     }
 
-    /// <summary>
-    /// Generic GET request that returns null on failure instead of throwing
-    /// </summary>
+
     protected async Task<TResponse?> TryGetAsync<TResponse>(
         string url,
         Dictionary<string, string>? headers = null,
@@ -64,9 +57,7 @@ public abstract class BaseHttpService
         }
     }
 
-    /// <summary>
-    /// Generic POST request with automatic serialization and deserialization
-    /// </summary>
+
     protected async Task<TResponse> PostAsync<TRequest, TResponse>(
         string url,
         TRequest payload,

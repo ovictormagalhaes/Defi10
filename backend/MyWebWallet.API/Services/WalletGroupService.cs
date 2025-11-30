@@ -12,9 +12,7 @@ using StackExchange.Redis;
 
 namespace MyWebWallet.API.Services;
 
-/// <summary>
-/// Redis-based implementation of wallet group management.
-/// </summary>
+
 public sealed class WalletGroupService : IWalletGroupService
 {
     private readonly IConnectionMultiplexer _redis;
@@ -144,16 +142,13 @@ public sealed class WalletGroupService : IWalletGroupService
             return $"Maximum of {MaxWallets} wallet addresses allowed";
         }
 
-        // Trim and validate each address
         var trimmed = wallets.Select(w => w?.Trim()).ToList();
 
-        // Check for null or empty
         if (trimmed.Any(string.IsNullOrWhiteSpace))
         {
             return "All wallet addresses must be non-empty";
         }
 
-        // Check for duplicates (case-insensitive for EVM, case-sensitive for Solana)
         var evmAddresses = trimmed.Where(w => EthAddressRegex.IsMatch(w!)).Select(w => w!.ToLowerInvariant()).ToList();
         var solAddresses = trimmed.Where(w => SolAddressRegex.IsMatch(w!)).ToList();
         
@@ -167,7 +162,6 @@ public sealed class WalletGroupService : IWalletGroupService
             return "Duplicate Solana addresses detected";
         }
 
-        // Validate each address format
         for (int i = 0; i < trimmed.Count; i++)
         {
             var wallet = trimmed[i]!;
@@ -178,7 +172,7 @@ public sealed class WalletGroupService : IWalletGroupService
             }
         }
 
-        return null; // Valid
+        return null;
     }
 
     private static string GetKey(Guid id) => $"{KeyPrefix}{id}";

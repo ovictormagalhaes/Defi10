@@ -1,29 +1,26 @@
 using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
 using MyWebWallet.API.Messaging.Contracts.Enums;
-using MyWebWallet.API.Messaging.Contracts.Requests;
 using MyWebWallet.API.Messaging.Contracts.Results;
-using MyWebWallet.API.Messaging.Contracts.Progress;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MyWebWallet.API.Services.Interfaces;
-using MyWebWallet.API.Services; // EthereumService
+using MyWebWallet.API.Services; 
 using ChainEnum = MyWebWallet.API.Models.Chain;
-using MyWebWallet.API.Aggregation; // RedisKeys
+using MyWebWallet.API.Aggregation; 
 using System.Text.RegularExpressions;
 
 namespace MyWebWallet.API.Controllers;
 
 [ApiController]
-[Route("api/v1/aggregations")] // versioned route
+[Route("api/v1/aggregations")] 
 public class AggregationController : ControllerBase
 {
     private readonly IConnectionMultiplexer _redis;
     private readonly IWalletAggregationService _blockchainService;
     private readonly IChainConfigurationService _chainConfig;
     private readonly ILogger<AggregationController> _logger;
-    
-    // Address validation patterns
+
     private static readonly Regex EthAddressRegex = new("^0x[a-fA-F0-9]{40}$", RegexOptions.Compiled);
     private static readonly Regex SolAddressRegex = new("^[1-9A-HJ-NP-Za-km-z]{32,44}$", RegexOptions.Compiled);
     
@@ -34,7 +31,7 @@ public class AggregationController : ControllerBase
 
     private static readonly ChainEnum[] DefaultEthChains = new[] { ChainEnum.Base, ChainEnum.BNB, ChainEnum.Arbitrum, ChainEnum.Ethereum };
     private static readonly ChainEnum[] DefaultSolChains = new[] { ChainEnum.Solana };
-    private const string MetaPattern = "wallet:agg:*:meta"; // used only where index not yet implemented
+    private const string MetaPattern = "wallet:agg:*:meta"; 
 
     public AggregationController(IConnectionMultiplexer redis, IWalletAggregationService blockchainService, IChainConfigurationService chainConfigurationService, ILogger<AggregationController> logger)
     {
@@ -44,13 +41,11 @@ public class AggregationController : ControllerBase
         _logger = logger;
     }
 
-    // Request DTO (JSON body)
     public sealed class AggregationStartRequest
     {
-        // Single wallet mode (legacy)
+
         public string? Account { get; set; }
-        
-        // Multi-wallet mode (new)
+
         public Guid? WalletGroupId { get; set; }
         
         public string[]? Chains { get; set; }
@@ -84,21 +79,19 @@ public class AggregationController : ControllerBase
     {
         if (request is null) return BadRequest(new { error = "payload required" });
 
-        // Resolve accounts from either single wallet or wallet group
         List<string> accounts;
         Guid? walletGroupId = null;
         
         if (!string.IsNullOrWhiteSpace(request.Account))
         {
-            // Legacy mode: single wallet
+
             accounts = new List<string> { request.Account.Trim() };
         }
         else if (request.WalletGroupId.HasValue)
         {
-            // New mode: wallet group
+
             walletGroupId = request.WalletGroupId.Value;
-            
-            // Resolve wallet group
+
             var walletGroupService = HttpContext.RequestServices.GetRequiredService<IWalletGroupService>();
             var walletGroup = await walletGroupService.GetAsync(walletGroupId.Value);
             
@@ -115,7 +108,6 @@ public class AggregationController : ControllerBase
             return BadRequest(new { error = "Either 'account' or 'walletGroupId' is required" });
         }
 
-        // Validate all accounts and detect wallet types
         var walletTypes = new HashSet<WalletType>();
         foreach (var acc in accounts)
         {
@@ -147,7 +139,7 @@ public class AggregationController : ControllerBase
                     {
                         if (Enum.TryParse<ChainEnum>(part, true, out var parsed))
                         {
-                            // Validate that at least ONE wallet is compatible with this chain
+
                             bool anyCompatible = accounts.Any(acc => IsValidAddressForChain(acc, parsed));
                             
                             if (!anyCompatible)
@@ -172,7 +164,7 @@ public class AggregationController : ControllerBase
             
             if (resolved.Count == 0)
             {
-                // Auto-select compatible chains based on wallet types present
+
                 var hasEvm = accounts.Any(acc => DetectWalletType(acc) == WalletType.Ethereum);
                 var hasSolana = accounts.Any(acc => DetectWalletType(acc) == WalletType.Solana);
                 
@@ -189,7 +181,6 @@ public class AggregationController : ControllerBase
                     resolved.Count, string.Join(", ", resolved));
             }
 
-            // Final validation: ensure at least one wallet is compatible with resolved chains
             resolved = resolved.Where(chain => accounts.Any(acc => IsValidAddressForChain(acc, chain))).Distinct().ToList();
             
             if (resolved.Count == 0) 
@@ -200,18 +191,17 @@ public class AggregationController : ControllerBase
                 });
             }
 
-            // Start aggregation (multi-wallet aware)
             Guid jobId;
             if (accounts.Count == 1)
             {
-                // Single wallet (legacy path)
+
                 jobId = resolved.Count == 1
                     ? await eth.StartAsyncAggregation(accounts[0], resolved[0])
                     : await eth.StartAsyncAggregation(accounts[0], resolved);
             }
             else
             {
-                // Multi-wallet (new path)
+
                 jobId = await eth.StartAsyncAggregationMultiWallet(accounts, resolved, walletGroupId);
             }
 

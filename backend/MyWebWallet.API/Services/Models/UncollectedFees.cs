@@ -1,34 +1,16 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Microsoft.Extensions.Logging;
 
 namespace MyWebWallet.API.Services.Models
 {
-    /// <summary>
-    /// Calculates uncollected fees for Uniswap V3 positions using the exact same formulas as the protocol.
-    /// 
-    /// FORMULA SOURCE: https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/Position.sol
-    /// 
-    /// Key Formula:
-    /// tokensOwed = position.tokensOwed + (liquidity * (feeGrowthInside - feeGrowthInsideLast)) / Q128
-    /// 
-    /// Where feeGrowthInside is calculated as:
-    /// feeGrowthInside = feeGrowthGlobal - feeGrowthBelow - feeGrowthAbove
-    /// 
-    /// This implementation follows the exact logic from Uniswap V3 core contracts without any "conservative estimates"
-    /// </summary>
+
+
     public class UncollectedFees
     {
         public decimal Amount0 { get; set; }
         public decimal Amount1 { get; set; }
 
-        /// <summary>
-        /// Calculates uncollected fees using the exact Uniswap V3 protocol formulas.
-        /// 
-        /// REFERENCE: https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/Position.sol#L69-L81
-        /// 
-        /// The formula is:
-        /// tokensOwed = position.tokensOwed + (liquidity * (feeGrowthInside - feeGrowthInsideLast)) / Q128
-        /// </summary>
+
         public UncollectedFees CalculateUncollectedFees(
             PositionDTO position,
             BigInteger feeGrowthGlobal0X128,
@@ -40,8 +22,8 @@ namespace MyWebWallet.API.Services.Models
             TickInfoDTO? upperTickInfo = null,
             ILogger? logger = null)
         {
-            // Q128 = 2^128, used for fixed-point arithmetic in Uniswap V3
-            // REFERENCE: https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/FixedPoint128.sol
+
+
             BigInteger Q128 = BigInteger.Pow(2, 128);
 
             logger?.LogDebug("Calculating uncollected fees for position {TokenId} with liquidity {Liquidity}", 
@@ -53,7 +35,6 @@ namespace MyWebWallet.API.Services.Models
                 return new UncollectedFees { Amount0 = 0, Amount1 = 0 };
             }
 
-            // Log input values for debugging
             logger?.LogTrace("Position details - TokenId: {TokenId}, Liquidity: {Liquidity}, CurrentTick: {CurrentTick}, TickRange: [{TickLower}, {TickUpper}]",
                 position.Nonce, position.Liquidity, currentTick, position.TickLower, position.TickUpper);
             
@@ -66,13 +47,11 @@ namespace MyWebWallet.API.Services.Models
             logger?.LogTrace("Tokens owed - TokensOwed0: {TokensOwed0}, TokensOwed1: {TokensOwed1}",
                 position.TokensOwed0, position.TokensOwed1);
 
-            // Check for data integrity issues that require fallback strategies
             if (HasInvalidData(feeGrowthGlobal0X128, feeGrowthGlobal1X128, currentTick, position, logger))
             {
                 return HandleInvalidDataWithFallback(position, token0Decimals, token1Decimals, logger);
             }
 
-            // Check for extreme overflow values (near uint256.max) that indicate corrupted data
             if (HasExtremeOverflowValues(position, logger))
             {
                 logger?.LogWarning("Position {TokenId} has extreme overflow values, using TokensOwed only", position.Nonce);
@@ -83,8 +62,7 @@ namespace MyWebWallet.API.Services.Models
                 };
             }
 
-            // Calculate feeGrowthInside using the exact Uniswap V3 formula
-            // REFERENCE: https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/Position.sol#L69-L81
+
             var feeGrowthInside0X128 = CalculateFeeGrowthInside(
                 position.TickLower, position.TickUpper, currentTick,
                 feeGrowthGlobal0X128, 
@@ -102,31 +80,26 @@ namespace MyWebWallet.API.Services.Models
             logger?.LogTrace("Calculated feeGrowthInside - Token0: {FeeGrowthInside0}, Token1: {FeeGrowthInside1}",
                 feeGrowthInside0X128, feeGrowthInside1X128);
 
-            // Calculate the delta since last collection using uint256 subtraction with overflow handling
-            // REFERENCE: Same as Uniswap V3 Position.sol
+
             var feeGrowthDelta0X128 = SubtractUint256(feeGrowthInside0X128, position.FeeGrowthInside0LastX128, logger);
             var feeGrowthDelta1X128 = SubtractUint256(feeGrowthInside1X128, position.FeeGrowthInside1LastX128, logger);
 
             logger?.LogTrace("Fee growth delta - Token0: {FeeGrowthDelta0}, Token1: {FeeGrowthDelta1}",
                 feeGrowthDelta0X128, feeGrowthDelta1X128);
 
-            // Calculate fees earned using the exact Uniswap V3 formula:
-            // feesEarned = (liquidity * feeGrowthDelta) / Q128
-            // REFERENCE: https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/Position.sol#L78-L79
+
             var feesEarned0 = (position.Liquidity * feeGrowthDelta0X128) / Q128;
             var feesEarned1 = (position.Liquidity * feeGrowthDelta1X128) / Q128;
 
             logger?.LogTrace("Fees earned - Token0: {FeesEarned0}, Token1: {FeesEarned1}",
                 feesEarned0, feesEarned1);
 
-            // Total uncollected = tokensOwed + feesEarned (exact Uniswap V3 formula)
             var totalOwed0 = position.TokensOwed0 + feesEarned0;
             var totalOwed1 = position.TokensOwed1 + feesEarned1;
 
             logger?.LogTrace("Total owed - Token0: {TotalOwed0}, Token1: {TotalOwed1}",
                 totalOwed0, totalOwed1);
 
-            // Convert from raw token amounts to decimal representation
             var amount0 = ScaleTokenSafely(totalOwed0, token0Decimals, logger);
             var amount1 = ScaleTokenSafely(totalOwed1, token1Decimals, logger);
 
@@ -140,9 +113,7 @@ namespace MyWebWallet.API.Services.Models
             };
         }
 
-        /// <summary>
-        /// Detects various data integrity issues that prevent accurate fee calculation
-        /// </summary>
+
         private static bool HasInvalidData(BigInteger feeGrowthGlobal0X128, BigInteger feeGrowthGlobal1X128, 
             int currentTick, PositionDTO position, ILogger? logger)
         {
@@ -160,18 +131,16 @@ namespace MyWebWallet.API.Services.Models
             return hasInvalidPriceData;
         }
 
-        /// <summary>
-        /// Detects extreme overflow values that indicate corrupted data
-        /// </summary>
+
         private static bool HasExtremeOverflowValues(PositionDTO position, ILogger? logger)
         {
-            // Check for values close to uint256.max which indicate overflow
+
             BigInteger EXTREME_OVERFLOW_THRESHOLD = new BigInteger(new byte[] {
                 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
                 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F
             });
 
-            bool currentTick = false; // Assuming currentTick is passed as parameter, check if out of range
+            bool currentTick = false; 
             bool hasOverflow = (position.FeeGrowthInside0LastX128 > EXTREME_OVERFLOW_THRESHOLD || 
                                position.FeeGrowthInside1LastX128 > EXTREME_OVERFLOW_THRESHOLD);
 
@@ -184,15 +153,12 @@ namespace MyWebWallet.API.Services.Models
             return hasOverflow;
         }
 
-        /// <summary>
-        /// Handles invalid data scenarios with conservative fallback strategies
-        /// </summary>
+
         private static UncollectedFees HandleInvalidDataWithFallback(PositionDTO position, 
             int token0Decimals, int token1Decimals, ILogger? logger)
         {
             logger?.LogDebug("Using fallback strategies for position {TokenId} due to invalid data", position.Nonce);
-            
-            // Strategy 1: Use TokensOwed if available (most reliable)
+
             var baseAmount0 = ScaleTokenSafely(position.TokensOwed0, token0Decimals, logger);
             var baseAmount1 = ScaleTokenSafely(position.TokensOwed1, token1Decimals, logger);
             
@@ -207,14 +173,7 @@ namespace MyWebWallet.API.Services.Models
             return new UncollectedFees { Amount0 = 0, Amount1 = 0 };
         }
 
-        /// <summary>
-        /// Calculates fee growth inside a position's tick range using the exact Uniswap V3 formula.
-        /// 
-        /// REFERENCE: https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/Tick.sol#L97-L123
-        /// 
-        /// The formula is:
-        /// feeGrowthInside = feeGrowthGlobal - feeGrowthBelow - feeGrowthAbove
-        /// </summary>
+
         private static BigInteger CalculateFeeGrowthInside(
             int tickLower,
             int tickUpper,
@@ -227,8 +186,7 @@ namespace MyWebWallet.API.Services.Models
             logger?.LogTrace("Calculating fee growth inside - CurrentTick: {CurrentTick}, TickRange: [{TickLower}, {TickUpper}]",
                 currentTick, tickLower, tickUpper);
 
-            // Calculate fee growth below the position (exact Uniswap V3 logic)
-            // REFERENCE: https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/Tick.sol#L101-L105
+
             BigInteger feeGrowthBelowX128;
             if (currentTick >= tickLower)
             {
@@ -239,8 +197,7 @@ namespace MyWebWallet.API.Services.Models
                 feeGrowthBelowX128 = SubtractUint256(feeGrowthGlobalX128, feeGrowthOutsideLowerX128, logger);
             }
 
-            // Calculate fee growth above the position (exact Uniswap V3 logic)
-            // REFERENCE: https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/Tick.sol#L107-L111
+
             BigInteger feeGrowthAboveX128;
             if (currentTick < tickUpper)
             {
@@ -251,8 +208,7 @@ namespace MyWebWallet.API.Services.Models
                 feeGrowthAboveX128 = SubtractUint256(feeGrowthGlobalX128, feeGrowthOutsideUpperX128, logger);
             }
 
-            // Fee growth inside = global - below - above (exact Uniswap V3 formula)
-            // REFERENCE: https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/Tick.sol#L113
+
             var feeGrowthInsideX128 = SubtractUint256(
                 SubtractUint256(feeGrowthGlobalX128, feeGrowthBelowX128, logger), 
                 feeGrowthAboveX128, logger);
@@ -263,12 +219,7 @@ namespace MyWebWallet.API.Services.Models
             return feeGrowthInsideX128;
         }
 
-        /// <summary>
-        /// Performs uint256 subtraction with overflow handling, matching Solidity behavior.
-        /// 
-        /// REFERENCE: Solidity's built-in overflow behavior for uint256 subtraction
-        /// When current < last, it wraps around (current + (2^256 - last))
-        /// </summary>
+
         private static BigInteger SubtractUint256(BigInteger current, BigInteger last, ILogger? logger = null)
         {
             if (current >= last)
@@ -279,13 +230,12 @@ namespace MyWebWallet.API.Services.Models
             }
             else
             {
-                // Handle overflow case: current has wrapped around (matches Solidity behavior)
+
                 BigInteger MAX_UINT256 = BigInteger.Pow(2, 256) - 1;
                 var result = (MAX_UINT256 - last) + current + 1;
                 
                 logger?.LogTrace("Uint256 subtraction with overflow - {Current} - {Last} = {Result}", current, last, result);
-                
-                // Sanity check: if result is unreasonably large, likely indicates data corruption
+
                 var maxReasonableResult = BigInteger.Pow(2, 220);
                 if (result > maxReasonableResult)
                 {
@@ -298,23 +248,19 @@ namespace MyWebWallet.API.Services.Models
             }
         }
 
-        /// <summary>
-        /// Safely converts BigInteger token amounts to decimal representation with overflow protection
-        /// </summary>
+
         private static decimal ScaleTokenSafely(BigInteger value, int decimals, ILogger? logger = null)
         {
             try
             {
                 if (value == 0) return 0;
-                
-                // Clamp decimals to reasonable bounds (ERC20 standard allows 0-255, but > 28 causes decimal overflow)
+
                 if (decimals < 0) decimals = 0;
                 if (decimals > 28) decimals = 28;
 
                 var divisor = BigInteger.Pow(10, decimals);
                 if (divisor == 0) return 0;
 
-                // Convert to decimal safely to prevent overflow
                 var scaledValue = SafeBigIntegerToDecimal(value);
                 var divisorDecimal = (decimal)Math.Pow(10, decimals);
                 
@@ -324,9 +270,8 @@ namespace MyWebWallet.API.Services.Models
                 
                 logger?.LogTrace("Token scaling - Value: {Value}, Decimals: {Decimals}, Result: {Result}",
                     value, decimals, result);
-                
-                // Additional sanity check - limit to reasonable fee amounts to prevent UI issues
-                const decimal MAX_REASONABLE_FEE = 1_000_000m; // 1 million tokens max
+
+                const decimal MAX_REASONABLE_FEE = 1_000_000m; 
                 if (result > MAX_REASONABLE_FEE)
                 {
                     logger?.LogWarning("Capping excessive fee amount {Result} to {MaxFee} for safety", result, MAX_REASONABLE_FEE);
@@ -338,7 +283,7 @@ namespace MyWebWallet.API.Services.Models
             catch (OverflowException ex)
             {
                 logger?.LogError(ex, "Token scaling overflow for value {Value} with {Decimals} decimals", value, decimals);
-                return 0; // Return 0 instead of max value for fees to be conservative
+                return 0; 
             }
             catch (Exception ex)
             {
@@ -347,9 +292,7 @@ namespace MyWebWallet.API.Services.Models
             }
         }
 
-        /// <summary>
-        /// Safely converts BigInteger to decimal with bounds checking
-        /// </summary>
+
         private static decimal SafeBigIntegerToDecimal(BigInteger value)
         {
             if (value > (BigInteger)decimal.MaxValue)

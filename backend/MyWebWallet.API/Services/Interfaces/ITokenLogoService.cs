@@ -9,8 +9,7 @@ public interface ITokenLogoService
     Task<Dictionary<string, string>> GetAllTokenLogosAsync(Chain chain);
     Task LoadAllTokensIntoMemoryAsync();
     Task<int> GetCachedTokenCountAsync(Chain chain);
-    
-    // Batch operations for efficiency
+
     Task<Dictionary<string, string?>> GetTokenLogosAsync(IEnumerable<string> tokenAddresses, Chain chain);
     Task SetTokenLogosAsync(Dictionary<string, string> tokenLogos, Chain chain);
 }

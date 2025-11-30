@@ -51,7 +51,6 @@ namespace MyWebWallet.API.Services.Solana
                 return positions;
             }
 
-            // 1. Get all token accounts for the wallet (SPL Token and Token-2022)
             const string TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
             
             _logger.LogInformation($"[Raydium CLMM] Querying SPL Token accounts...");
@@ -92,10 +91,8 @@ namespace MyWebWallet.API.Services.Solana
 
             _logger.LogInformation($"[Raydium CLMM] Found {allTokenAccounts.Count} total token accounts for wallet {walletAddress}.");
 
-            // 2. Scan for potential position NFTs (Amount==1) + later Decimals==0
             var positionNfts = new List<string>();
             
-            // First, check Token-2022 accounts directly (they have Amount accessible from parsed data)
             foreach (var ta in allTokenAccounts)
             {
                 try
@@ -125,7 +122,6 @@ namespace MyWebWallet.API.Services.Solana
                 }
             }
 
-            // Fallback: Manual parsing if no parsed data available
             if (!positionNfts.Any())
             {
                 var tokenAccountKeys = allTokenAccounts.Select(x => x.PublicKey).ToList();
@@ -159,7 +155,6 @@ namespace MyWebWallet.API.Services.Solana
                     }
                 }
 
-                // Validate NFT candidates by checking Decimals==0
                 if (potentialNftMints.Any())
                 {
                     var mintInfosResult = await _rpc.GetMultipleAccountsAsync(potentialNftMints, Commitment.Finalized);
@@ -192,14 +187,11 @@ namespace MyWebWallet.API.Services.Solana
                 }
             }
 
-            // 4. Fallback: explicit known position NFT list for debug (if none found via scan)
             if (!positionNfts.Any())
             {
                 _logger.LogInformation("[Raydium CLMM] No NFTs found via scan. Attempting fallback ATA derivation for known debug mints.");
-                // TODO: substituir por fonte configurável; hard-coded para depuração
                 var debugMints = new List<string>
                 {
-                    // Mint informado pelo usuário
                     "5jzVQdESbretaB6JRvvHejjQhRwFCS1jr3ystKJDrwK4"
                 };
 
@@ -223,7 +215,6 @@ namespace MyWebWallet.API.Services.Solana
                             _logger.LogWarning(ex, $"[Raydium CLMM] Failed to parse ATA for mint={mint}");
                             continue;
                         }
-                        // Fetch mint to confirm decimals
                         var mintInfo = await _rpc.GetAccountInfoAsync(mint, Commitment.Finalized);
                         if (!mintInfo.WasSuccessful || mintInfo.Result.Value == null)
                         {
@@ -259,7 +250,6 @@ namespace MyWebWallet.API.Services.Solana
                 return positions;
             }
 
-            // 5. Derive PDAs from NFT mints
             var positionPdas = positionNfts.Select(DerivePositionPdaFromNftMint).Where(p => p != null).ToList();
             if (!positionPdas.Any())
             {
@@ -267,7 +257,6 @@ namespace MyWebWallet.API.Services.Solana
                 return positions;
             }
 
-            // 6. Fetch position accounts
             var posAccounts = await _rpc.GetMultipleAccountsAsync(positionPdas, Commitment.Finalized);
             if (!posAccounts.WasSuccessful)
             {
@@ -310,42 +299,31 @@ namespace MyWebWallet.API.Services.Solana
                     var tokenBAmount = (decimal)amounts.AmountB;
                     _logger.LogInformation($"[Raydium CLMM] Computed amounts tokenA={tokenAAmount} tokenB={tokenBAmount}");
 
-                    // Fetch mint decimals for both tokens
                     var tokenADecimals = await GetTokenDecimals(pool.TokenMintA);
                     var tokenBDecimals = await GetTokenDecimals(pool.TokenMintB);
                     _logger.LogInformation($"[Raydium CLMM] Token decimals: tokenA={tokenADecimals}, tokenB={tokenBDecimals}");
                     
-                    // Log uncollected fees from the position layout
                     _logger.LogInformation($"[Raydium CLMM] Uncollected fees: FeesOwedTokenA={layout.FeesOwedTokenA}, FeesOwedTokenB={layout.FeesOwedTokenB}");
                     _logger.LogInformation($"[Raydium CLMM] Fee growth inside last: A={layout.FeeGrowthInsideA}, B={layout.FeeGrowthInsideB}");
                     _logger.LogInformation($"[Raydium CLMM] Position: tickLower={layout.TickLower}, tickUpper={layout.TickUpper}, liquidity={layout.Liquidity}");
                     
-                    // Log reward infos
                     for (int i = 0; i < layout.RewardInfos.Length; i++)
                     {
                         var reward = layout.RewardInfos[i];
                         _logger.LogInformation($"[Raydium CLMM] Reward[{i}]: AmountOwed={reward.RewardAmountOwed}, GrowthInside={reward.GrowthInsideLastX64}");
                     }
                     
-                    // Get uncollected fees from position state
-                    // NOTE: tokenFeesOwed is only updated when liquidity changes (increase/decrease)
-                    // Real-time fee calculation is complex and can produce incorrect values
-                    // Using stored values only for now
                     ulong finalFeeToken0 = layout.FeesOwedTokenA;
                     ulong finalFeeToken1 = layout.FeesOwedTokenB;
                     
                     _logger.LogInformation($"[Raydium CLMM] Using tokenFeesOwed: Token0={finalFeeToken0}, Token1={finalFeeToken1}");
                     
-                    // SplToken.Amount stores RAW amounts (not formatted)
-                    // The mapper will convert these to formatted amounts when passing to TokenFactory
                     var tokenList = new List<SplToken>
                     {
-                        // Supplied tokens (position liquidity)
                         new SplToken { Mint = pool.TokenMintA, Amount = tokenAAmount, Decimals = tokenADecimals, Type = TokenType.Supplied },
                         new SplToken { Mint = pool.TokenMintB, Amount = tokenBAmount, Decimals = tokenBDecimals, Type = TokenType.Supplied }
                     };
                     
-                    // Add uncollected fees as separate reward tokens (if non-zero)
                     if (finalFeeToken0 > 0)
                     {
                         tokenList.Add(new SplToken 
@@ -374,7 +352,6 @@ namespace MyWebWallet.API.Services.Solana
                         Pool = $"{Short(pool.TokenMintA)}-{Short(pool.TokenMintB)}",
                         Tokens = tokenList,
                         TotalValueUsd = 0,
-                        // Range information
                         SqrtPriceX96 = pool.SqrtPriceX64.ToString(),
                         TickLower = layout.TickLower,
                         TickUpper = layout.TickUpper,
@@ -407,7 +384,6 @@ namespace MyWebWallet.API.Services.Solana
 
             try
             {
-                // Usar o RaydiumMath que implementa a matemática oficial do Raydium
                 var (amountA, amountB) = RaydiumMath.CalculateTokenAmounts(
                     liquidity,
                     lowerTick,
@@ -428,11 +404,8 @@ namespace MyWebWallet.API.Services.Solana
         private async Task<decimal> GetTokenBalance(string tokenAccount)
         {
             var bal = await _rpc.GetTokenAccountBalanceAsync(tokenAccount, Commitment.Finalized);
-            // This returns the raw u64 amount as a string.
             if (bal.WasSuccessful && bal.Result?.Value?.Amount != null && ulong.TryParse(bal.Result.Value.Amount, out var amount))
             {
-                // To get the UI amount, we would need the token's decimals.
-                // For liquidity calculation, we need the raw amount.
                 return amount;
             }
             _logger.LogWarning($"[Raydium CLMM] Failed to get token balance for {tokenAccount}.");
@@ -470,7 +443,6 @@ namespace MyWebWallet.API.Services.Solana
 
         private string DeriveAssociatedTokenAccount(string wallet, string mint)
         {
-            // Associated Token Program ID
             const string ASSOCIATED_TOKEN_PROGRAM_ID = "ATokenGPvR93Xkhl7EyrhiJpF2KrFs1J8ZDEGkGx6D8";
             try
             {
@@ -516,7 +488,6 @@ namespace MyWebWallet.API.Services.Solana
             const string TICK_ARRAY_SEED = "tick_array";
             try
             {
-                // Convert start_tick_index to big-endian bytes (4 bytes)
                 var tickIndexBytes = new byte[4];
                 BinaryPrimitives.WriteInt32BigEndian(tickIndexBytes, startTickIndex);
 
@@ -538,15 +509,6 @@ namespace MyWebWallet.API.Services.Solana
 
         private int GetTickArrayStartIndex(int tickIndex, int tickSpacing)
         {
-            // Implementation from Raydium SDK (tick.ts):
-            // const ticksInArray = TickQuery.tickCount(tickSpacing);  // = tickSpacing * 60
-            // let startIndex: number = tickIndex / ticksInArray;
-            // if (tickIndex < 0 && tickIndex % ticksInArray != 0) {
-            //   startIndex = Math.ceil(startIndex) - 1;
-            // } else {
-            //   startIndex = Math.floor(startIndex);
-            // }
-            // return startIndex * ticksInArray;
             
             const int TICK_ARRAY_SIZE = 60;
             int ticksPerArray = tickSpacing * TICK_ARRAY_SIZE;
@@ -554,7 +516,6 @@ namespace MyWebWallet.API.Services.Solana
             
             if (tickIndex < 0 && tickIndex % ticksPerArray != 0)
             {
-                // For negative numbers that don't divide evenly, round towards negative infinity
                 startIndex = (int)Math.Ceiling((double)tickIndex / ticksPerArray) - 1;
             }
             else
@@ -575,7 +536,6 @@ namespace MyWebWallet.API.Services.Solana
         {
             try
             {
-                // Try multiple Raydium API endpoints
                 var endpoints = new[]
                 {
                     $"https://api-v3.raydium.io/clmm/position/{positionNftMint}",
@@ -612,14 +572,12 @@ namespace MyWebWallet.API.Services.Solana
                         
                         _logger.LogInformation($"[Raydium CLMM] Parsed JSON, checking for 'data' property...");
                         
-                        // Try to extract pending fees from different possible structures
                         if (apiData.RootElement.TryGetProperty("data", out var data))
                         {
                             _logger.LogInformation($"[Raydium CLMM] Found 'data' property, trying to extract fees...");
                             if (TryExtractFeesFromApiData(data, out var fees))
                             {
                                 _logger.LogInformation($"[Raydium CLMM] Extracted fees from 'data': Token0={fees.feeToken0}, Token1={fees.feeToken1}");
-                                // Validate fees are reasonable (not negative or absurdly large)
                                 if (ValidateApiFees(fees.feeToken0, fees.feeToken1))
                                 {
                                     return fees;
@@ -672,7 +630,6 @@ namespace MyWebWallet.API.Services.Solana
 
             try
             {
-                // Try structure: { pendingFees: { tokenA, tokenB } }
                 if (element.TryGetProperty("pendingFees", out var pendingFees))
                 {
                     if (pendingFees.TryGetProperty("tokenA", out var tokenA) &&
@@ -686,7 +643,6 @@ namespace MyWebWallet.API.Services.Solana
                     }
                 }
 
-                // Try structure: { tokenFeeAmountA, tokenFeeAmountB }
                 if (element.TryGetProperty("tokenFeeAmountA", out var feeA) &&
                     element.TryGetProperty("tokenFeeAmountB", out var feeB))
                 {
@@ -697,7 +653,6 @@ namespace MyWebWallet.API.Services.Solana
                     return true;
                 }
 
-                // Try structure: { uncollectedFees: [tokenA, tokenB] }
                 if (element.TryGetProperty("uncollectedFees", out var uncollected) &&
                     uncollected.ValueKind == System.Text.Json.JsonValueKind.Array)
                 {
@@ -723,8 +678,7 @@ namespace MyWebWallet.API.Services.Solana
 
         private bool ValidateApiFees(ulong feeToken0, ulong feeToken1)
         {
-            // Fees should not be absurdly large (> 1e18 tokens)
-            const ulong MAX_REASONABLE_FEE = 1_000_000_000_000_000_000; // 1e18
+            const ulong MAX_REASONABLE_FEE = 1_000_000_000_000_000_000;
 
             if (feeToken0 > MAX_REASONABLE_FEE || feeToken1 > MAX_REASONABLE_FEE)
             {

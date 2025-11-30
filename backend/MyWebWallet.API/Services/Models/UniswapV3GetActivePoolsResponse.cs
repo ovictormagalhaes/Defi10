@@ -31,7 +31,7 @@ public class UniswapV3Position
     [JsonPropertyName("depositedToken1")] public string DepositedToken1 { get; set; } = string.Empty;
     [JsonPropertyName("withdrawnToken0")] public string WithdrawnToken0 { get; set; } = string.Empty;
     [JsonPropertyName("withdrawnToken1")] public string WithdrawnToken1 { get; set; } = string.Empty;
-    [JsonPropertyName("collectedFeesToken0")] public string CollectedFeesToken0 { get; set; } = string.Empty; // backwards-compatible: now holds total uncollected
+    [JsonPropertyName("collectedFeesToken0")] public string CollectedFeesToken0 { get; set; } = string.Empty;
     [JsonPropertyName("collectedFeesToken1")] public string CollectedFeesToken1 { get; set; } = string.Empty;
     [JsonPropertyName("feeGrowthInside0LastX128")] public string FeeGrowthInside0LastX128 { get; set; } = string.Empty;
     [JsonPropertyName("feeGrowthInside1LastX128")] public string FeeGrowthInside1LastX128 { get; set; } = string.Empty;
@@ -42,10 +42,9 @@ public class UniswapV3Position
     [JsonPropertyName("maxPriceToken1PerToken0")] public string MaxPriceToken1PerToken0 { get; set; } = string.Empty;
     [JsonPropertyName("currentPriceToken1PerToken0")] public string CurrentPriceToken1PerToken0 { get; set; } = string.Empty;
 
-    // New detailed fee fields
-    [JsonPropertyName("rawTokensOwed0")] public string RawTokensOwed0 { get; set; } = string.Empty; // original tokensOwed0 (scaled human)
-    [JsonPropertyName("rawTokensOwed1")] public string RawTokensOwed1 { get; set; } = string.Empty; // original tokensOwed1 (scaled human)
-    [JsonPropertyName("estimatedUncollectedToken0")] public string EstimatedUncollectedToken0 { get; set; } = string.Empty; // includes pending growth
+    [JsonPropertyName("rawTokensOwed0")] public string RawTokensOwed0 { get; set; } = string.Empty;
+    [JsonPropertyName("rawTokensOwed1")] public string RawTokensOwed1 { get; set; } = string.Empty;
+    [JsonPropertyName("estimatedUncollectedToken0")] public string EstimatedUncollectedToken0 { get; set; } = string.Empty;
     [JsonPropertyName("estimatedUncollectedToken1")] public string EstimatedUncollectedToken1 { get; set; } = string.Empty;
 
     [JsonPropertyName("token0")] public UniswapV3Token Token0 { get; set; } = new();

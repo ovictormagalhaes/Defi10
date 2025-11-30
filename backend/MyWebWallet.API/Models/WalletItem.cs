@@ -6,7 +6,7 @@ namespace MyWebWallet.API.Models;
 public class WalletItem
 {
     public WalletItemType Type { get; set; }
-    //DeFi specific properties
+
     public Protocol Protocol { get; set; }
     public Position Position { get; set; }
     public AdditionalData AdditionalData { get; set; }
@@ -18,8 +18,7 @@ public class Protocol {
     public string Id { get; set; }
     public string Url { get; set; }
     public string Logo { get; set; }
-    
-    // Protocol.Key = {protocol.name}-{protocol.chain}-{protocol.id}
+
     public string Key => $"{Name?.ToLowerInvariant()}-{Chain?.ToLowerInvariant()}-{Id?.ToLowerInvariant()}";
 }
 
@@ -27,9 +26,8 @@ public class Position
 {
     public string Label { get; set; }
     public List<Token> Tokens { get; set; }
-    
-    // Position.Key = {protocol.key}-{position.label}
-    // Note: ProtocolKey must be set externally since Position doesn't have direct Protocol reference
+
+
     [JsonIgnore]
     public string? ProtocolKey { get; set; }
     public string Key => !string.IsNullOrEmpty(ProtocolKey) ? $"{ProtocolKey}-{Label?.ToLowerInvariant()}" : Label?.ToLowerInvariant() ?? "";
@@ -50,7 +48,7 @@ public class TokenFinancials
                 {
                     return Amount.Value / DecimalPow10(places);
                 }
-                // Fallback: cap at max cached (avoids overflow beyond 10^28 which decimal cannot represent)
+
                 return Amount.Value / DecimalPow10(MaxCachedPower);
             }
             return null;
@@ -60,21 +58,20 @@ public class TokenFinancials
     public decimal? Price { get; set; }
     public decimal? TotalPrice { get; set; }
 
-    // Decimal max ~7.9e28, so 10^29 would overflow. Cache 0..28.
     private const int MaxCachedPower = 28;
     private static readonly decimal[] Pow10Cache = BuildCache();
     private static decimal[] BuildCache()
     {
-        var arr = new decimal[MaxCachedPower + 1]; // 0..28
+        var arr = new decimal[MaxCachedPower + 1];
         arr[0] = 1m;
-        for (int i = 1; i < arr.Length; i++) arr[i] = arr[i - 1] * 10m; // safe within decimal range
+        for (int i = 1; i < arr.Length; i++) arr[i] = arr[i - 1] * 10m;
         return arr;
     }
     public static decimal DecimalPow10(int n)
     {
         if (n < 0) return 1m;
         if (n <= MaxCachedPower) return Pow10Cache[n];
-        // Cap at largest exact power representable to avoid OverflowException
+
         return Pow10Cache[MaxCachedPower];
     }
 }
@@ -91,9 +88,8 @@ public class Token
     public TokenFinancials Financials { get; set; } = new();
     public bool? Native { get; set; }
     public bool? PossibleSpam { get; set; }
-    
-    // Token.Key = {position.key}-{type}-{symbol}-{name}-{chain}
-    // Note: PositionKey must be set externally since Token doesn't have direct Position reference
+
+
     [JsonIgnore]
     public string? PositionKey { get; set; }
     public string Key => !string.IsNullOrEmpty(PositionKey) 

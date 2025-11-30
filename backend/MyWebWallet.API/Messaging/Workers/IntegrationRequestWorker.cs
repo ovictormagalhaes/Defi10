@@ -17,7 +17,6 @@ using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Messaging.Workers;
 
-// Worker that consumes IntegrationRequest messages and performs real provider calls, publishing IntegrationResult
 public class IntegrationRequestWorker : BaseConsumer
 {
     private readonly ILogger<IntegrationRequestWorker> _logger;
@@ -31,11 +30,11 @@ public class IntegrationRequestWorker : BaseConsumer
 
     private static readonly Dictionary<int, TimeSpan> RetryDelays = new()
     {
-        {1, TimeSpan.FromSeconds(5)}, // after first failed attempt
-        {2, TimeSpan.FromSeconds(10)} // after second failed attempt
-    }; // third failure => publish final failed result (no retry)
+        {1, TimeSpan.FromSeconds(5)},
+        {2, TimeSpan.FromSeconds(10)}
+    };
 
-    protected override string QueueName => "integration.requests"; // generic queue; could later split per provider
+    protected override string QueueName => "integration.requests";
 
     public IntegrationRequestWorker(
         IRabbitMqConnectionFactory connectionFactory,
@@ -104,10 +103,10 @@ public class IntegrationRequestWorker : BaseConsumer
                 }
                 case IntegrationProvider.UniswapV3Positions:
                 {
-                    // Processamento granular resiliente para UniswapV3
+
                     if (_uniswapV3Options.EnableGranularProcessing)
                     {
-                        // Option 1: enumerate ids, then delegate to service detailed builder for accurate fees and pricing
+
                         var uniSvc = scope.ServiceProvider.GetRequiredService<IUniswapV3OnChainService>();
                         var ids = await uniSvc.EnumeratePositionIdsAsync(request.Account, chainEnum, onlyOpen: true);
                         if (ids != null && ids.Any())
@@ -117,14 +116,14 @@ public class IntegrationRequestWorker : BaseConsumer
                         }
                         else
                         {
-                            // no positions -> success with empty response
+
                             payload = await uniSvc.GetActivePoolsOnChainAsync(Array.Empty<BigInteger>(), chainEnum, onlyOpenPositions: true);
                             status = IntegrationStatus.Success;
                         }
                     }
                     else
                     {
-                        // Fallback para processamento tradicional
+
                         var svc = scope.ServiceProvider.GetRequiredService<IUniswapV3OnChainService>();
                         const bool onlyOpen = true;
                         payload = await svc.GetActivePoolsOnChainAsync(request.Account, onlyOpen, chainEnum);
@@ -158,7 +157,7 @@ public class IntegrationRequestWorker : BaseConsumer
                 }
                 case IntegrationProvider.SolanaRaydiumPositions:
                 {
-                    // Use on-chain service directly (no REST API available)
+
                     _logger.LogInformation("[Worker] ========== Processing Raydium CLMM Positions ==========");
                     _logger.LogInformation("[Worker] Account: {Account}, Chain: {Chain}", request.Account, chainEnum);
                     
@@ -168,8 +167,7 @@ public class IntegrationRequestWorker : BaseConsumer
                         _logger.LogInformation("[Worker] RaydiumOnChainService resolved successfully");
                         
                         payload = await svc.GetPositionsAsync(request.Account);
-                        
-                        // Log detailed payload info
+
                         if (payload is IEnumerable<RaydiumPosition> positions)
                         {
                             var positionsList = positions.ToList();
@@ -181,7 +179,7 @@ public class IntegrationRequestWorker : BaseConsumer
                                     pos.Pool, pos.Tokens?.Count ?? 0, pos.TotalValueUsd);
                             }
                             
-                            payload = positionsList; // Ensure it's materialized
+                            payload = positionsList;
                         }
                         else
                         {
@@ -224,7 +222,6 @@ public class IntegrationRequestWorker : BaseConsumer
 
         var finished = DateTime.UtcNow;
 
-        // Retry policy: if failed/cancelled/timedout and attempts remain, schedule retry instead of publishing result
         if (status != IntegrationStatus.Success && request.Attempt < 3)
         {
             var nextAttempt = request.Attempt + 1;
@@ -258,10 +255,9 @@ public class IntegrationRequestWorker : BaseConsumer
                         nextAttempt, request.JobId, request.Provider);
                 }
             });
-            return; // do not publish intermediate failed result
+            return;
         }
 
-        // Publish only on success or final failed attempt
         var result = new IntegrationResult(
             JobId: request.JobId,
             RequestId: request.RequestId,

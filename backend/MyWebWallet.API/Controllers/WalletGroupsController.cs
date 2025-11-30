@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 
@@ -24,9 +20,7 @@ public class WalletGroupsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Creates a new wallet group.
-    /// </summary>
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateWalletGroupRequest request)
     {
@@ -70,9 +64,7 @@ public class WalletGroupsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Gets a wallet group by ID.
-    /// </summary>
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id)
     {
@@ -101,9 +93,7 @@ public class WalletGroupsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Updates an existing wallet group.
-    /// </summary>
+
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateWalletGroupRequest request)
     {
@@ -149,9 +139,7 @@ public class WalletGroupsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Deletes a wallet group.
-    /// </summary>
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -175,7 +163,6 @@ public class WalletGroupsController : ControllerBase
         }
     }
 
-    // DTOs
     public sealed class CreateWalletGroupRequest
     {
         [Required]

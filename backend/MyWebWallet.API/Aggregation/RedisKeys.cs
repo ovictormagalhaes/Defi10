@@ -9,8 +9,8 @@ public static class RedisKeys
     public static string ActiveWalletGroup(Guid walletGroupId, IEnumerable<ChainEnum> chains) => $"wallet:agg:active:group:{walletGroupId}:{string.Join('+', chains.OrderBy(c => c.ToString()))}";
     public static string Meta(Guid jobId) => $"wallet:agg:{jobId}:meta";
     public static string Pending(Guid jobId) => $"wallet:agg:{jobId}:pending";
-    public static string ResultPrefix(Guid jobId) => $"wallet:agg:{jobId}:result:"; // each provider result appended
+    public static string ResultPrefix(Guid jobId) => $"wallet:agg:{jobId}:result:"; 
     public static string Summary(Guid jobId) => $"wallet:agg:{jobId}:summary";
     public static string Wallet(Guid jobId) => $"wallet:agg:{jobId}:wallet";
-    public static string Index(string accountLower) => $"wallet:agg:index:{accountLower}"; // sorted set (score = unix epoch seconds)
+    public static string Index(string accountLower) => $"wallet:agg:index:{accountLower}"; 
 }

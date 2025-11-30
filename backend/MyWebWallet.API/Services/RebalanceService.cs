@@ -57,13 +57,12 @@ public class RebalanceService : IRebalanceService
         if (items == null || items.Count == 0) throw new ArgumentException("Items are required");
         foreach (var it in items)
         {
-            // Check if at least one asset exists
+
             if (it.Assets == null || it.Assets.Count == 0)
             {
                 throw new ArgumentException("Assets list is required and must contain at least one asset");
             }
-            
-            // Validate each asset has a non-empty key
+
             foreach (var asset in it.Assets)
             {
                 if (string.IsNullOrWhiteSpace(asset.Key))
@@ -73,8 +72,7 @@ public class RebalanceService : IRebalanceService
             }
             
             if (it.Note < 0 || it.Note > 100) throw new ArgumentOutOfRangeException(nameof(it.Note), "Note must be between 0 and 100");
-            
-            // Version optional but normalize
+
             it.Version = string.IsNullOrWhiteSpace(it.Version) ? "1" : it.Version.Trim();
             if (it.Value != null) it.Value = it.Value.Trim();
         }

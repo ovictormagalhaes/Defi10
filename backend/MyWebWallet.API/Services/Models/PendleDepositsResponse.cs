@@ -18,7 +18,7 @@ public class PendleDepositsData
 public class PendleDepositItem
 {
     [JsonPropertyName("marketSymbol")]
-    public string MarketSymbol { get; set; } = string.Empty; // e.g. PT-USDe-11DEC2025
+    public string MarketSymbol { get; set; } = string.Empty;
     
     [JsonPropertyName("maturityUnix")]
     public long? MaturityUnix { get; set; }

@@ -19,8 +19,7 @@ public class RedisCacheService : ICacheService
         _database = redis.GetDatabase();
         _configuration = configuration;
         _logger = logger;
-        
-        // Get default expiration from configuration or default to 30 minutes
+
         var expirationConfig = configuration["Redis:DefaultExpiration"];
         _defaultExpiration = !string.IsNullOrEmpty(expirationConfig) 
             ? TimeSpan.Parse(expirationConfig) 
@@ -63,7 +62,7 @@ public class RedisCacheService : ICacheService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to set cache for key {Key}", key);
-            // Don't throw - caching should be non-blocking
+
         }
     }
 
@@ -72,7 +71,7 @@ public class RedisCacheService : ICacheService
         try
         {
             var serializedValue = JsonSerializer.Serialize(value);
-            // No TTL => persist indefinitely
+
             await _database.StringSetAsync(key, serializedValue, expiry: null);
         }
         catch (Exception ex)

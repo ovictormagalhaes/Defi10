@@ -17,8 +17,6 @@ namespace MyWebWallet.API.Services.Solana.RaydiumClmm
 
         public static TickState Parse(ReadOnlySpan<byte> data)
         {
-            // TickState structure (120 bytes):
-            // tick(4) + liquidity_net(16) + liquidity_gross(16) + fee_growth_outside_0(16) + fee_growth_outside_1(16) + reward_growths_outside(3*16) + padding(52)
             int o = 0;
             var t = new TickState();
             t.Tick = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(o, 4)); o += 4;
@@ -44,7 +42,7 @@ namespace MyWebWallet.API.Services.Solana.RaydiumClmm
             return new BigInteger(data, isUnsigned: false, isBigEndian: false);
         }
 
-        public const int TICK_STATE_SIZE = 120; // bytes
+        public const int TICK_STATE_SIZE = 120;
     }
 
     public class TickArrayState
@@ -56,9 +54,9 @@ namespace MyWebWallet.API.Services.Solana.RaydiumClmm
 
         public static TickArrayState Parse(ReadOnlySpan<byte> data)
         {
-            // TickArrayState structure:
-            // discriminator(8) + pool_id(32) + start_tick_index(4) + ticks(60*120) + initialized_tick_count(1) + recent_epoch(8) + padding(115)
-            int o = 8; // skip discriminator
+
+
+            int o = 8;
             var ta = new TickArrayState();
             var pubkeyBytes = data.Slice(o, 32).ToArray();
             ta.PoolId = new PublicKey(pubkeyBytes).Key; o += 32;

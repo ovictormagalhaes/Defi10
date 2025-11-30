@@ -3,10 +3,7 @@ using System.Text.Json;
 
 namespace MyWebWallet.API.Middleware;
 
-/// <summary>
-/// Global exception handler middleware that catches unhandled exceptions
-/// and returns consistent error responses to clients.
-/// </summary>
+
 public class GlobalExceptionHandlerMiddleware
 {
     private readonly RequestDelegate _next;
@@ -91,7 +88,7 @@ public class GlobalExceptionHandlerMiddleware
             correlationId,
             timestamp = DateTimeOffset.UtcNow,
             path = context.Request.Path.Value,
-            // Only include detailed error info in development
+
             details = _environment.IsDevelopment() ? exception.Message : null,
             stackTrace = _environment.IsDevelopment() ? exception.StackTrace : null
         };
@@ -106,9 +103,7 @@ public class GlobalExceptionHandlerMiddleware
     }
 }
 
-/// <summary>
-/// Extension method to register the global exception handler middleware
-/// </summary>
+
 public static class GlobalExceptionHandlerMiddlewareExtensions
 {
     public static IApplicationBuilder UseGlobalExceptionHandler(this IApplicationBuilder builder)

@@ -13,7 +13,7 @@ public class PendleVeMapper : IWalletItemMapper<PendleVePositionsResponse>
     private readonly ITokenFactory _tokenFactory;
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
-    private readonly string _protocolKey; // resolved dynamically from config
+    private readonly string _protocolKey;
 
     public PendleVeMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
     {
@@ -33,9 +33,9 @@ public class PendleVeMapper : IWalletItemMapper<PendleVePositionsResponse>
     public Protocol GetProtocolDefinition(ChainEnum chain)
     {
         var def = _protocolConfig.GetProtocol(_protocolKey!) ?? throw new InvalidOperationException($"Protocol configuration missing for {_protocolKey}");
-        // Usa extensão para validar metadados e suporte na chain
+
         var protocol = def.ToProtocol(chain, _chainConfig);
-        // Garantir presença do pendleToken na configuração da chain
+
         var chainResolved = _protocolConfig.GetProtocolOnChain(_protocolKey, chain) ?? throw new InvalidOperationException($"Protocol {_protocolKey} not enabled on chain {chain}");
         if (!chainResolved.Settings.ContainsKey("pendleToken")) throw new InvalidOperationException($"pendleToken setting missing for protocol {_protocolKey} chain {chain}");
         return protocol;

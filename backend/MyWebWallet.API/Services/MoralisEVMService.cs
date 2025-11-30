@@ -7,10 +7,7 @@ using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services;
 
-/// <summary>
-/// Moralis service for EVM chains (Ethereum, Base, Arbitrum, BNB, etc.)
-/// Uses Moralis EVM Web3 Data API
-/// </summary>
+
 public class MoralisEVMService : BaseHttpService, IMoralisService, IChainSupportService
 {
     private readonly string _apiKey;
@@ -31,8 +28,7 @@ public class MoralisEVMService : BaseHttpService, IMoralisService, IChainSupport
 
     public string GetProtocolName() => "Moralis";
     public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
-    
-    // EVM chains only - Solana handled by MoralisSolanaService
+
     public IEnumerable<ChainEnum> GetSupportedChains() => new [] 
     { 
         ChainEnum.Base, 

@@ -1,13 +1,11 @@
-using MyWebWallet.API.Aggregation;
+﻿using MyWebWallet.API.Aggregation;
 using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Infrastructure;
 using MyWebWallet.API.Infrastructure.Redis;
-using MyWebWallet.API.Messaging;
 using MyWebWallet.API.Messaging.Rabbit;
 using MyWebWallet.API.Messaging.Workers;
 using MyWebWallet.API.Middleware;
 using MyWebWallet.API.Services;
-using MyWebWallet.API.Services.Helpers;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Mappers;
 using MyWebWallet.API.Services.Models;
@@ -18,13 +16,12 @@ using MyWebWallet.API.Services.Models.Solana.Raydium;
 using MyWebWallet.API.Services.Solana;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
-using Solnet.Rpc; // added for IRpcClient registration
+using Solnet.Rpc;
 
 var builder = WebApplication.CreateBuilder(args);
 var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
-// Options binding
 builder.Services.Configure<CoinMarketCapOptions>(builder.Configuration.GetSection("CoinMarketCap"));
 builder.Services.Configure<RedisOptions>(builder.Configuration.GetSection("Redis"));
 builder.Services.Configure<AggregationOptions>(builder.Configuration.GetSection("Aggregation"));
@@ -39,22 +36,17 @@ builder.Services.AddSingleton<IProtocolConfigurationService, ProtocolConfigurati
 
 builder.Services.AddSingleton<IProtocolPluginRegistry, ProtocolPluginRegistry>();
 
-// Core services
 builder.Services.AddSingleton<ISystemClock, SystemClock>();
 builder.Services.AddSingleton<IRedisDatabase, RedisDatabaseWrapper>();
 builder.Services.AddScoped<IWalletGroupService, WalletGroupService>();
 
-// Read allowed origins from configuration (env or appsettings) e.g. Cors:AllowedOrigins:0
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 
-// Bind RabbitMQ options
 builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMQ"));
 
-// Services
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // Accept both camelCase and PascalCase in requests
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
     });
 builder.Services.AddEndpointsApiExplorer();
@@ -71,7 +63,6 @@ builder.Services.AddCors(options =>
             policy.WithOrigins(allowedOrigins);
         else
         {
-            // fallback: allow localhost dev
             policy.WithOrigins("http://localhost:10002", "https://localhost:10002");
         }
         policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
@@ -84,7 +75,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
     var optCfg = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
-    var cs = optCfg.ConnectionString ?? cfg["Redis:ConnectionString"]; // fallback
+    var cs = optCfg.ConnectionString ?? cfg["Redis:ConnectionString"];
     if (string.IsNullOrEmpty(cs)) throw new InvalidOperationException("Redis connection string is required");
     var opt = ConfigurationOptions.Parse(cs);
     if (!string.IsNullOrEmpty(optCfg.User)) opt.User = optCfg.User;
@@ -94,40 +85,28 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 });
 
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
-// TokenLogoService descontinuado - use ITokenMetadataService
 builder.Services.AddScoped<MyWebWallet.API.Services.Helpers.TokenHydrationHelper>();
 
-// Register Solana IRpcClient (Raydium/Kamino on-chain usage)
 builder.Services.AddSingleton<IRpcClient>(sp =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
-    // Preferred explicit Solana RPC URL
     var rpcUrl = "https://api.mainnet-beta.solana.com";// cfg["Solana:RpcUrl"]
-                 //?? cfg["ChainConfiguration:Chains:Solana:Rpc:Primary"]
-                 //?? "https://api.mainnet-beta.solana.com";
 
-    var rpcClient = ClientFactory.GetClient(rpcUrl); // retorna RpcClient que implementa IRpcClient
+    var rpcClient = ClientFactory.GetClient(rpcUrl);
     return rpcClient;
 });
 
-// Blockchain / protocol services
 builder.Services.AddScoped<IWalletAggregationService, WalletAggregationService>();
-builder.Services.AddScoped<IMoralisService, MoralisEVMService>();  // EVM chains (Ethereum, Base, Arbitrum, BNB)
+builder.Services.AddScoped<IMoralisService, MoralisEVMService>();
 builder.Services.AddScoped<IAaveeService, AaveeService>();
 builder.Services.AddScoped<IUniswapV3Service, UniswapV3Service>();
 builder.Services.AddSingleton<IUniswapV3OnChainService, UniswapV3OnChainService>();
 builder.Services.AddScoped<IAlchemyNftService, AlchemyNftService>();
-// Pendle
 builder.Services.AddScoped<IPendleService, PendleService>();
-// Solana - dedicated Moralis Solana API service
-// Using Kamino REST API for better reliability and no RPC rate limits
 builder.Services.AddScoped<ISolanaService, KaminoService>();
 builder.Services.AddScoped<IMoralisSolanaService, MoralisSolanaService>();
-// Raydium: On-chain CLMM fetching only (no REST API service)
 builder.Services.AddScoped<IRaydiumOnChainService, RaydiumOnChainService>();
-// Token metadata and pricing cache service
 builder.Services.AddScoped<ITokenMetadataService, TokenMetadataService>();
-// Label enricher (runs after metadata is loaded)
 builder.Services.AddScoped<WalletItemLabelEnricher>();
 
 builder.Services.AddHttpClient<KaminoService>();
@@ -142,32 +121,26 @@ builder.Services.AddScoped<IWalletItemMapper<IEnumerable<TokenDetail>>, MoralisT
 builder.Services.AddScoped<IWalletItemMapper<AaveGetUserSuppliesResponse>, AaveSuppliesMapper>();
 builder.Services.AddScoped<IWalletItemMapper<AaveGetUserBorrowsResponse>, AaveBorrowsMapper>();
 builder.Services.AddScoped<IWalletItemMapper<UniswapV3GetActivePoolsResponse>, UniswapV3Mapper>();
-// Pendle mappers
 builder.Services.AddScoped<IWalletItemMapper<PendleVePositionsResponse>, PendleVeMapper>();
 builder.Services.AddScoped<IWalletItemMapper<PendleDepositsResponse>, PendleDepositsMapper>();
-// Solana mappers
 builder.Services.AddScoped<IWalletItemMapper<SolanaTokenResponse>, SolanaTokenMapper>();
 builder.Services.AddScoped<IWalletItemMapper<IEnumerable<KaminoPosition>>, SolanaKaminoMapper>();
 builder.Services.AddScoped<IWalletItemMapper<IEnumerable<RaydiumPosition>>, SolanaRaydiumMapper>();
 
 builder.Services.AddScoped<IWalletItemMapperFactory, WalletItemMapperFactory>();
 
-// Rebalance service
 builder.Services.AddScoped<IRebalanceService, RebalanceService>();
 
-// Aggregation orchestration additions
 builder.Services.AddSingleton<IAggregationJobStore, AggregationJobStore>();
 builder.Services.AddSingleton<ITokenFactory, TokenFactory>();
 builder.Services.AddScoped<IPriceService, PriceService>();
 
-// RabbitMQ infrastructure
 builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
 builder.Services.AddSingleton<IMessagePublisher, RabbitMqPublisher>();
 
-// Messaging workers - single enhanced worker with granular logic
 builder.Services.AddHostedService<IntegrationRequestWorker>();
 builder.Services.AddHostedService<IntegrationResultAggregatorWorker>();
-builder.Services.AddHostedService<AggregationTimeoutMonitorWorker>(); // timeout monitor
+builder.Services.AddHostedService<AggregationTimeoutMonitorWorker>();
 
 var app = builder.Build();
 
@@ -183,10 +156,9 @@ if (app.Environment.IsDevelopment())
 
 var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
 
-// Apply middleware in correct order
-app.UseCorrelationId();           // First: Add correlation ID to all requests
-app.UseGlobalExceptionHandler();  // Second: Catch all unhandled exceptions
-app.UseRateLimiting();            // Third: Rate limiting before routing
+app.UseCorrelationId();
+app.UseGlobalExceptionHandler();
+app.UseRateLimiting();
 
 try
 {
@@ -199,10 +171,7 @@ catch (Exception ex)
     logger.LogWarning(ex, "Redis connection failed");
 }
 
-// TokenLogoService descontinuado - logos agora vêm via ITokenMetadataService
-// Metadata é carregado sob demanda com cache Redis (7 dias TTL)
 
-// Initialize Plugin System
 try
 {
     var pluginRegistry = app.Services.GetRequiredService<IProtocolPluginRegistry>();
@@ -230,7 +199,6 @@ catch (Exception ex)
     logger.LogError(ex, "Failed to initialize protocol plugin system");
 }
 
-// Validate Chain Configuration
 try
 {
     var chainConfigService = app.Services.GetRequiredService<IChainConfigurationService>();

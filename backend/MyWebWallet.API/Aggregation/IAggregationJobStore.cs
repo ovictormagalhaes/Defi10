@@ -84,7 +84,7 @@ public sealed class AggregationJobStore : IAggregationJobStore
 
     public async Task RecordPublicationAsync(Guid jobId, string accountLower, IEnumerable<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, CancellationToken ct = default)
     {
-        // For idempotency: ensure meta exists (InitializeMetaAsync is safe-guarded)
+
         var db = _redis.GetDatabase();
         await InitializeMetaAsync(jobId, accountLower, chains.ToList(), combos, ttl, db, onlyIfMissing: true);
     }
@@ -122,7 +122,7 @@ public sealed class AggregationJobStore : IAggregationJobStore
     {
         var db = _redis.GetDatabase();
         var indexKey = RedisKeys.Index(accountLower);
-        // Sorted set range: highest scores first
+
         var nowScore = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var entries = await db.SortedSetRangeByScoreWithScoresAsync(indexKey, double.NegativeInfinity, nowScore, Exclude.None, Order.Descending, 0, limit);
         foreach (var e in entries)

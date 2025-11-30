@@ -1,4 +1,4 @@
-using MyWebWallet.API.Models;
+﻿using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Interfaces;
 using ChainEnum = MyWebWallet.API.Models.Chain;
@@ -20,7 +20,6 @@ public class PendleDepositsMapper : IWalletItemMapper<PendleDepositsResponse>
 
     public bool SupportsChain(ChainEnum chain)
     {
-        // Only Base enabled by request
         return chain == ChainEnum.Base;
     }
 
@@ -30,7 +29,6 @@ public class PendleDepositsMapper : IWalletItemMapper<PendleDepositsResponse>
     {
         var def = _protocolConfig.GetProtocol("pendle-v2");
         var chainSlug = _chainConfig.GetChainConfig(chain)?.Slug ?? chain.ToString().ToLowerInvariant();
-        // Fallback protocol descriptor if missing in config
         return new Protocol
         {
             Name = "Pendle V2",
@@ -79,12 +77,12 @@ public class PendleDepositsMapper : IWalletItemMapper<PendleDepositsResponse>
                 
                 var supplied = _tokenFactory.CreateSupplied(
                     name: d.MarketSymbol,
-                    symbol: d.UnderlyingSymbol ?? d.MarketSymbol,  // ? Usar underlying symbol (USDe, cbBTC)
+                    symbol: d.UnderlyingSymbol ?? d.MarketSymbol,
                     contract: d.PtAddress,
                     chain: chain,
                     decimals: d.PtDecimals,
                     formattedAmount: d.AmountFormatted,
-                    unitPriceUsd: 0m  // ? Deixar 0 - PriceService vai preencher automaticamente
+                    unitPriceUsd: 0m
                 );
 
                 var wi = new WalletItem

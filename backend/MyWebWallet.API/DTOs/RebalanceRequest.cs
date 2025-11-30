@@ -11,8 +11,7 @@ public class RebalanceAsset
 public class RebalanceItem
 {
     public string Version { get; set; } = "1";
-    
-    // List of assets, each with its own type
+
     public List<RebalanceAsset> Assets { get; set; } = new();
     
     public int Note { get; set; } = 0;
@@ -29,14 +28,12 @@ public class RebalanceItemAdditionalInfo
 
 public class RebalanceRequest
 {
-    // Accept either a single accountId or multiple
+
     public string? AccountId { get; set; }
     public List<string>? AccountIds { get; set; }
-    
-    // Or accept a wallet group ID (will load accounts from the group)
+
     public Guid? WalletGroupId { get; set; }
 
-    // The desired targets for rebalancing
     public List<RebalanceItem> Items { get; set; } = new();
 }
 

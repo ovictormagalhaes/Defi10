@@ -1,10 +1,10 @@
-using MyWebWallet.API.Models;
+﻿using MyWebWallet.API.Models;
 using MyWebWallet.API.Plugins;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
 using System.Diagnostics;
 using ChainEnum = MyWebWallet.API.Models.Chain;
-using MyWebWallet.API.Aggregation; // added for ITokenFactory
+using MyWebWallet.API.Aggregation;
 
 namespace MyWebWallet.API.Plugins.Protocols
 {

@@ -4,81 +4,54 @@ using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Plugins
 {
-    /// <summary>
-    /// Base interface for all protocol plugins
-    /// </summary>
+
+
     public interface IProtocolPlugin : IChainSupportService
     {
-        /// <summary>
-        /// Unique identifier for this protocol
-        /// </summary>
+
+
         string ProtocolId { get; }
-        
-        /// <summary>
-        /// Protocol version
-        /// </summary>
+
+
         string Version { get; }
-        
-        /// <summary>
-        /// Protocol description
-        /// </summary>
+
+
         string Description { get; }
-        
-        /// <summary>
-        /// Protocol website URL
-        /// </summary>
+
+
         string WebsiteUrl { get; }
-        
-        /// <summary>
-        /// Protocol logo URL
-        /// </summary>
+
+
         string LogoUrl { get; }
-        
-        /// <summary>
-        /// Initialize the plugin with configuration
-        /// </summary>
+
+
         Task InitializeAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken = default);
-        
-        /// <summary>
-        /// Validate plugin configuration for a specific chain
-        /// </summary>
+
+
         Task<ValidationResult> ValidateConfigurationAsync(ChainEnum chain, CancellationToken cancellationToken = default);
-        
-        /// <summary>
-        /// Get wallet items for an account on a specific chain
-        /// </summary>
+
+
         Task<List<WalletItem>> GetWalletItemsAsync(string accountAddress, ChainEnum chain, CancellationToken cancellationToken = default);
-        
-        /// <summary>
-        /// Check if the plugin is healthy and operational
-        /// </summary>
+
+
         Task<HealthCheckResult> CheckHealthAsync(ChainEnum? chain = null, CancellationToken cancellationToken = default);
     }
 
-    /// <summary>
-    /// Specialized interface for DeFi protocol plugins
-    /// </summary>
+
     public interface IDeFiProtocolPlugin : IProtocolPlugin
     {
-        /// <summary>
-        /// Types of DeFi positions this protocol supports
-        /// </summary>
+
+
         IEnumerable<WalletItemType> SupportedPositionTypes { get; }
-        
-        /// <summary>
-        /// Get specific position data by ID
-        /// </summary>
+
+
         Task<WalletItem?> GetPositionAsync(string positionId, ChainEnum chain, CancellationToken cancellationToken = default);
-        
-        /// <summary>
-        /// Get historical data for positions (optional)
-        /// </summary>
+
+
         Task<object?> GetHistoricalDataAsync(string accountAddress, ChainEnum chain, DateTime? fromDate = null, CancellationToken cancellationToken = default);
     }
 
-    /// <summary>
-    /// Health check result for protocol plugins
-    /// </summary>
+
     public class HealthCheckResult
     {
         public bool IsHealthy { get; set; }
@@ -95,9 +68,7 @@ namespace MyWebWallet.API.Plugins
             => new() { IsHealthy = false, Status = status, Errors = errors?.ToList() ?? new() };
     }
 
-    /// <summary>
-    /// Validation result for protocol configuration
-    /// </summary>
+
     public class ValidationResult
     {
         public bool IsValid { get; set; }
@@ -109,9 +80,7 @@ namespace MyWebWallet.API.Plugins
         public static ValidationResult Invalid(IEnumerable<string> errors) => new() { IsValid = false, Errors = errors.ToList() };
     }
 
-    /// <summary>
-    /// Plugin metadata for discovery and registration
-    /// </summary>
+
     [AttributeUsage(AttributeTargets.Class)]
     public class ProtocolPluginAttribute : Attribute
     {

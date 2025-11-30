@@ -4,9 +4,7 @@ using MyWebWallet.API.Services.Solana;
 
 namespace MyWebWallet.API.Services.Helpers;
 
-/// <summary>
-/// Hydrates token metadata (logos, symbols, names) using the new ITokenMetadataService
-/// </summary>
+
 public class TokenHydrationHelper
 {
     private readonly ITokenMetadataService _metadataService;
@@ -18,9 +16,7 @@ public class TokenHydrationHelper
         _logger = logger;
     }
 
-    /// <summary>
-    /// Hydrates token logos and metadata for all tokens in wallet items
-    /// </summary>
+
     public async Task<Dictionary<string, string?>> HydrateTokenLogosAsync(
         IEnumerable<WalletItem> walletItems, 
         Chain chain, 
@@ -36,12 +32,10 @@ public class TokenHydrationHelper
         var existingLogos = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         var tokensToStore = new Dictionary<string, TokenMetadata>();
 
-        // Fetch metadata from cache/CMC for each token
         foreach (var tokenAddress in uniqueTokens)
         {
             var normalizedAddress = tokenAddress.ToLowerInvariant();
-            
-            // Try to get from metadata service
+
             var metadata = await _metadataService.GetTokenMetadataAsync(normalizedAddress);
             
             if (metadata?.LogoUrl != null)
@@ -50,12 +44,11 @@ public class TokenHydrationHelper
             }
             else
             {
-                // Check if incoming logos has this token
+
                 if (incomingLogos?.TryGetValue(normalizedAddress, out var incomingLogo) == true && !string.IsNullOrEmpty(incomingLogo))
                 {
                     existingLogos[normalizedAddress] = incomingLogo;
-                    
-                    // Store new metadata
+
                     tokensToStore[normalizedAddress] = new TokenMetadata
                     {
                         Symbol = string.Empty,
@@ -66,7 +59,6 @@ public class TokenHydrationHelper
             }
         }
 
-        // Extract logos from tokens themselves
         var logosFromTokens = ExtractLogosFromTokens(walletItems);
         foreach (var kvp in logosFromTokens)
         {
@@ -85,7 +77,6 @@ public class TokenHydrationHelper
             }
         }
 
-        // Store new metadata
         foreach (var kvp in tokensToStore)
         {
             await _metadataService.SetTokenMetadataAsync(kvp.Key, kvp.Value);
@@ -99,22 +90,18 @@ public class TokenHydrationHelper
         return existingLogos;
     }
 
-    /// <summary>
-    /// Applies logos to wallet items based on metadata lookup
-    /// </summary>
+
     public async Task ApplyTokenLogosToWalletItemsAsync(IEnumerable<WalletItem> walletItems, Dictionary<string, string?> tokenLogos)
     {
-        // Build symbol → logo mapping for fallback lookup
+
         var symbolToLogo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        
-        // Collect all known logos by symbol
+
         var allTokens = walletItems.SelectMany(wi => wi.Position?.Tokens ?? Enumerable.Empty<Token>()).ToList();
         
         foreach (var token in allTokens)
         {
             if (string.IsNullOrEmpty(token.Symbol)) continue;
-            
-            // If we have logo by address, use it for symbol mapping
+
             if (!string.IsNullOrEmpty(token.ContractAddress))
             {
                 var normalizedAddress = token.ContractAddress.ToLowerInvariant();
@@ -127,8 +114,7 @@ public class TokenHydrationHelper
                     }
                 }
             }
-            
-            // If token already has a logo, add to symbol mapping
+
             if (!string.IsNullOrEmpty(token.Logo))
             {
                 var normalizedSymbol = token.Symbol.ToUpperInvariant();
@@ -139,19 +125,17 @@ public class TokenHydrationHelper
             }
         }
 
-        // Apply logos with fallback
         foreach (var walletItem in walletItems)
         {
             if (walletItem.Position?.Tokens != null)
             {
                 foreach (var token in walletItem.Position.Tokens)
                 {
-                    // Skip if token already has a logo
+
                     if (!string.IsNullOrEmpty(token.Logo)) continue;
                     
                     string? logoUrl = null;
-                    
-                    // Strategy 1: Try by contract address (primary)
+
                     if (!string.IsNullOrEmpty(token.ContractAddress))
                     {
                         var normalizedAddress = token.ContractAddress.ToLowerInvariant();
@@ -161,8 +145,7 @@ public class TokenHydrationHelper
                             continue;
                         }
                     }
-                    
-                    // Strategy 2: Fallback by symbol+name (cross-chain lookup)
+
                     if (!string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(token.Name))
                     {
                         var crossChainMetadata = await _metadataService.GetTokenMetadataBySymbolAndNameAsync(
@@ -176,8 +159,7 @@ public class TokenHydrationHelper
                             continue;
                         }
                     }
-                    
-                    // Strategy 3: Fallback by symbol only (within batch)
+
                     if (!string.IsNullOrEmpty(token.Symbol))
                     {
                         var normalizedSymbol = token.Symbol.ToUpperInvariant();

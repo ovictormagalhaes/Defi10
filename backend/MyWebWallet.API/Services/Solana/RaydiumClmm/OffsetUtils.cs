@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
@@ -22,7 +22,7 @@ public static class OffsetUtils
 
             if (length == 0)
             {
-                // Infer type length (u64, u128, pubkey, etc.)
+
                 if (prop.PropertyType == typeof(string)) length = 32;
                 else if (prop.PropertyType == typeof(byte[])) length = 8;
                 else if (prop.PropertyType == typeof(BigInteger)) length = 16;

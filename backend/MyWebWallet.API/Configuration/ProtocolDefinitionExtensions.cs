@@ -6,11 +6,8 @@ namespace MyWebWallet.API.Configuration;
 
 public static class ProtocolDefinitionExtensions
 {
-    /// <summary>
-    /// Builds a runtime Protocol DTO from a ProtocolDefinition validating mandatory metadata and chain slug.
-    /// Falls back to lowercase chain name when slug not configured (avoids hard failure for missing slug).
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when required metadata or chain data are missing.</exception>
+
+
     public static Protocol ToProtocol(this ProtocolDefinition def, ChainEnum chain, IChainConfigurationService chainConfig)
     {
         if (def == null) throw new InvalidOperationException("Protocol definition is null");
@@ -22,7 +19,6 @@ public static class ProtocolDefinitionExtensions
         var chainCfg = chainConfig.GetChainConfig(chain) ?? throw new InvalidOperationException($"Chain configuration missing for {chain}");
         var slug = !string.IsNullOrWhiteSpace(chainCfg.Slug) ? chainCfg.Slug! : chain.ToString().ToLowerInvariant();
 
-        // Validate that protocol is declared for this chain (if chain supports list provided)
         if (def.ChainSupports != null && def.ChainSupports.Count > 0)
         {
             var support = def.ChainSupports.FirstOrDefault(c => string.Equals(c.Chain, chain.ToString(), StringComparison.OrdinalIgnoreCase));

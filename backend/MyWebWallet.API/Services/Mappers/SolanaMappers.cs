@@ -1,4 +1,4 @@
-using MyWebWallet.API.Aggregation;
+﻿using MyWebWallet.API.Aggregation;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
@@ -140,12 +140,10 @@ namespace MyWebWallet.API.Services.Mappers
                     }
                 }
 
-                // Separate supplied and borrowed tokens (Type is nullable but should be set)
                 var suppliedTokens = p.Tokens
                     .Where(t => t.Type == TokenType.Supplied)
                     .Select(t =>
                     {
-                        // Calculate unit price from totalPrice and amount
                         var unitPrice = t.PriceUsd ?? 0;
                         
                         _logger.LogInformation("KAMINO MAPPER: Creating SUPPLIED token - Symbol={Symbol}, Amount={Amount}, UnitPrice={Price}",
@@ -174,7 +172,6 @@ namespace MyWebWallet.API.Services.Mappers
                     .Where(t => t.Type == TokenType.Borrowed)
                     .Select(t =>
                     {
-                        // Calculate unit price from totalPrice and amount
                         var unitPrice = t.PriceUsd ?? 0;
                         
                         _logger.LogInformation("KAMINO MAPPER: Creating BORROWED token - Symbol={Symbol}, Amount={Amount}, UnitPrice={Price}",
@@ -214,7 +211,7 @@ namespace MyWebWallet.API.Services.Mappers
                     AdditionalData = new AdditionalData
                     {
                         HealthFactor = p.HealthFactor,
-                        IsCollateral = allTokens.Any(t => t.Type == TokenType.Supplied) // Has supplied tokens = collateral enabled
+                        IsCollateral = allTokens.Any(t => t.Type == TokenType.Supplied)
                     }
                 };
 
@@ -308,30 +305,24 @@ namespace MyWebWallet.API.Services.Mappers
                 
                 foreach (var t in p.Tokens)
                 {
-                    // 1. Try to get metadata from cache (symbol, name, logo)
                     var metadata = await _metadataService.GetTokenMetadataAsync(t.Mint);
                     
                     string? symbol = metadata?.Symbol ?? t.Symbol;
                     string? name = metadata?.Name ?? t.Name;
                     string? logo = metadata?.LogoUrl ?? t.Logo;
                     
-                    // 2. Try to get price from cache (by mint, symbol, or name)
                     decimal? priceUsd = t.PriceUsd;
                     if (!priceUsd.HasValue || priceUsd.Value == 0)
                     {
-                        // Try mint address first
                         priceUsd = await _metadataService.GetTokenPriceAsync(t.Mint);
                         
-                        // Try symbol if available
                         if (!priceUsd.HasValue && !string.IsNullOrEmpty(symbol))
                             priceUsd = await _metadataService.GetTokenPriceAsync(symbol);
                         
-                        // Try name if available
                         if (!priceUsd.HasValue && !string.IsNullOrEmpty(name))
                             priceUsd = await _metadataService.GetTokenPriceAsync(name);
                     }
                     
-                    // Convert raw amount to formatted amount by dividing by 10^decimals
                     var formattedAmount = t.Decimals > 0 
                         ? t.Amount / (decimal)Math.Pow(10, t.Decimals) 
                         : t.Amount;
@@ -340,11 +331,9 @@ namespace MyWebWallet.API.Services.Mappers
                         "RAYDIUM MAPPER: Token mint={Mint}, symbol={Symbol}, name={Name}, hasLogo={HasLogo}, price={Price}, amount={Amount}, type={Type}",
                         t.Mint, symbol ?? "null", name ?? "null", logo != null, priceUsd ?? 0, formattedAmount, t.Type);
                     
-                    // Create token based on type
                     Token token;
                     if (t.Type == TokenType.LiquidityUncollectedFee)
                     {
-                        // Uncollected fees are created as UncollectedReward tokens
                         token = _tokenFactory.CreateUncollectedReward(
                             name ?? string.Empty,
                             symbol ?? string.Empty,
@@ -357,7 +346,6 @@ namespace MyWebWallet.API.Services.Mappers
                     }
                     else
                     {
-                        // Regular supplied tokens
                         token = _tokenFactory.CreateSupplied(
                             name ?? string.Empty,
                             symbol ?? string.Empty,
@@ -379,7 +367,7 @@ namespace MyWebWallet.API.Services.Mappers
                     Protocol = GetProtocolDefinition(chain),
                     Position = new Position
                     {
-                        Label = string.Empty,  // Will be enriched by WalletItemLabelEnricher
+                        Label = string.Empty,
                         Tokens = tokens
                     },
                     AdditionalData = new AdditionalData
@@ -395,7 +383,6 @@ namespace MyWebWallet.API.Services.Mappers
                 walletItems.Add(walletItem);
             }
 
-            // Enrich labels after all tokens have been mapped with their metadata
             _labelEnricher.EnrichLabels(walletItems);
 
             _logger.LogInformation("RAYDIUM MAPPER: Completed mapping - Total WalletItems: {Count}", walletItems.Count);
@@ -403,13 +390,8 @@ namespace MyWebWallet.API.Services.Mappers
             return walletItems;
         }
 
-        /// <summary>
-        /// Calculates price range from Raydium CLMM ticks
-        /// </summary>
         private RangeInfo CalculateRange(int tickLower, int tickUpper, int tickCurrent)
         {
-            // Convert ticks to prices using: price = 1.0001^tick
-            // This gives us the price of token1 in terms of token0
             var priceLower = Math.Pow(1.0001, tickLower);
             var priceUpper = Math.Pow(1.0001, tickUpper);
             var priceCurrent = Math.Pow(1.0001, tickCurrent);

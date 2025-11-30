@@ -15,7 +15,6 @@ public class AaveeService : IAaveeService
     private const string NETWORK_BASE_ADDRESS = "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5";
     private const int NETWORK_BASE_CHAIN_ID = 8453;
 
-    // simple in-memory cache per chain
     private static readonly Dictionary<ChainEnum, (DateTime ts, HashSet<string> addrs)> _wrappersCache = new();
     private static readonly TimeSpan _wrappersTtl = TimeSpan.FromMinutes(60);
 
@@ -104,7 +103,6 @@ public class AaveeService : IAaveeService
         if (_wrappersCache.TryGetValue(chain, out var cached) && (DateTime.UtcNow - cached.ts) < _wrappersTtl)
             return cached.addrs;
 
-        // For now only Base is supported with constants; extend with other chains later
         var marketAddress = NETWORK_BASE_ADDRESS;
         var chainId = NETWORK_BASE_CHAIN_ID;
         if (chain != ChainEnum.Base)
@@ -133,7 +131,6 @@ public class AaveeService : IAaveeService
             var json = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
 
-            // Handle GraphQL error payloads like { "errors": [...], "data": null }
             if (doc.RootElement.TryGetProperty("errors", out var errorsEl) && errorsEl.ValueKind == JsonValueKind.Array)
             {
                 try
@@ -168,7 +165,7 @@ public class AaveeService : IAaveeService
             }
             else
             {
-                // Unexpected shape or data is null
+
                 Console.WriteLine("ERROR: AaveeService GetWrapperTokenAddressesAsync - Unexpected GraphQL response shape (data null or not object)");
             }
 

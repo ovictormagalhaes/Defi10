@@ -24,7 +24,6 @@ public sealed class PriceService : IPriceService
         var fullyPriced = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
         var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // ? LOG: Tokens encontrados
         _logger.LogInformation("[PriceService] Starting price hydration for chain={Chain}", chain);
         int tokenCount = 0;
 
@@ -42,16 +41,14 @@ public sealed class PriceService : IPriceService
                     _logger.LogDebug("[PriceService] Token has no symbol: contract={Contract}", t.ContractAddress);
                     continue;
                 }
-                
-                // ? LOG: Token com preço existente
+
                 if (t.Financials.Price.HasValue && t.Financials.Price.Value > 0)
                 { 
                     fullyPriced[key] = t.Financials.Price.Value;
                     _logger.LogDebug("[PriceService] Token already priced: key={Key} price={Price}", key, t.Financials.Price.Value);
                     continue; 
                 }
-                
-                // ? LOG: Token candidato a busca de preço
+
                 if (t.Financials.AmountFormatted.GetValueOrDefault() > 0 && !IsMoralisProtocol(item))
                 { 
                     candidates.Add(key);
@@ -110,26 +107,24 @@ public sealed class PriceService : IPriceService
 
         if (toFetchSymbols.Count > 0)
         {
-            // ? LOG: Símbolos que vamos buscar no CMC
+
             _logger.LogInformation("[PriceService] Fetching {Count} symbols from CoinMarketCap: {Symbols}", 
                 toFetchSymbols.Count, string.Join(", ", toFetchSymbols));
             
             try
             {
                 var cmcResp = await _cmc.GetQuotesLatestV2Async(toFetchSymbols, ct);
-                
-                // ? LOG: Resposta do CMC
+
                 if (cmcResp?.Data != null)
                 {
                     _logger.LogInformation("[PriceService] CoinMarketCap returned {Count} results", cmcResp.Data.Count);
-                    
-                    // ? LOG: Chaves retornadas pelo CMC
+
                     var cmcKeys = string.Join(", ", cmcResp.Data.Keys);
                     _logger.LogDebug("[PriceService] CMC keys: {Keys}", cmcKeys);
                     
                     foreach (var sym in toFetchSymbols)
                     {
-                        // ? FIX: Buscar case-insensitive usando FirstOrDefault
+
                         var asset = cmcResp.Data
                             .FirstOrDefault(kvp => kvp.Key.Equals(sym, StringComparison.OrdinalIgnoreCase))
                             .Value;
@@ -137,8 +132,7 @@ public sealed class PriceService : IPriceService
                         if (asset != null)
                         {
                             var price = asset.Quote.TryGetValue("USD", out var usd) ? (usd.Price ?? 0m) : 0m;
-                            
-                            // ? LOG: Preço encontrado no CMC
+
                             _logger.LogInformation("[PriceService] ? CMC price found: {Symbol} = ${Price}", sym, price);
                             
                             if (price > 0)
@@ -154,7 +148,7 @@ public sealed class PriceService : IPriceService
                         }
                         else
                         {
-                            // ? LOG: Símbolo não encontrado no CMC
+
                             _logger.LogWarning("[PriceService] ?? Symbol not found in CMC response: {Symbol} (tried case-insensitive search)", sym);
                         }
                     }

@@ -25,8 +25,8 @@ public class ProtocolConfigurationService : IProtocolConfigurationService
         if (opts.AaveV3 != null) dict["aave-v3"] = opts.AaveV3;
         if (opts.Moralis != null) dict["moralis"] = opts.Moralis;
         if (opts.UniswapV3 != null) dict["uniswap-v3"] = opts.UniswapV3;
-        if (opts.PendleV2 != null) dict["pendle-v2"] = opts.PendleV2; // novo
-        // merge extras
+        if (opts.PendleV2 != null) dict["pendle-v2"] = opts.PendleV2;
+
         foreach (var kv in opts.Extra)
         {
             if (!dict.ContainsKey(kv.Key)) dict[kv.Key] = kv.Value;

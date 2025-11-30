@@ -19,9 +19,9 @@ using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using MyWebWallet.API.Services.Helpers;
-using MyWebWallet.API.Aggregation; // added for IPriceService
-using MyWebWallet.API.Services.Solana; // added for ITokenMetadataService
-using MyWebWallet.API.Services.Filters; // Add for ProtocolTokenFilter
+using MyWebWallet.API.Aggregation;
+using MyWebWallet.API.Services.Solana;
+using MyWebWallet.API.Services.Filters;
 
 namespace MyWebWallet.API.Messaging.Workers;
 
@@ -69,8 +69,8 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         public int TotalUniswapPositions { get; set; }
         public int TotalPendleLocks { get; set; }
         public int TotalPendleDeposits { get; set; }
-        public int TotalRaydiumPositions { get; set; } // Raydium CLMM pools
-        public HashSet<string> ProvidersCompleted { get; set; } = new(); // store provider[:chain]
+        public int TotalRaydiumPositions { get; set; }
+        public HashSet<string> ProvidersCompleted { get; set; } = new();
     }
 
     private sealed class ConsolidatedWallet
@@ -88,9 +88,8 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             return;
         }
 
-        // Determine chain (multi-chain aware: each request currently carries exactly one chain in list)
         var chainStr = result.Chains.FirstOrDefault();
-        ChainEnum chainEnum = ChainEnum.Base; // default fallback
+        ChainEnum chainEnum = ChainEnum.Base;
         if (!string.IsNullOrWhiteSpace(chainStr) && !Enum.TryParse<ChainEnum>(chainStr, true, out chainEnum))
         {
             _logger.LogWarning("Unknown chain '{Chain}' in result. Falling back to Base for mapping.", chainStr);
@@ -107,17 +106,15 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         var account = result.Account;
 
         var metaKey = $"wallet:agg:{jobId}:meta";
-        
-        // Check if this is a multi-wallet job
+
         var accountsField = await db.HashGetAsync(metaKey, "accounts");
         bool isMultiWallet = accountsField.HasValue && accountsField.ToString().Contains(',');
 
         var pendingKey = $"wallet:agg:{jobId}:pending";
-        
-        // Multi-wallet: result key includes wallet
+
         var resultKey = isMultiWallet 
             ? $"wallet:agg:{jobId}:result:{providerSlug}:{chainEnum.ToString().ToLowerInvariant()}:{account.ToLowerInvariant()}"
-            : $"wallet:agg:{jobId}:result:{providerSlug}:{chainEnum.ToString().ToLowerInvariant()}"; // legacy single wallet
+            : $"wallet:agg:{jobId}:result:{providerSlug}:{chainEnum.ToString().ToLowerInvariant()}";
         
         var summaryKey = $"wallet:agg:{jobId}:summary";
         var consolidatedKey = $"wallet:agg:{jobId}:wallet";
@@ -139,7 +136,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         var ttl = await db.KeyTimeToLiveAsync(metaKey) ?? TimeSpan.FromMinutes(15);
         await db.StringSetAsync(resultKey, json, ttl);
 
-        // Remove pending entry (multi-wallet aware). Try provider:chain:wallet first then legacy formats.
         var pendingEntry = isMultiWallet 
             ? $"{providerSlug}:{chainStr?.ToLowerInvariant()}:{account.ToLowerInvariant()}"
             : providerChainKey;
@@ -147,7 +143,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         var removed = await db.SetRemoveAsync(pendingKey, pendingEntry);
         if (!removed && !isMultiWallet)
         {
-            await db.SetRemoveAsync(pendingKey, providerSlug); // backwards compatibility
+            await db.SetRemoveAsync(pendingKey, providerSlug);
         }
 
         var tran = db.CreateTransaction();
@@ -161,13 +157,12 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         }
         await tran.ExecuteAsync();
 
-        // Incremental consolidation into wallet items (map + health factor enrichment)
         try
         {
-            // Multi-wallet: consolidate per wallet
+
             if (isMultiWallet)
             {
-                // Format: wallet:agg:{jobId}:wallet:{account}
+
                 var walletConsolidatedKey = $"wallet:agg:{jobId}:wallet:{account.ToLowerInvariant()}";
                 
                 var consolidated = new ConsolidatedWallet();
@@ -189,10 +184,9 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     {
                         newlyMapped = await MapPayloadAsync(result, mapperFactory, chainEnum);
 
-                        // Deduplicate: remove protocol wrapper tokens from Moralis Wallet
                         if (newlyMapped.Count > 0 && result.Provider == IntegrationProvider.MoralisTokens)
                         {
-                            // 1. Remove Aave-specific wrappers using IAaveeService
+
                             var aaveSvc = scope.ServiceProvider.GetRequiredService<IAaveeService>();
                             var wrappers = await aaveSvc.GetWrapperTokenAddressesAsync(chainEnum);
                             if (wrappers.Count > 0)
@@ -210,8 +204,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     _logger.LogInformation("Deduplicated {Count} Moralis tokens (Aave wrappers by address) chain={Chain} account={Account}", 
                                         aaveRemoved, chainEnum, account);
                             }
-                            
-                            // 2. Remove general protocol tokens using ProtocolTokenFilter (pattern-based)
+
                             int protocolRemoved = 0;
                             foreach (var wi in newlyMapped.Where(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && i.Position?.Tokens != null))
                             {
@@ -224,24 +217,21 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                             if (protocolRemoved > 0)
                                 _logger.LogInformation("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain} account={Account}", 
                                     protocolRemoved, chainEnum, account);
-                            
-                            // Remove empty wallet items after filtering
+
                             newlyMapped.RemoveAll(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && (i.Position?.Tokens == null || i.Position.Tokens.Count == 0));
                         }
 
                         if (newlyMapped.Count > 0)
                         {
-                            // Populate hierarchical keys (Protocol -> Position -> Token)
+
                             newlyMapped.PopulateKeys();
-                            
-                            // 1. Logos via ITokenMetadataService
+
                             var metadataService = scope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
                             var hydrationLogger = scope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
                             var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
                             var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
                             await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(newlyMapped, logos);
 
-                            // 2. Prices (novo passo)
                             try
                             {
                                 var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
@@ -255,7 +245,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                         foreach (var tk in wi.Position.Tokens)
                                         {
                                             if (tk?.Financials == null) continue;
-                                            if (tk.Financials.Price is > 0) continue; // already priced
+                                            if (tk.Financials.Price is > 0) continue;
                                             var key = BuildPriceKey(tk);
                                             if (string.IsNullOrEmpty(key)) continue;
                                             if (prices.TryGetValue(key, out var price) && price > 0)
@@ -292,7 +282,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     consolidated.Providers.Add($"{providerSlug}:{chainStr?.ToLowerInvariant()}:{account.ToLowerInvariant()}");
                 }
 
-                // If both Aave supplies & borrows present for this chain + wallet, compute HealthFactor
                 if (isAaveProvider)
                 {
                     bool hasSupplies = consolidated.Providers.Any(p => p.Contains("aavesupplies", StringComparison.OrdinalIgnoreCase));
@@ -350,7 +339,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             }
             else
             {
-                // Legacy single wallet consolidation (keep existing code)
+
                 var consolidated = new ConsolidatedWallet();
                 var existingWalletJson = await db.StringGetAsync(consolidatedKey);
                 if (existingWalletJson.HasValue)
@@ -369,10 +358,9 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     {
                         newlyMapped = await MapPayloadAsync(result, mapperFactory, chainEnum);
 
-                        // Deduplicate: remove protocol wrapper tokens from Moralis Wallet
                         if (newlyMapped.Count > 0 && result.Provider == IntegrationProvider.MoralisTokens)
                         {
-                            // 1. Remove Aave-specific wrappers using IAaveeService
+
                             var aaveSvc = scope.ServiceProvider.GetRequiredService<IAaveeService>();
                             var wrappers = await aaveSvc.GetWrapperTokenAddressesAsync(chainEnum);
                             if (wrappers.Count > 0)
@@ -389,8 +377,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                 if (aaveRemoved > 0)
                                     _logger.LogInformation("Deduplicated {Count} Moralis tokens (Aave wrappers by address) chain={Chain}", aaveRemoved, chainEnum);
                             }
-                            
-                            // 2. Remove general protocol tokens using ProtocolTokenFilter (pattern-based)
+
                             int protocolRemoved = 0;
                             foreach (var wi in newlyMapped.Where(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && i.Position?.Tokens != null))
                             {
@@ -402,24 +389,21 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                             }
                             if (protocolRemoved > 0)
                                 _logger.LogInformation("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain}", protocolRemoved, chainEnum);
-                            
-                            // Remove empty wallet items after filtering
+
                             newlyMapped.RemoveAll(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && (i.Position?.Tokens == null || i.Position.Tokens.Count == 0));
                         }
 
                         if (newlyMapped.Count > 0)
                         {
-                            // Populate hierarchical keys (Protocol -> Position -> Token)
+
                             newlyMapped.PopulateKeys();
-                            
-                            // 1. Logos via ITokenMetadataService
+
                             var metadataService = scope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
                             var hydrationLogger = scope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
                             var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
                             var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
                             await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(newlyMapped, logos);
 
-                            // 2. Prices (novo passo)
                             try
                             {
                                 var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
@@ -467,7 +451,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     consolidated.Providers.Add(providerChainKey);
                 }
 
-                // If both Aave supplies & borrows present for this chain, compute HealthFactor (simple heuristic)
                 if (isAaveProvider)
                 {
                     bool hasSupplies = consolidated.Providers.Any(p => p.StartsWith("aavesupplies", StringComparison.OrdinalIgnoreCase));
@@ -528,7 +511,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             _logger.LogWarning(ex, "Failed consolidating wallet jobId={JobId} account={Account}", jobId, account);
         }
 
-        // Summary (counts + health flag)
         try
         {
             var existingSummaryJson = await db.StringGetAsync(summaryKey);
@@ -583,11 +565,10 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                             summary.TotalRaydiumPositions += payloadEl.GetArrayLength();
                         }
                         break;
-                    
-                    // Kamino and Raydium payloads are arrays, no specific count needed for summary yet.
-                    // This case prevents the "requires an element of type 'Object'" error.
+
+
                     case IntegrationProvider.SolanaKaminoPositions:
-                        // No action needed, payload is an empty array.
+
                         break;
                 }
             }
@@ -623,13 +604,12 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             }
         }
 
-        // CRITICAL: Check if we should consolidate (either remaining=0 OR all succeeded even if timedOut before)
         bool shouldConsolidate = (remaining == 0 && !finalAlready) || 
                                  (succeeded == expectedTotal && failed == 0 && finalAlready);
         
         if (shouldConsolidate)
         {
-            // Check if consolidation already done
+
             var consolidationDoneKey = $"wallet:agg:{jobId}:consolidation_done";
             var alreadyConsolidated = await db.StringGetAsync(consolidationDoneKey);
             
@@ -642,10 +622,10 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                 
                 try
                 {
-                    // CRITICAL: For multi-wallet jobs, consolidate all per-wallet data into final key
+
                     if (isMultiWallet)
                     {
-                        // Read accounts from meta
+
                         var accountsStr = await db.HashGetAsync(metaKey, "accounts");
                         if (accountsStr.HasValue)
                         {
@@ -653,8 +633,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                             var consolidatedWallet = new ConsolidatedWallet();
                             
                             _logger.LogInformation("Multi-wallet job {JobId} final consolidation: {Count} wallets", jobId, accountsList.Count);
-                            
-                            // Read per-wallet data and merge into final
+
                             foreach (var acc in accountsList)
                             {
                                 var walletConsolidatedKey = $"wallet:agg:{jobId}:wallet:{acc.ToLowerInvariant()}";
@@ -684,8 +663,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     _logger.LogWarning("No consolidated data found for wallet {Account} in job {JobId}", acc, jobId);
                                 }
                             }
-                            
-                            // Price hydration final (same as single wallet)
+
                             if (consolidatedWallet.Items.Count > 0)
                             {
                                 try
@@ -733,8 +711,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     _logger.LogWarning(finalPxEx, "Multi-wallet final price hydration failed jobId={JobId}", jobId);
                                 }
                             }
-                            
-                            // Write final consolidated key
+
                             await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(consolidatedWallet, _jsonOptions), ttl);
                             _logger.LogInformation("Multi-wallet job {JobId} final consolidation complete: {Total} items", jobId, consolidatedWallet.Items.Count);
                         }
@@ -745,7 +722,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     }
                     else
                     {
-                        // Single wallet price hydration (existing code)
+
                         var consolidatedJson = await db.StringGetAsync(consolidatedKey);
                         if (consolidatedJson.HasValue)
                         {
@@ -811,7 +788,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                 _logger.LogDebug("Skipping consolidation for job {JobId} - already done", jobId);
             }
 
-            // Only emit completed event if not already emitted
             if (!finalAlready)
             {
                 AggregationStatus aggStatus;

@@ -29,7 +29,7 @@ public abstract class BaseConsumer : BackgroundService
         if (_channel is { IsOpen: true }) return _channel;
         var connection = _connectionFactory.GetConnection();
         _channel = connection.CreateModel();
-        _channel.BasicQos(0, 8, false); // prefetch 8
+        _channel.BasicQos(0, 8, false);
         _channel.ExchangeDeclare(Options.Exchange, ExchangeType.Topic, durable: true, autoDelete: false);
         DeclareQueues(_channel);
         return _channel;
@@ -60,6 +60,6 @@ public abstract class BaseConsumer : BackgroundService
     public override void Dispose()
     {
         base.Dispose();
-        try { _channel?.Dispose(); } catch { /* ignore */ }
+        try { _channel?.Dispose(); } catch {  }
     }
 }

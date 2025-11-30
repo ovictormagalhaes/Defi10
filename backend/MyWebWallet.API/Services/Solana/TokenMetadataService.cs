@@ -5,9 +5,7 @@ using Solnet.Wallet;
 
 namespace MyWebWallet.API.Services.Solana;
 
-/// <summary>
-/// Implementation of token metadata service using Redis cache with automatic CMC fallback
-/// </summary>
+
 public sealed class TokenMetadataService : ITokenMetadataService
 {
     private readonly ICacheService _cache;
@@ -17,10 +15,9 @@ public sealed class TokenMetadataService : ITokenMetadataService
     private const string METADATA_PREFIX = "token:metadata:";
     private const string METADATA_BY_SYMBOL_PREFIX = "token:metadata:symbol:";
     private const string PRICE_PREFIX = "token:price:";
-    private static readonly TimeSpan METADATA_TTL = TimeSpan.FromDays(7);  // Metadata rarely changes
-    private static readonly TimeSpan PRICE_TTL = TimeSpan.FromMinutes(5);  // Prices change frequently
-    
-    // Well-known Solana token mappings (mint → symbol for CMC lookup)
+    private static readonly TimeSpan METADATA_TTL = TimeSpan.FromDays(7);
+    private static readonly TimeSpan PRICE_TTL = TimeSpan.FromMinutes(5);
+
     private static readonly Dictionary<string, string> WellKnownTokens = new(StringComparer.OrdinalIgnoreCase)
     {
         ["So11111111111111111111111111111111111111112"] = "SOL",
@@ -52,7 +49,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-            // 1. Try cache first
+
             string key = $"{METADATA_PREFIX}{mintAddress}";
             string? cached = await _cache.GetAsync<string>(key);
             
@@ -63,13 +60,12 @@ public sealed class TokenMetadataService : ITokenMetadataService
             }
             
             _logger.LogDebug("[TokenMetadata] Cache MISS for mint={Mint}, fetching from CMC...", mintAddress);
-            
-            // 2. Try to fetch from CoinMarketCap
+
             var metadata = await FetchMetadataFromCMCAsync(mintAddress);
             
             if (metadata != null)
             {
-                // Cache it for future use
+
                 await SetTokenMetadataAsync(mintAddress, metadata);
                 _logger.LogInformation("[TokenMetadata] Fetched and cached metadata for mint={Mint}, symbol={Symbol}", 
                     mintAddress, metadata.Symbol);
@@ -91,7 +87,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-            // Normalize key: symbol:name (uppercase symbol, original name)
+
             string compositeKey = $"{METADATA_BY_SYMBOL_PREFIX}{symbol.ToUpperInvariant()}:{name}";
             string? cached = await _cache.GetAsync<string>(compositeKey);
             
@@ -118,12 +114,11 @@ public sealed class TokenMetadataService : ITokenMetadataService
     {
         try
         {
-            // Check if it's a well-known token
+
             if (WellKnownTokens.TryGetValue(mintAddress, out var symbol))
             {
                 _logger.LogDebug("[TokenMetadata] Found well-known token: {Mint} → {Symbol}", mintAddress, symbol);
-                
-                // Fetch from CMC by symbol
+
                 var cmcResponse = await _cmcService.GetQuotesLatestV2Async(new[] { symbol });
                 
                 if (cmcResponse?.Data != null && cmcResponse.Data.TryGetValue(symbol.ToUpperInvariant(), out var quote))
@@ -132,10 +127,9 @@ public sealed class TokenMetadataService : ITokenMetadataService
                     {
                         Symbol = quote.Symbol,
                         Name = quote.Name,
-                        LogoUrl = null // CMC doesn't provide logo URLs in this endpoint
+                        LogoUrl = null
                     };
-                    
-                    // Also cache the price while we're at it
+
                     if (quote.Quote.TryGetValue("USD", out var usdQuote) && usdQuote.Price.HasValue)
                     {
                         await SetTokenPriceAsync(mintAddress, usdQuote.Price.Value);
@@ -145,12 +139,8 @@ public sealed class TokenMetadataService : ITokenMetadataService
                     return metadata;
                 }
             }
-            
-            // TODO: For unknown tokens, we could:
-            // 1. Query Solana blockchain for token metadata (using Metaplex standards)
-            // 2. Use Jupiter API or other token lists
-            // 3. Use Solana Token List (GitHub repo)
-            
+
+
             _logger.LogDebug("[TokenMetadata] Could not fetch metadata from CMC for mint={Mint}", mintAddress);
             return null;
         }
@@ -168,7 +158,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-            // Try to get price by identifier (could be mint address, symbol, or name)
+
             string key = $"{PRICE_PREFIX}{identifier.ToLowerInvariant()}";
             var cached = await _cache.GetAsync<string>(key);
             
@@ -196,15 +186,14 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-            // Store by mint address
+
             string key = $"{METADATA_PREFIX}{mintAddress}";
             string json = JsonSerializer.Serialize(metadata);
             await _cache.SetAsync(key, json, METADATA_TTL);
             
             _logger.LogInformation("[TokenMetadata] Cached metadata for mint={Mint}, symbol={Symbol}, name={Name}", 
                 mintAddress, metadata.Symbol, metadata.Name);
-            
-            // Also store by symbol:name for cross-chain lookup
+
             if (!string.IsNullOrWhiteSpace(metadata.Symbol) && !string.IsNullOrWhiteSpace(metadata.Name))
             {
                 string compositeKey = $"{METADATA_BY_SYMBOL_PREFIX}{metadata.Symbol.ToUpperInvariant()}:{metadata.Name}";
@@ -227,7 +216,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-            // Store by all identifiers: mint address, symbol, and name if they're different
+
             string key = $"{PRICE_PREFIX}{identifier.ToLowerInvariant()}";
             await _cache.SetAsync(key, priceUsd.ToString(System.Globalization.CultureInfo.InvariantCulture), PRICE_TTL);
             

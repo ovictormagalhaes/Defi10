@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Models.Solana.Common;
@@ -8,10 +8,6 @@ using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services.Solana
 {
-    /// <summary>
-    /// Moralis service for Solana blockchain
-    /// Uses Moralis Solana Web3 Data API: https://docs.moralis.com/web3-data-api/solana
-    /// </summary>
     public class MoralisSolanaService : IMoralisSolanaService
     {
         private readonly HttpClient _httpClient;
@@ -40,7 +36,6 @@ namespace MyWebWallet.API.Services.Solana
 
             try
             {
-                // Use the /portfolio endpoint for a consolidated view
                 var url = $"{_baseUrl}/account/mainnet/{address}/portfolio?nftMetadata=false&mediaItems=false&excludeSpam=true";
                 
                 _httpClient.DefaultRequestHeaders.Clear();
@@ -71,10 +66,8 @@ namespace MyWebWallet.API.Services.Solana
 
                 var tokens = new List<SplToken>();
 
-                // Add native SOL from the portfolio response
                 if (portfolio.NativeBalance != null && decimal.TryParse(portfolio.NativeBalance.Solana, out var nativeBalanceSol) && nativeBalanceSol > 0)
                 {
-                    // Price can be hydrated later by the price service
                     tokens.Add(new SplToken
                     {
                         Mint = "So11111111111111111111111111111111111111112",
@@ -87,7 +80,6 @@ namespace MyWebWallet.API.Services.Solana
                     _logger.LogDebug("Added native SOL balance: {Balance} SOL", nativeBalanceSol);
                 }
 
-                // Add SPL tokens from the portfolio response
                 foreach (var token in portfolio.Tokens)
                 {
                     if (decimal.TryParse(token.Amount, out var amount) && amount > 0)
@@ -109,7 +101,7 @@ namespace MyWebWallet.API.Services.Solana
                 return new SolanaTokenResponse
                 {
                     Tokens = tokens,
-                    NativeBalanceUsd = null // Price service will handle this
+                    NativeBalanceUsd = null
                 };
             }
             catch (HttpRequestException ex)

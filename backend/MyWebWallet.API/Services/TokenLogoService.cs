@@ -9,8 +9,7 @@ public class TokenLogoService : ITokenLogoService
 {
     private readonly IDatabase _database;
     private readonly IConfiguration _configuration;
-    
-    // In-memory cache (global by token address)
+
     private readonly ConcurrentDictionary<string, string> _memoryCache;
     private readonly SemaphoreSlim _loadingSemaphore;
     private readonly string _tokenLogoKeyPrefix;
@@ -24,8 +23,7 @@ public class TokenLogoService : ITokenLogoService
         _memoryCache = new ConcurrentDictionary<string, string>();
         _loadingSemaphore = new SemaphoreSlim(1, 1);
         _tokenLogoKeyPrefix = configuration["Redis:TokenLogoKeyPrefix"] ?? "token_logo:";
-        
-        // Get token logo expiration from configuration or default to 7 days
+
         var tokenLogoExpirationConfig = configuration["Redis:TokenLogoExpiration"];
         _tokenLogoExpiration = !string.IsNullOrEmpty(tokenLogoExpirationConfig) 
             ? TimeSpan.Parse(tokenLogoExpirationConfig) 
@@ -67,11 +65,10 @@ public class TokenLogoService : ITokenLogoService
         
         try
         {
-            // Save to Redis (global, without chain)
+
             var redisKey = GenerateRedisKey(tokenAddress);
             await _database.StringSetAsync(redisKey, logoUrl, _tokenLogoExpiration);
-            
-            // Update memory cache
+
             _memoryCache[normalizedAddress] = logoUrl;            
         }
         catch (Exception ex)
@@ -86,7 +83,6 @@ public class TokenLogoService : ITokenLogoService
         if (!_isInitialized)
             await LoadAllTokensIntoMemoryAsync();
 
-        // Return global cache (chain ignored)
         return new Dictionary<string, string>(_memoryCache);
     }
 
@@ -97,7 +93,7 @@ public class TokenLogoService : ITokenLogoService
         await _loadingSemaphore.WaitAsync();
         try
         {
-            if (_isInitialized) return; // Double-check after acquiring semaphore
+            if (_isInitialized) return;
 
             Console.WriteLine("INFO: TokenLogoService: Loading all tokens into memory (global cache)...");
             
@@ -134,7 +130,7 @@ public class TokenLogoService : ITokenLogoService
         catch (Exception ex)
         {
             Console.WriteLine($"ERROR: TokenLogoService: Failed to load tokens into memory: {ex.Message}");
-            _isInitialized = true; // Mark as initialized even on failure to prevent infinite retry
+            _isInitialized = true;
         }
         finally
         {
@@ -154,19 +150,17 @@ public class TokenLogoService : ITokenLogoService
 
     private string NormalizeAddress(string address) => address.ToLowerInvariant();
 
-    // New: key without chain (global)
     private string GenerateRedisKey(string tokenAddress)
     {
         return $"{_tokenLogoKeyPrefix}{NormalizeAddress(tokenAddress)}";
     }
 
-    // Parse key to address (supports old and new formats)
     private (string? tokenAddress, Chain? chain) ParseRedisKey(string redisKey)
     {
         try
         {
             var keyWithoutPrefix = redisKey.Substring(_tokenLogoKeyPrefix.Length);
-            // Old format: {prefix}{chainId}:{address}
+
             if (keyWithoutPrefix.Contains(':'))
             {
                 var parts = keyWithoutPrefix.Split(':', 2);
@@ -181,11 +175,11 @@ public class TokenLogoService : ITokenLogoService
                             return (tokenAddr, c);
                         }
                     }
-                    // Unknown chain; still return address
+
                     return (tokenAddr, null);
                 }
             }
-            // New format: {prefix}{address}
+
             return (keyWithoutPrefix, null);
         }
         catch (Exception ex)
@@ -206,7 +200,6 @@ public class TokenLogoService : ITokenLogoService
         var result = new Dictionary<string, string?>();
         var missingTokens = new List<string>();
 
-        // Check memory cache for all tokens first (global)
         foreach (var tokenAddress in tokenAddresses)
         {
             var normalizedAddress = NormalizeAddress(tokenAddress);
@@ -222,7 +215,6 @@ public class TokenLogoService : ITokenLogoService
             }
         }
 
-        // Batch fetch missing tokens from Redis (global)
         if (missingTokens.Any())
         {
             try
@@ -236,8 +228,7 @@ public class TokenLogoService : ITokenLogoService
                     {
                         var tokenAddress = missingTokens[i];
                         var logoUrl = redisValues[i]!;
-                        
-                        // Update memory cache
+
                         _memoryCache[tokenAddress] = logoUrl;
                         result[tokenAddress] = logoUrl;
                     }
@@ -258,7 +249,7 @@ public class TokenLogoService : ITokenLogoService
 
         try
         {
-            // Prepare batch Redis operations (global)
+
             var redisBatch = _database.CreateBatch();
             var tasks = new List<Task>();
 
@@ -269,12 +260,10 @@ public class TokenLogoService : ITokenLogoService
                 var redisKey = GenerateRedisKey(normalizedAddress);
                 
                 tasks.Add(redisBatch.StringSetAsync(redisKey, logoUrl, _tokenLogoExpiration));
-                
-                // Update memory cache immediately
+
                 _memoryCache[normalizedAddress] = logoUrl;
             }
 
-            // Execute batch
             redisBatch.Execute();
             await Task.WhenAll(tasks);
             

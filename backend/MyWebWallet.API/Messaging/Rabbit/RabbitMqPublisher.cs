@@ -52,7 +52,7 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
             var body = JsonSerializer.SerializeToUtf8Bytes(message, _jsonOptions);
             var props = ch.CreateBasicProperties();
             props.ContentType = "application/json";
-            props.DeliveryMode = 2; // persistent
+            props.DeliveryMode = 2;
             props.MessageId = Guid.NewGuid().ToString();
             props.Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             
@@ -60,7 +60,7 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
             
             if (_options.PublisherConfirms)
             {
-                // Configurável via appsettings, default 30s (era 5s)
+
                 var confirmTimeoutSeconds = _configuration.GetValue<int?>("RabbitMQ:PublisherConfirmTimeoutSeconds") ?? 30;
                 var timeout = TimeSpan.FromSeconds(Math.Clamp(confirmTimeoutSeconds, 5, 120));
                 
@@ -72,8 +72,7 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
         catch (TimeoutException tex)
         {
             _logger.LogError(tex, "Publisher confirm timeout for routingKey {RoutingKey} after waiting. This may indicate RabbitMQ broker issues.", routingKey);
-            
-            // Recreate channel on timeout - it might be in a bad state
+
             try 
             { 
                 _channel?.Close(); 
@@ -81,7 +80,7 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
             } 
             catch 
             { 
-                /* ignore cleanup errors */ 
+                 
             }
             _channel = null;
             
@@ -106,7 +105,7 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
         } 
         catch 
         { 
-            /* ignore cleanup errors */ 
+             
         }
         _initLock?.Dispose();
     }
