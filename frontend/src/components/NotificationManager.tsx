@@ -4,13 +4,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
+
+import { useNotifications } from '../hooks/useNotifications';
 import {
   Notification,
   NotificationType,
   NotificationPosition,
-  NotificationAction
+  NotificationAction,
 } from '../types/notifications';
-import { useNotifications } from '../hooks/useNotifications';
 
 // Notification Item Component
 interface NotificationItemProps {
@@ -22,7 +23,7 @@ interface NotificationItemProps {
 const NotificationItem: React.FC<NotificationItemProps> = ({
   notification,
   onDismiss,
-  onButtonClick
+  onButtonClick,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -73,9 +74,10 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
     }
   };
 
-  const progressPercentage = notification.timeRemaining && notification.duration
-    ? ((notification.duration - notification.timeRemaining) / notification.duration) * 100
-    : notification.progressValue || 0;
+  const progressPercentage =
+    notification.timeRemaining && notification.duration
+      ? ((notification.duration - notification.timeRemaining) / notification.duration) * 100
+      : notification.progressValue || 0;
 
   return (
     <div
@@ -87,20 +89,16 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
       style={{
         transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
         opacity: isVisible ? 1 : 0,
-        transition: 'all 0.3s ease-in-out'
+        transition: 'all 0.3s ease-in-out',
       }}
     >
       {/* Icon */}
-      <div className="notification-icon">
-        {notification.icon || getTypeIcon(notification.type)}
-      </div>
+      <div className="notification-icon">{notification.icon || getTypeIcon(notification.type)}</div>
 
       {/* Content */}
       <div className="notification-content">
         <div className="notification-title">{notification.title}</div>
-        {notification.message && (
-          <div className="notification-message">{notification.message}</div>
-        )}
+        {notification.message && <div className="notification-message">{notification.message}</div>}
 
         {/* Progress Bar */}
         {notification.progress && (
@@ -114,9 +112,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
 
         {/* Time Remaining */}
         {notification.timeRemaining && notification.timeRemaining > 0 && (
-          <div className="notification-time">
-            {Math.ceil(notification.timeRemaining / 1000)}s
-          </div>
+          <div className="notification-time">{Math.ceil(notification.timeRemaining / 1000)}s</div>
         )}
       </div>
 
@@ -153,7 +149,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
           className="notification-autodismiss"
           style={{
             width: `${100 - progressPercentage}%`,
-            transition: 'width 0.1s linear'
+            transition: 'width 0.1s linear',
           }}
         />
       )}
@@ -169,7 +165,7 @@ interface NotificationContainerProps {
 
 export const NotificationContainer: React.FC<NotificationContainerProps> = ({
   position = NotificationPosition.TOP_RIGHT,
-  maxVisible = 5
+  maxVisible = 5,
 }) => {
   const { state, dismissNotification } = useNotifications();
   const [loadingButtons, setLoadingButtons] = useState<Set<string>>(new Set());
@@ -179,14 +175,14 @@ export const NotificationContainer: React.FC<NotificationContainerProps> = ({
     handler: () => void | Promise<void>
   ) => {
     const buttonId = `${action}_${Date.now()}`;
-    
+
     try {
-      setLoadingButtons(prev => new Set(prev).add(buttonId));
+      setLoadingButtons((prev) => new Set(prev).add(buttonId));
       await handler();
     } catch (error) {
       console.error('Notification button action failed:', error);
     } finally {
-      setLoadingButtons(prev => {
+      setLoadingButtons((prev) => {
         const newSet = new Set(prev);
         newSet.delete(buttonId);
         return newSet;
@@ -214,9 +210,7 @@ export const NotificationContainer: React.FC<NotificationContainerProps> = ({
     }
   };
 
-  const visibleNotifications = state.notifications
-    .filter(n => n.isVisible)
-    .slice(-maxVisible);
+  const visibleNotifications = state.notifications.filter((n) => n.isVisible).slice(-maxVisible);
 
   if (visibleNotifications.length === 0) {
     return null;
@@ -239,24 +233,20 @@ export const NotificationContainer: React.FC<NotificationContainerProps> = ({
 // Global Notification Manager (to be placed in App root)
 export const NotificationManager: React.FC = () => {
   const { state } = useNotifications();
-  
+
   // Get unique positions of active notifications
   const activePositions = Array.from(
     new Set(
       state.notifications
-        .filter(n => n.isVisible)
-        .map(n => n.position || NotificationPosition.TOP_RIGHT)
+        .filter((n) => n.isVisible)
+        .map((n) => n.position || NotificationPosition.TOP_RIGHT)
     )
   );
 
   return (
     <>
-      {activePositions.map(position => (
-        <NotificationContainer
-          key={position}
-          position={position}
-          maxVisible={5}
-        />
+      {activePositions.map((position) => (
+        <NotificationContainer key={position} position={position} maxVisible={5} />
       ))}
     </>
   );

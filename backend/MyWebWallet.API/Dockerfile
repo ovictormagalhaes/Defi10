@@ -29,4 +29,8 @@ COPY --from=publish /app/publish .
 RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
 USER appuser
 
+# Health check configuration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl --fail http://localhost:8080/health || exit 1
+
 ENTRYPOINT ["dotnet", "MyWebWallet.API.dll"]

@@ -2,10 +2,10 @@ import axios from 'axios';
 
 import { api } from '../config/api';
 import { HealthStatus, SupportedChain } from '../types/api';
-import type { 
-  WalletGroup, 
-  CreateWalletGroupRequest, 
-  UpdateWalletGroupRequest 
+import type {
+  WalletGroup,
+  CreateWalletGroupRequest,
+  UpdateWalletGroupRequest,
 } from '../types/wallet-groups';
 
 // Generic GET helper with simple error normalization
@@ -35,7 +35,7 @@ export async function getWalletGroup(id: string): Promise<WalletGroup> {
 }
 
 export async function updateWalletGroup(
-  id: string, 
+  id: string,
   data: UpdateWalletGroupRequest
 ): Promise<WalletGroup> {
   const res = await axios.put(api.updateWalletGroup(id), data);
@@ -47,4 +47,3 @@ export async function deleteWalletGroup(id: string): Promise<void> {
 }
 
 // getWallet removed (replaced by aggregation workflow)
-

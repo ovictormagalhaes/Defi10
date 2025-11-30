@@ -3,8 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useMaskValues } from '../context/MaskValuesContext';
 import { getHealth, getSupportedChains } from '../services/apiClient';
 import { HealthStatus, SupportedChain } from '../types/api';
-import AggregationPanel from './AggregationPanel';
 
+import AggregationPanel from './AggregationPanel';
 import Panel from './Panel';
 import StatusBadge from './StatusBadge';
 
@@ -184,11 +184,7 @@ const WalletDashboard: React.FC = () => {
           >
             Copy
           </button>
-          <button
-            onClick={loadWalletData}
-            disabled={!walletAddress}
-            className="btn"
-          >
+          <button onClick={loadWalletData} disabled={!walletAddress} className="btn">
             🚀 Load Portfolio
           </button>
         </div>
@@ -196,7 +192,8 @@ const WalletDashboard: React.FC = () => {
           Selected chains: {selectedChains.join(', ')} | Protocols: Aave, Uniswap V3, Moralis
         </p>
         <p className="small muted mt-1">
-          💡 Tip: Use the <strong>wallet dropdown</strong> in the top-right header to manage <strong>Wallet Groups</strong> (up to 3 wallets)
+          💡 Tip: Use the <strong>wallet dropdown</strong> in the top-right header to manage{' '}
+          <strong>Wallet Groups</strong> (up to 3 wallets)
         </p>
       </Panel>
 

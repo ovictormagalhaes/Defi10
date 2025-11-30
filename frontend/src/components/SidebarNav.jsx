@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { useTheme } from '../context/ThemeProvider.tsx';
 
 /**
@@ -37,8 +38,8 @@ export default function SidebarNav({ active, onChange }) {
       }}
       aria-label="Primary navigation"
     >
-      <div style={{width: '100%', display:'flex', flexDirection:'column', gap:8}}>
-        {ITEMS.map(it => {
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {ITEMS.map((it) => {
           const isActive = it.key === active;
           return (
             <button
@@ -64,16 +65,20 @@ export default function SidebarNav({ active, onChange }) {
                 transition: 'background .18s, color .18s',
               }}
             >
-              <span style={{lineHeight:1}}>{it.icon}</span>
-              <span style={{
-                position:'absolute',
-                bottom:4,
-                fontSize:9,
-                letterSpacing:.5,
-                fontWeight:600,
-                textTransform:'uppercase',
-                color: isActive ? theme.textPrimary : theme.textSecondary,
-              }}>{it.label.slice(0,6)}</span>
+              <span style={{ lineHeight: 1 }}>{it.icon}</span>
+              <span
+                style={{
+                  position: 'absolute',
+                  bottom: 4,
+                  fontSize: 9,
+                  letterSpacing: 0.5,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  color: isActive ? theme.textPrimary : theme.textSecondary,
+                }}
+              >
+                {it.label.slice(0, 6)}
+              </span>
             </button>
           );
         })}

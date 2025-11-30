@@ -48,7 +48,9 @@ const detectEnv = (): string => {
       const host = window.location.hostname;
       if (/^(localhost|127\.0\.0\.1)$/.test(host)) return 'development';
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return (getEnv(['NODE_ENV', 'VITE_MODE', 'MODE']) || 'production').toLowerCase();
 };
 
@@ -140,17 +142,17 @@ export const config = {
         // Additional one-time debug of visible env keys (sanitized to strings/primitives)
         try {
           const meta: any = import.meta as any;
-            if (meta && meta.env) {
-              const printable: Record<string, unknown> = {};
-              Object.keys(meta.env).forEach(k => {
-                const v = (meta.env as any)[k];
-                if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-                  printable[k] = v;
-                }
-              });
-              // eslint-disable-next-line no-console
-              console.log('[Defi10] import.meta.env keys:', printable);
-            }
+          if (meta && meta.env) {
+            const printable: Record<string, unknown> = {};
+            Object.keys(meta.env).forEach((k) => {
+              const v = (meta.env as any)[k];
+              if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+                printable[k] = v;
+              }
+            });
+            // eslint-disable-next-line no-console
+            console.log('[Defi10] import.meta.env keys:', printable);
+          }
         } catch {
           // ignore
         }
@@ -182,16 +184,18 @@ export const api = {
   getSupportedChains: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.SUPPORTED_CHAINS}`,
 
   // Rebalances
-  getRebalances: (accountId: string) =>
+  getRebalances: (accountId: string) => 
     `${config.API_BASE_URL}${config.API_ENDPOINTS.REBALANCES}/${accountId}`,
+  getRebalancesByGroup: (walletGroupId: string) => 
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.REBALANCES}/group/${walletGroupId}`,
 
   // Wallet Groups CRUD
   createWalletGroup: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}`,
-  getWalletGroup: (id: string) => 
+  getWalletGroup: (id: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}`,
-  updateWalletGroup: (id: string) => 
+  updateWalletGroup: (id: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}`,
-  deleteWalletGroup: (id: string) => 
+  deleteWalletGroup: (id: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}`,
 
   // Aggregation jobs (pluralized backend: /api/v1/aggregations)
@@ -221,7 +225,9 @@ export const api = {
     if (!Array.isArray(jobs) || !jobs.length) return null;
     const prefs = ['Base', 'BASE', 'base', 'Bnb', 'BNB', 'bnb'];
     for (const p of prefs) {
-      const found = jobs.find(j => (j.chain || '').toString().toLowerCase() === p.toString().toLowerCase());
+      const found = jobs.find(
+        (j) => (j.chain || '').toString().toLowerCase() === p.toString().toLowerCase()
+      );
       if (found) return found.jobId || found.jobID || found.id || null;
     }
     const first = jobs[0];

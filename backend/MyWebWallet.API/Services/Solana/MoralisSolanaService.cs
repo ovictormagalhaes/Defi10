@@ -1,6 +1,8 @@
 using System.Text.Json;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Models.Solana.Common;
+using MyWebWallet.API.Services.Models.Solana.Moralis;
 using MyWebWallet.API.Models;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 

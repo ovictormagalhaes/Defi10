@@ -1,21 +1,37 @@
 import React, { useEffect, useState, useRef } from 'react';
 
+import ConnectWalletScreen from './components/ConnectWalletScreen';
 import ErrorBoundary from './components/ErrorBoundary';
+import ErrorScreen from './components/ErrorScreen';
 import HeaderBar from './components/HeaderBar';
-import WalletGroupModal from './components/WalletGroupModal';
+import LoadingScreen from './components/LoadingScreen';
+import PoolsView from './components/PoolsView.tsx';
 import ProtocolsSection from './components/ProtocolsSection';
+import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
 import SectionTable from './components/SectionTable';
+import SegmentedNav from './components/SegmentedNav';
+import SummaryView from './components/SummaryView';
+import { WalletTokensTable } from './components/tables';
+import WalletGroupModal from './components/WalletGroupModal';
+import WalletSelectorDialog from './components/WalletSelectorDialog';
+import { api } from './config/api';
+import {
+  DEFAULT_COLUMN_VISIBILITY,
+  DEFAULT_EXPANSION_STATES,
+  DEFAULT_FILTER_SETTINGS,
+} from './constants/config';
 import { ChainIconsProvider } from './context/ChainIconsProvider';
 import { MaskValuesProvider } from './context/MaskValuesContext';
 import { useTheme } from './context/ThemeProvider.tsx';
-import { useWalletConnection, useTooltip } from './hooks/useWallet';
-import { WalletTokensTable } from './components/tables';
-import SummaryView from './components/SummaryView';
-import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
-import PoolsView from './components/PoolsView.tsx';
-import SegmentedNav from './components/SegmentedNav';
 import { useAggregationJob } from './hooks/useAggregationJob';
-import { api } from './config/api';
+import { useWalletConnection, useTooltip } from './hooks/useWallet';
+import {
+  getLiquidityPoolItems,
+  getLendingItems,
+  getStakingItems,
+  getLockingItems,
+  getDepositingItems,
+} from './types/filters';
 import {
   formatBalance,
   formatNativeBalance,
@@ -31,18 +47,6 @@ import {
   setTotalPortfolioValue,
   calculatePercentage,
 } from './utils/walletUtils';
-import {
-  getLiquidityPoolItems,
-  getLendingItems, 
-  getStakingItems,
-  getLockingItems,
-  getDepositingItems
-} from './types/filters';
-import {
-  DEFAULT_COLUMN_VISIBILITY,
-  DEFAULT_EXPANSION_STATES,
-  DEFAULT_FILTER_SETTINGS,
-} from './constants/config';
 
 function App() {
   const { theme, mode, toggleTheme } = useTheme();
@@ -94,6 +98,10 @@ function App() {
     loading,
     setLoading,
     connectWallet,
+    connectToWallet,
+    showWalletSelector,
+    setShowWalletSelector,
+    availableWallets,
     copyAddress,
     disconnect,
     supportedChains,
@@ -106,24 +114,31 @@ function App() {
   const [showPulse, setShowPulse] = useState(false);
   // Hover state for account badge (to reveal disconnect inside badge)
   const [showAccountHover, setShowAccountHover] = useState(false);
-  
+
   // Wallet Groups modal state
   const [isWalletGroupModalOpen, setIsWalletGroupModalOpen] = useState(false);
   const [selectedWalletGroupId, setSelectedWalletGroupId] = useState(null);
-  
+
+  // Handle disconnect - clears both wallet and group
+  const handleDisconnect = () => {
+    disconnect();
+    setSelectedWalletGroupId(null);
+    window.history.pushState({}, '', '/');
+  };
+
   // Detect wallet group from URL on mount
   useEffect(() => {
     const pathname = window.location.pathname;
     // Remove leading/trailing slashes and check if it's a GUID
     const path = pathname.replace(/^\/|\/$/g, '');
     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    
+
     if (path && guidRegex.test(path)) {
       // It's a wallet group GUID
       setSelectedWalletGroupId(path);
     }
   }, []);
-  
+
   useEffect(() => {
     if (account && !hasPulsedRef.current) {
       setShowPulse(true);
@@ -137,14 +152,19 @@ function App() {
   const callAccountAPI = () => {};
   const refreshWalletData = () => {};
   const clearWalletData = () => {};
+  const [aggregationError, setAggregationError] = useState(null);
   const [rebalanceInfo, setRebalanceInfo] = useState(null);
-  const fetchRebalancesFor = async (addr) => {
-    if (!addr) {
+  const fetchRebalancesFor = async (addr, groupId = null) => {
+    if (!addr && !groupId) {
       setRebalanceInfo(null);
       return;
     }
     try {
-      const res = await fetch(api.getRebalances(addr));
+      const url = groupId 
+        ? api.getRebalancesByGroup(groupId)
+        : api.getRebalances(addr);
+      
+      const res = await fetch(url);
       if (!res.ok) {
         setRebalanceInfo(null);
         return;
@@ -245,7 +265,7 @@ function App() {
   const handleRefreshWalletData = () => {
     if (account) fetchRebalancesFor(account);
     // Reinicia agregação para conta conectada
-    if (account) setRefreshNonce(n => n + 1);
+    if (account) setRefreshNonce((n) => n + 1);
   };
 
   // Load data when account changes
@@ -256,6 +276,14 @@ function App() {
     }
     // Não forçamos refreshSupportedChains aqui para evitar requisições repetidas.
   }, [account]);
+
+  // Clear wallet group if no account connected
+  useEffect(() => {
+    if (!account && selectedWalletGroupId) {
+      // If there's a group selected but no wallet, keep the group
+      // Only clear if user explicitly disconnects
+    }
+  }, [account, selectedWalletGroupId]);
 
   // ----------------------
   // Aggregation Integration (declarar antes de efeitos que dependem de aggSnapshot)
@@ -275,40 +303,24 @@ function App() {
     failed: aggFailed,
     timedOut: aggTimedOut,
     status: aggStatus,
+    error: aggError,
   } = useAggregationJob();
   // Após agregação finalizada, buscar supported chains (adiado para evitar requisição inicial extra)
   useEffect(() => {
     if (aggCompleted) {
       // force para garantir primeira carga mesmo se hook marcar fetch já feito
-      try { refreshSupportedChains(true); } catch {}
+      try {
+        refreshSupportedChains(true);
+      } catch {}
     }
   }, [aggCompleted, refreshSupportedChains]);
-  // Gated rebalances: só buscar após agregação completa para evitar dados inconsistentes
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!account || !aggCompleted) {
-        if (!account) setRebalanceInfo(null);
-        return;
-      }
-      try {
-        const res = await fetch(api.getRebalances(account));
-        if (!res.ok) {
-          if (!cancelled) setRebalanceInfo(null);
-          return;
-        }
-        const data = await res.json();
-        if (!cancelled) setRebalanceInfo(data);
-      } catch (e) {
-        if (!cancelled) setRebalanceInfo(null);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [account, aggCompleted]);
   // (Removed legacy effect that forced 'Default' view before aggregation completion.)
   // TEMP: Force aggregation overlay always visible for visual review.
   // Debug/QA: ativar overlay forçado via variável de ambiente VITE_FORCE_AGG_OVERLAY=1
-  const DEV_FORCE_AGG_OVERLAY = (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_FORCE_AGG_OVERLAY === '1' || import.meta.env?.VITE_FORCE_AGG_OVERLAY === 'true'));
+  const DEV_FORCE_AGG_OVERLAY =
+    typeof import.meta !== 'undefined' &&
+    (import.meta.env?.VITE_FORCE_AGG_OVERLAY === '1' ||
+      import.meta.env?.VITE_FORCE_AGG_OVERLAY === 'true');
   // Ajuste: se overlay forçado não bloquear menu depois de pronto? Mantemos comportamento original (não mostra menus até ready) para consistência.
   // Ready flag: only true when aggregation finished and walletData mapped
   const isAggregationReady = aggCompleted && !!walletData;
@@ -329,7 +341,7 @@ function App() {
       LendingAndBorrowing: ITEM_TYPES.LENDING_AND_BORROWING,
       Staking: ITEM_TYPES.STAKING,
     };
-    const mapped = aggSnapshot.items.map(it => {
+    const mapped = aggSnapshot.items.map((it) => {
       const numericType = TYPE_MAP[it.type] ?? it.type;
       return { ...it, type: numericType };
     });
@@ -339,7 +351,22 @@ function App() {
       aggregationSummary: aggSummary,
       rawAggregation: aggSnapshot,
     });
+    // Clear error if data loaded successfully
+    setAggregationError(null);
   }, [aggSnapshot, aggJobId, aggSummary]);
+
+  // Track aggregation errors
+  useEffect(() => {
+    if (aggError) {
+      // API error (network, start failed, polling timeout)
+      const errorMessage = aggError.message || String(aggError);
+      setAggregationError(errorMessage);
+    } else if (aggCompleted && aggExpired) {
+      setAggregationError('Aggregation timed out. Please try again.');
+    } else if (aggCompleted && aggFailed && aggFailed > 0 && aggSucceeded === 0) {
+      setAggregationError('Failed to load data from all sources.');
+    }
+  }, [aggError, aggCompleted, aggExpired, aggFailed, aggSucceeded]);
 
   // Endereço alvo para agregação pode ser conta conectada ou endereço buscado manualmente
   const [activeAggregationAddress, setActiveAggregationAddress] = useState(null);
@@ -475,8 +502,7 @@ function App() {
     if (!walletData) return [];
     if (walletData.items && Array.isArray(walletData.items))
       return getLendingItems(walletData.items);
-    if (walletData.data && Array.isArray(walletData.data))
-      return getLendingItems(walletData.data);
+    if (walletData.data && Array.isArray(walletData.data)) return getLendingItems(walletData.data);
     if (Array.isArray(walletData.deFi))
       return walletData.deFi.filter((d) => (d.position?.label || d.position?.name) !== 'Liquidity');
     return walletData.lendingAndBorrowing || [];
@@ -485,21 +511,21 @@ function App() {
   const getStakingData = () => {
     console.log('getStakingData called, walletData:', walletData);
     if (!walletData) return [];
-    
+
     if (walletData.items && Array.isArray(walletData.items)) {
       console.log('Using walletData.items, total items:', walletData.items.length);
       const stakingItems = getStakingItems(walletData.items);
       console.log('Found staking items:', stakingItems);
       return stakingItems;
     }
-    
+
     if (walletData.data && Array.isArray(walletData.data)) {
       console.log('Using walletData.data, total items:', walletData.data.length);
       const stakingItems = getStakingItems(walletData.data);
       console.log('Found staking items:', stakingItems);
       return stakingItems;
     }
-    
+
     console.log('Using walletData.staking fallback:', walletData.staking || []);
     return walletData.staking || [];
   };
@@ -507,21 +533,21 @@ function App() {
   const getLockingData = () => {
     console.log('getLockingData called, walletData:', walletData);
     if (!walletData) return [];
-    
+
     if (walletData.items && Array.isArray(walletData.items)) {
       console.log('Using walletData.items for locking, total items:', walletData.items.length);
       const lockingItems = getLockingItems(walletData.items);
       console.log('Found locking items:', lockingItems);
       return lockingItems;
     }
-    
+
     if (walletData.data && Array.isArray(walletData.data)) {
       console.log('Using walletData.data for locking, total items:', walletData.data.length);
       const lockingItems = getLockingItems(walletData.data);
       console.log('Found locking items:', lockingItems);
       return lockingItems;
     }
-    
+
     console.log('No locking data found');
     return [];
   };
@@ -529,21 +555,21 @@ function App() {
   const getDepositingData = () => {
     console.log('getDepositingData called, walletData:', walletData);
     if (!walletData) return [];
-    
+
     if (walletData.items && Array.isArray(walletData.items)) {
       console.log('Using walletData.items for depositing, total items:', walletData.items.length);
       const depositingItems = getDepositingItems(walletData.items);
       console.log('Found depositing items:', depositingItems);
       return depositingItems;
     }
-    
+
     if (walletData.data && Array.isArray(walletData.data)) {
       console.log('Using walletData.data for depositing, total items:', walletData.data.length);
       const depositingItems = getDepositingItems(walletData.data);
       console.log('Found depositing items:', depositingItems);
       return depositingItems;
     }
-    
+
     console.log('No depositing data found');
     return [];
   };
@@ -564,7 +590,9 @@ function App() {
       showLendingDefiTokens,
       showStakingDefiTokens,
     });
-    try { setTotalPortfolioValue(breakdown.totalNet); } catch {}
+    try {
+      setTotalPortfolioValue(breakdown.totalNet);
+    } catch {}
     return breakdown;
   };
   const getTotalPortfolioValue = () => getPortfolioBreakdown().totalNet;
@@ -809,7 +837,12 @@ function App() {
         if (chainKey === undefined) return;
         let v = token.totalPrice;
         if (v === undefined && token.financials) v = token.financials.totalPrice;
-        if (v === undefined && token.financials && token.financials.price != null && token.financials.amount != null) {
+        if (
+          v === undefined &&
+          token.financials &&
+          token.financials.price != null &&
+          token.financials.amount != null
+        ) {
           v = parseFloat(token.financials.price) * parseFloat(token.financials.amount);
         }
         if (v === undefined && token.price != null && token.amount != null) {
@@ -847,14 +880,20 @@ function App() {
           const chainKey = resolveChainKey(tok) || posChain;
           let v = tok.totalPrice;
           if (v === undefined && tok.financials) v = tok.financials.totalPrice;
-          if (v === undefined && tok.financials && tok.financials.price != null && tok.financials.amount != null) {
+          if (
+            v === undefined &&
+            tok.financials &&
+            tok.financials.price != null &&
+            tok.financials.amount != null
+          ) {
             v = parseFloat(tok.financials.price) * parseFloat(tok.financials.amount);
           }
-            if (v === undefined && tok.price != null && tok.amount != null) {
+          if (v === undefined && tok.price != null && tok.amount != null) {
             v = parseFloat(tok.price) * parseFloat(tok.amount);
           }
           const val = parseFloat(v) || 0;
-          if (chainKey === undefined) unmatchedDebug.liquidity += val; else addVal(chainKey, val);
+          if (chainKey === undefined) unmatchedDebug.liquidity += val;
+          else addVal(chainKey, val);
         });
         // rewards may be inside base.rewards
         if (Array.isArray(base?.rewards)) {
@@ -862,14 +901,20 @@ function App() {
             const chainKey = resolveChainKey(rw) || posChain;
             let v = rw.totalPrice;
             if (v === undefined && rw.financials) v = rw.financials.totalPrice;
-            if (v === undefined && rw.financials && rw.financials.price != null && rw.financials.amount != null) {
+            if (
+              v === undefined &&
+              rw.financials &&
+              rw.financials.price != null &&
+              rw.financials.amount != null
+            ) {
               v = parseFloat(rw.financials.price) * parseFloat(rw.financials.amount);
             }
             if (v === undefined && rw.price != null && rw.amount != null) {
               v = parseFloat(rw.price) * parseFloat(rw.amount);
             }
             const val = parseFloat(v) || 0;
-            if (chainKey === undefined) unmatchedDebug.liquidity += val; else addVal(chainKey, val);
+            if (chainKey === undefined) unmatchedDebug.liquidity += val;
+            else addVal(chainKey, val);
           });
         }
       });
@@ -882,10 +927,8 @@ function App() {
       let lendingItems = [];
       const snap = sourceData;
       if (snap) {
-        if (snap.items && Array.isArray(snap.items))
-          lendingItems = getLendingItems(snap.items);
-        else if (snap.data && Array.isArray(snap.data))
-          lendingItems = getLendingItems(snap.data);
+        if (snap.items && Array.isArray(snap.items)) lendingItems = getLendingItems(snap.items);
+        else if (snap.data && Array.isArray(snap.data)) lendingItems = getLendingItems(snap.data);
         else if (Array.isArray(snap.deFi))
           lendingItems = snap.deFi.filter(
             (d) => (d.position?.label || d.position?.name) !== 'Liquidity'
@@ -923,7 +966,12 @@ function App() {
           const chainKey = resolveChainKey(tok) || posChain;
           let v = tok.totalPrice;
           if (v === undefined && tok.financials) v = tok.financials.totalPrice;
-          if (v === undefined && tok.financials && tok.financials.price != null && tok.financials.amount != null) {
+          if (
+            v === undefined &&
+            tok.financials &&
+            tok.financials.price != null &&
+            tok.financials.amount != null
+          ) {
             v = parseFloat(tok.financials.price) * parseFloat(tok.financials.amount);
           }
           if (v === undefined && tok.price != null && tok.amount != null) {
@@ -931,7 +979,8 @@ function App() {
           }
           // Signed after computing absolute underlying value
           const signed = signedTokenValue({ ...tok, totalPrice: v }, base);
-          if (chainKey === undefined) unmatchedDebug.lending += signed; else addVal(chainKey, signed);
+          if (chainKey === undefined) unmatchedDebug.lending += signed;
+          else addVal(chainKey, signed);
         });
       });
     } catch {
@@ -943,10 +992,8 @@ function App() {
       let stakingItems = [];
       const snap = sourceData;
       if (snap) {
-        if (snap.items && Array.isArray(snap.items))
-          stakingItems = getStakingItems(snap.items);
-        else if (snap.data && Array.isArray(snap.data))
-          stakingItems = getStakingItems(snap.data);
+        if (snap.items && Array.isArray(snap.items)) stakingItems = getStakingItems(snap.items);
+        else if (snap.data && Array.isArray(snap.data)) stakingItems = getStakingItems(snap.data);
         else stakingItems = snap.staking || [];
       }
       stakingItems.forEach((item) => {
@@ -972,14 +1019,20 @@ function App() {
           const chainKey = resolveChainKey(tok) || posChain;
           let v = tok.totalPrice;
           if (v === undefined && tok.financials) v = tok.financials.totalPrice;
-          if (v === undefined && tok.financials && tok.financials.price != null && tok.financials.amount != null) {
+          if (
+            v === undefined &&
+            tok.financials &&
+            tok.financials.price != null &&
+            tok.financials.amount != null
+          ) {
             v = parseFloat(tok.financials.price) * parseFloat(tok.financials.amount);
           }
           if (v === undefined && tok.price != null && tok.amount != null) {
             v = parseFloat(tok.price) * parseFloat(tok.amount);
           }
           const val = parseFloat(v) || 0;
-          if (chainKey === undefined) unmatchedDebug.staking += val; else addVal(chainKey, val);
+          if (chainKey === undefined) unmatchedDebug.staking += val;
+          else addVal(chainKey, val);
         });
         if (!any) {
           const bal = parseFloat(base?.balance);
@@ -1062,574 +1115,797 @@ function App() {
   // Navigation view mode (segmented)
   const [viewMode, setViewMode] = useState('overview');
 
+  // Gated rebalances: só buscar quando usuário abre a view de strategies
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // Só buscar se viewMode for 'strategies' e agregação estiver completa
+      if (viewMode !== 'strategies' || !aggCompleted) {
+        return;
+      }
+      if (!account && !selectedWalletGroupId) {
+        setRebalanceInfo(null);
+        return;
+      }
+      try {
+        const url = selectedWalletGroupId 
+          ? api.getRebalancesByGroup(selectedWalletGroupId)
+          : api.getRebalances(account);
+        
+        const res = await fetch(url);
+        if (!res.ok) {
+          if (!cancelled) setRebalanceInfo(null);
+          return;
+        }
+        const data = await res.json();
+        if (!cancelled) setRebalanceInfo(data);
+      } catch (e) {
+        if (!cancelled) setRebalanceInfo(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, account, selectedWalletGroupId, aggCompleted]);
+
   // UI
   return (
     <MaskValuesProvider value={{ maskValues, toggleMaskValues, setMaskValues, maskValue }}>
       <ChainIconsProvider supportedChains={supportedChains}>
         <style>{`@keyframes defiPulse{0%{transform:scale(.55);opacity:.65}60%{transform:scale(1.9);opacity:0}100%{transform:scale(1.9);opacity:0}}@keyframes defiSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}`}</style>
-        <HeaderBar
-          account={account}
-          onSearch={() => handleSearch()}
-          onRefresh={() => account && callAccountAPI(account, setLoading)}
-          onDisconnect={disconnect}
-          onConnect={connectWallet}
-          onManageGroups={() => setIsWalletGroupModalOpen(true)}
-          selectedWalletGroupId={selectedWalletGroupId}
-          onSelectWalletGroup={(groupId) => {
-            setSelectedWalletGroupId(groupId);
-            // Update URL
-            window.history.pushState({}, '', groupId ? `/${groupId}` : '/');
-          }}
-          copyToClipboard={(val) => {
-            try {
-              navigator.clipboard.writeText(val);
-            } catch {}
-          }}
-          searchAddress={searchAddress}
-          setSearchAddress={setSearchAddress}
-        />
-        <div className="w-full flex flex-column" style={{ minHeight: '100vh' }}>
-          <div className="w-full" style={{ padding: `8px ${sidePadding} 0px ${sidePadding}`, boxSizing: 'border-box' }}>
-            {/* Segmented Nav */}
-            <div className="mt-12 mb-20 flex justify-center">
-              <SegmentedNav value={viewMode} onChange={setViewMode} disabled={!isAggregationReady} />
-            </div>
-            {/* Supported Chains: only on Overview after aggregation ready */}
-              {isAggregationReady && viewMode === 'overview' && (
-                <div className="mt-18">
-                  {chainsLoading && (!supportedChains || supportedChains.length === 0) && (
-                    <div className="text-base" style={{ color: theme.textSecondary }}>Loading chains...</div>
-                  )}
-                  {supportedChains && supportedChains.length > 0 && (
-                    <div className="panel-unified relative mt-18">
-                      <div className="panel-heading">Supported Chains</div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: 14,
-                          overflowX: 'auto',
-                          paddingBottom: 4,
-                          scrollbarWidth: 'thin',
-                        }}
-                      >
-                        {supportedChains.map((c, idx) => {
-                          const name = c.displayName || c.name || c.shortName || `Chain ${idx + 1}`;
-                          const canonicalKeyRaw =
-                            c.displayName ||
-                            c.name ||
-                            c.shortName ||
-                            c.id ||
-                            c.chainId ||
-                            c.chain ||
-                            c.network ||
-                            c.networkId;
-                          const canonicalKey = String(canonicalKeyRaw);
-                          const canonicalKeyNormalized = normalizeChainKey(canonicalKey);
-                          const chainKeyFallback = String(
-                            c.id ||
+
+        {/* State 1: Not connected to wallet - Show Connect Screen */}
+        {!account && !selectedWalletGroupId && (
+          <ConnectWalletScreen
+            theme={theme}
+            onConnect={connectWallet}
+            onManageGroups={() => setIsWalletGroupModalOpen(true)}
+          />
+        )}
+
+        {/* State 2: Connected but loading - Show Loading Screen */}
+        {(account || selectedWalletGroupId) && !isAggregationReady && !aggregationError && (
+          <LoadingScreen theme={theme} />
+        )}
+
+        {/* State 3: Error occurred - Show Error Screen */}
+        {(account || selectedWalletGroupId) && aggregationError && (
+          <ErrorScreen
+            theme={theme}
+            error={aggregationError}
+            onRetry={() => {
+              setAggregationError(null);
+              setRefreshNonce((n) => n + 1);
+            }}
+            onGoBack={() => {
+              setAggregationError(null);
+              if (account) {
+                disconnect();
+              } else {
+                setSelectedWalletGroupId(null);
+                window.history.pushState({}, '', '/');
+              }
+            }}
+          />
+        )}
+
+        {/* State 4: Connected and loaded - Show Dashboard */}
+        {(account || selectedWalletGroupId) && isAggregationReady && !aggregationError && (
+          <>
+            <HeaderBar
+              account={account}
+              onSearch={() => handleSearch()}
+              onRefresh={() => account && callAccountAPI(account, setLoading)}
+              onDisconnect={handleDisconnect}
+              onConnect={connectWallet}
+              onManageGroups={() => setIsWalletGroupModalOpen(true)}
+              selectedWalletGroupId={selectedWalletGroupId}
+              onSelectWalletGroup={(groupId) => {
+                setSelectedWalletGroupId(groupId);
+                // Update URL
+                window.history.pushState({}, '', groupId ? `/${groupId}` : '/');
+              }}
+              copyToClipboard={(val) => {
+                try {
+                  navigator.clipboard.writeText(val);
+                } catch {}
+              }}
+              searchAddress={searchAddress}
+              setSearchAddress={setSearchAddress}
+            />
+            <div className="w-full flex flex-column" style={{ minHeight: '100vh' }}>
+              <div
+                className="w-full"
+                style={{
+                  padding: `8px ${sidePadding} 0px ${sidePadding}`,
+                  boxSizing: 'border-box',
+                }}
+              >
+                {/* Segmented Nav */}
+                <div className="mt-12 mb-20 flex justify-center">
+                  <SegmentedNav
+                    value={viewMode}
+                    onChange={setViewMode}
+                    disabled={!isAggregationReady}
+                  />
+                </div>
+                {/* Supported Chains: only on Overview after aggregation ready */}
+                {isAggregationReady && viewMode === 'overview' && (
+                  <div className="mt-18">
+                    {chainsLoading && (!supportedChains || supportedChains.length === 0) && (
+                      <div className="text-base" style={{ color: theme.textSecondary }}>
+                        Loading chains...
+                      </div>
+                    )}
+                    {supportedChains && supportedChains.length > 0 && (
+                      <div className="panel-unified relative mt-18">
+                        <div className="panel-heading">Supported Chains</div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 14,
+                            overflowX: 'auto',
+                            paddingBottom: 4,
+                            scrollbarWidth: 'thin',
+                          }}
+                        >
+                          {supportedChains.map((c, idx) => {
+                            const name =
+                              c.displayName || c.name || c.shortName || `Chain ${idx + 1}`;
+                            const canonicalKeyRaw =
+                              c.displayName ||
+                              c.name ||
+                              c.shortName ||
+                              c.id ||
                               c.chainId ||
-                              c.chainID ||
                               c.chain ||
-                              c.networkId ||
                               c.network ||
-                              name
-                          );
-                          const value =
-                            chainTotals[canonicalKey] ??
-                            chainTotals[chainKeyFallback] ??
-                            chainTotals[canonicalKey.toLowerCase()] ??
-                            0;
-                          const selectedSet = selectedChains || new Set();
-                          const isSelected = selectedSet.has(canonicalKeyNormalized);
-                          const percent = calculatePercentage(value, totalAllChains);
-                          return (
-                            <div
-                              key={canonicalKey}
-                              onClick={() => toggleChainSelection(canonicalKeyNormalized)}
-                              style={{
-                                minWidth: 130,
-                                background: 'transparent',
-                                border: 'none',
-                                borderRadius: 14,
-                                padding: '8px 10px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'center',
-                                gap: 4,
-                                cursor: 'pointer',
-                                userSelect: 'none',
-                                opacity: isSelected ? 1 : 0.35,
-                                transition: 'opacity .18s',
-                              }}
-                              title={isSelected ? 'Clique para desselecionar' : 'Clique para selecionar'}
-                              onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.opacity = 0.55; }}
-                              onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.opacity = 0.35; }}
-                            >
+                              c.networkId;
+                            const canonicalKey = String(canonicalKeyRaw);
+                            const canonicalKeyNormalized = normalizeChainKey(canonicalKey);
+                            const chainKeyFallback = String(
+                              c.id ||
+                                c.chainId ||
+                                c.chainID ||
+                                c.chain ||
+                                c.networkId ||
+                                c.network ||
+                                name
+                            );
+                            const value =
+                              chainTotals[canonicalKey] ??
+                              chainTotals[chainKeyFallback] ??
+                              chainTotals[canonicalKey.toLowerCase()] ??
+                              0;
+                            const selectedSet = selectedChains || new Set();
+                            const isSelected = selectedSet.has(canonicalKeyNormalized);
+                            const percent = calculatePercentage(value, totalAllChains);
+                            return (
                               <div
+                                key={canonicalKey}
+                                onClick={() => toggleChainSelection(canonicalKeyNormalized)}
                                 style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: c.iconUrl ? '32px 1fr' : '1fr',
-                                  columnGap: 8,
-                                  rowGap: 2,
-                                  alignItems: 'center',
+                                  minWidth: 130,
+                                  background: 'transparent',
+                                  border: 'none',
+                                  borderRadius: 14,
+                                  padding: '8px 10px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: 'center',
+                                  gap: 4,
+                                  cursor: 'pointer',
+                                  userSelect: 'none',
+                                  opacity: isSelected ? 1 : 0.35,
+                                  transition: 'opacity .18s',
+                                }}
+                                title={
+                                  isSelected
+                                    ? 'Clique para desselecionar'
+                                    : 'Clique para selecionar'
+                                }
+                                onMouseEnter={(e) => {
+                                  if (!isSelected) e.currentTarget.style.opacity = 0.55;
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isSelected) e.currentTarget.style.opacity = 0.35;
                                 }}
                               >
-                                {c.iconUrl && (
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: c.iconUrl ? '32px 1fr' : '1fr',
+                                    columnGap: 8,
+                                    rowGap: 2,
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  {c.iconUrl && (
+                                    <div
+                                      style={{
+                                        width: 32,
+                                        height: 32,
+                                        gridRow: '1 / span 2',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderRadius: 10,
+                                        overflow: 'hidden',
+                                      }}
+                                    >
+                                      <img
+                                        src={c.iconUrl}
+                                        alt={name}
+                                        style={{
+                                          width: '100%',
+                                          height: '100%',
+                                          objectFit: 'contain',
+                                        }}
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = 'none';
+                                        }}
+                                      />
+                                    </div>
+                                  )}
                                   <div
                                     style={{
-                                      width: 32,
-                                      height: 32,
-                                      gridRow: '1 / span 2',
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      color: theme.textPrimary,
+                                      lineHeight: 1.2,
+                                    }}
+                                  >
+                                    {name}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: 11,
+                                      color: theme.textSecondary,
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: 2,
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontWeight: 600,
+                                        color: theme.textPrimary,
+                                        fontSize: 12,
+                                      }}
+                                    >
+                                      {maskValue(formatPrice(value))}
+                                    </span>
+                                    <span style={{ fontSize: 10, color: theme.textMuted }}>
+                                      {percent}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* (Removed legacy inline main content duplication and old horizontal view mode toggle) */}
+
+                {/* Overlay de sincronização bloqueando interação até conclusão */}
+                {(DEV_FORCE_AGG_OVERLAY || aggJobId) && (
+                  <div
+                    aria-busy={!aggCompleted}
+                    aria-live="polite"
+                    style={{
+                      position: 'fixed', // cobre viewport inteira
+                      inset: 0,
+                      background: 'linear-gradient(155deg, rgba(0,0,0,0.72), rgba(0,0,0,0.55))',
+                      backdropFilter: 'blur(5px)',
+                      WebkitBackdropFilter: 'blur(5px)',
+                      zIndex: 2000,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: isMobile ? '24px 16px 32px 16px' : '32px 32px 48px 32px',
+                      color: theme.textPrimary,
+                      overflowY: 'auto',
+                      pointerEvents: !aggCompleted ? 'auto' : 'none',
+                      opacity: aggCompleted ? 0 : 1,
+                      transition: 'opacity .55s ease',
+                    }}
+                  >
+                    {/* Centered card with circular loader */}
+                    <div
+                      style={{
+                        width: '100%',
+                        maxWidth: isMobile ? 380 : 520,
+                        textAlign: 'center',
+                        padding: '0 12px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: isMobile ? 52 : 72,
+                          height: isMobile ? 52 : 72,
+                          margin: isMobile ? '0 auto 22px auto' : '0 auto 32px auto',
+                          border: isMobile
+                            ? '5px solid rgba(255,255,255,0.15)'
+                            : '6px solid rgba(255,255,255,0.15)',
+                          borderTop: isMobile ? '5px solid #35f7a5' : '6px solid #35f7a5',
+                          borderRight: isMobile ? '5px solid #2fbfd9' : '6px solid #2fbfd9',
+                          borderRadius: '50%',
+                          animation: !aggCompleted ? 'defiSpin 0.85s linear infinite' : 'none',
+                        }}
+                      />
+                      <h2
+                        style={{
+                          margin: '0 0 12px 0',
+                          fontSize: isMobile ? 20 : 24,
+                          fontWeight: 600,
+                          letterSpacing: '.5px',
+                        }}
+                      >
+                        {aggCompleted ? 'Synchronized' : 'Synchronizing your account'}
+                      </h2>
+                      <p
+                        style={{
+                          fontSize: isMobile ? 13 : 14,
+                          lineHeight: 1.5,
+                          opacity: 0.9,
+                          margin: '0 0 18px 0',
+                        }}
+                      >
+                        {aggCompleted
+                          ? 'Data ready – unlocking interface.'
+                          : 'Aggregating your DeFi positions across multiple providers.'}
+                      </p>
+                      <div
+                        style={{ fontSize: isMobile ? 12 : 13, fontWeight: 500, marginBottom: 6 }}
+                      >
+                        {(() => {
+                          const expected = aggExpected || aggSnapshot?.expected;
+                          const succeeded = aggSucceeded || aggSnapshot?.succeeded || 0;
+                          const failed = aggFailed || aggSnapshot?.failed || 0;
+                          const timedOut = aggTimedOut || aggSnapshot?.timedOut || 0;
+                          if (!expected || expected <= 0) return 'Initializing sources...';
+                          const done = succeeded + failed + timedOut;
+                          const pct = Math.min(
+                            100,
+                            Math.max(0, Math.round((done / expected) * 100))
+                          );
+                          return aggCompleted
+                            ? 'Complete'
+                            : `Sources ${done}/${expected} • ${pct}%`;
+                        })()}
+                      </div>
+                      <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.75, marginBottom: 4 }}>
+                        Status:{' '}
+                        {aggCompleted ? 'Done' : aggStatus || aggSnapshot?.status || 'Running'}
+                      </div>
+                      <div style={{ fontSize: isMobile ? 10 : 11, opacity: 0.5 }}>
+                        {aggCompleted
+                          ? 'Closing...'
+                          : 'This may take a few seconds depending on the number of protocols.'}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: isMobile ? 16 : 22,
+                          fontSize: isMobile ? 10 : 11,
+                          opacity: 0.55,
+                        }}
+                      >
+                        {(() => {
+                          const failed = aggFailed || aggSnapshot?.failed || 0;
+                          const timedOut = aggTimedOut || aggSnapshot?.timedOut || 0;
+                          if (failed === 0 && timedOut === 0) return null;
+                          return `Partial issues - failed: ${failed}${timedOut > 0 ? `, timed out: ${timedOut}` : ''}`;
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {isAggregationReady && (
+                  <>
+                    {viewMode === 'summary' && (
+                      <SummaryView
+                        walletTokens={walletTokens}
+                        getLiquidityPoolsData={getLiquidityPoolsData}
+                        getLendingAndBorrowingData={getLendingAndBorrowingData}
+                        getStakingData={getStakingData}
+                        getTotalPortfolioValue={getTotalPortfolioValue}
+                        getPortfolioBreakdown={getPortfolioBreakdown}
+                        maskValue={maskValue}
+                        formatPrice={formatPrice}
+                        theme={theme}
+                        groupDefiByProtocol={groupDefiByProtocol}
+                        filterLendingDefiTokens={filterLendingDefiTokens}
+                        showLendingDefiTokens={showLendingDefiTokens}
+                      />
+                    )}
+                    {viewMode === 'strategies' && (
+                      <RebalancingView
+                        walletTokens={walletTokens}
+                        getLiquidityPoolsData={getLiquidityPoolsData}
+                        getLendingAndBorrowingData={getLendingAndBorrowingData}
+                        getStakingData={getStakingData}
+                        getDepositingData={getDepositingData}
+                        getLockingData={getLockingData}
+                        account={account}
+                        selectedWalletGroupId={selectedWalletGroupId}
+                        theme={theme}
+                        initialSavedKey={rebalanceInfo?.key}
+                        initialSavedCount={rebalanceInfo?.count}
+                        initialSavedItems={rebalanceInfo?.items}
+                        onRebalancesSaved={async () => {
+                          // Reload rebalances data after saving
+                          try {
+                            const url = selectedWalletGroupId 
+                              ? api.getRebalancesByGroup(selectedWalletGroupId)
+                              : api.getRebalances(account);
+                            const res = await fetch(url);
+                            if (res.ok) {
+                              const data = await res.json();
+                              setRebalanceInfo(data);
+                            }
+                          } catch (e) {
+                            console.error('Failed to reload rebalances:', e);
+                          }
+                        }}
+                      />
+                    )}
+                    {viewMode === 'pools' && (
+                      <PoolsView getLiquidityPoolsData={getLiquidityPoolsData} />
+                    )}
+                    {viewMode === 'overview' && (
+                      <>
+                        {/* Liquidity placeholder when viewMode === 'liquidity' */}
+                        {viewMode === 'liquidity' && (
+                          <div
+                            style={{
+                              background: theme.bgPanel,
+                              border: `1px solid ${theme.border}`,
+                              borderRadius: 16,
+                              padding: '32px 40px',
+                              marginBottom: 32,
+                              textAlign: 'center',
+                            }}
+                          >
+                            <h2
+                              style={{
+                                margin: 0,
+                                fontSize: 20,
+                                fontWeight: 600,
+                                letterSpacing: 0.5,
+                              }}
+                            >
+                              Liquidity (beta)
+                            </h2>
+                            <p style={{ fontSize: 13, opacity: 0.75, margin: '12px 0 0 0' }}>
+                              Upcoming view to consolidate pool positions and APY metrics.
+                            </p>
+                          </div>
+                        )}
+                        {/* Default Overview (wallet + protocols) shown when not in summary/strategies */}
+                        {walletTokens.length > 0 &&
+                          (() => {
+                            const columns = [
+                              { key: 'token', label: 'Token', align: 'left' },
+                              ...(showBalanceColumn
+                                ? [{ key: 'amount', label: 'Amount', align: 'right', width: 140 }]
+                                : []),
+                              ...(showUnitPriceColumn
+                                ? [{ key: 'price', label: 'Price', align: 'right', width: 120 }]
+                                : []),
+                              { key: 'value', label: 'Value', align: 'right', width: 160 },
+                            ];
+                            const rows = walletTokens.map((tokenData, index) => {
+                              const token = tokenData.token || tokenData;
+                              return {
+                                key:
+                                  token.contractAddress ||
+                                  token.tokenAddress ||
+                                  `${token.symbol}-${index}`,
+                                token: (
+                                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    {token.logo && (
+                                      <img
+                                        src={token.logo}
+                                        alt={token.symbol}
+                                        style={{
+                                          width: 24,
+                                          height: 24,
+                                          marginRight: 10,
+                                          borderRadius: '50%',
+                                          border: `1px solid ${theme.border}`,
+                                        }}
+                                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                                      />
+                                    )}
+                                    <div>
+                                      <div
+                                        style={{
+                                          fontWeight: 600,
+                                          fontSize: 14,
+                                          color: theme.textPrimary,
+                                          marginBottom: 2,
+                                        }}
+                                      >
+                                        {token.symbol}
+                                      </div>
+                                      <div style={{ fontSize: 12, color: theme.textSecondary }}>
+                                        {token.name}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ),
+                                amount:
+                                  !tableHideAmount && showBalanceColumn
+                                    ? maskValue(formatBalance(token.balance, token.native), {
+                                        short: true,
+                                      })
+                                    : undefined,
+                                price:
+                                  !tableHidePrice && showUnitPriceColumn
+                                    ? maskValue(formatPrice(token.price), { short: true })
+                                    : undefined,
+                                value: maskValue(formatPrice(token.totalPrice)),
+                              };
+                            });
+                            const infoBadges = `Tokens: ${walletTokens.length}`;
+                            const optionsMenu = (
+                              <div style={{ padding: '6px 0' }}>
+                                <label
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    padding: '6px 12px',
+                                    cursor: 'pointer',
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!showOnlyPositiveBalance}
+                                    onChange={(e) => setShowOnlyPositiveBalance(!e.target.checked)}
+                                  />
+                                  Show assets with no balance
+                                </label>
+                                <div
+                                  style={{ height: 1, background: '#e5e7eb', margin: '6px 0' }}
+                                />
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: '#6b7280',
+                                    fontWeight: 700,
+                                    padding: '6px 12px',
+                                  }}
+                                >
+                                  Visible Columns
+                                </div>
+                                <label
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    padding: '6px 12px',
+                                    cursor: 'pointer',
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={showBalanceColumn}
+                                    onChange={(e) => setShowBalanceColumn(e.target.checked)}
+                                  />
+                                  Amount
+                                </label>
+                                <label
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    padding: '6px 12px',
+                                    cursor: 'pointer',
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={showUnitPriceColumn}
+                                    onChange={(e) => setShowUnitPriceColumn(e.target.checked)}
+                                  />
+                                  Price
+                                </label>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: '#9ca3af',
+                                    padding: '6px 12px',
+                                    fontStyle: 'italic',
+                                  }}
+                                >
+                                  Token and Total Value are always visible. On small screens some
+                                  columns may hide automatically.
+                                </div>
+                              </div>
+                            );
+                            return (
+                              <SectionTable
+                                title="Wallet"
+                                icon={
+                                  <div
+                                    style={{
+                                      width: 22,
+                                      height: 22,
+                                      borderRadius: '50%',
+                                      // border removed as requested
+                                      border: 'none',
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
-                                      borderRadius: 10,
+                                      background: 'transparent',
                                       overflow: 'hidden',
                                     }}
                                   >
-                                    <img
-                                      src={c.iconUrl}
-                                      alt={name}
-                                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                    />
+                                    <svg
+                                      width="24"
+                                      height="24"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="lucide lucide-wallet-icon lucide-wallet"
+                                    >
+                                      <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+                                      <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+                                    </svg>
                                   </div>
-                                )}
-                                <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, lineHeight: 1.2 }}>{name}</div>
-                                <div style={{ fontSize: 11, color: theme.textSecondary, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                  <span style={{ fontWeight: 600, color: theme.textPrimary, fontSize: 12 }}>
-                                    {maskValue(formatPrice(value))}
-                                  </span>
-                                  <span style={{ fontSize: 10, color: theme.textMuted }}>{percent}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                                }
+                                isExpanded={tokensExpanded}
+                                onToggle={() => setTokensExpanded(!tokensExpanded)}
+                                transparentBody={true}
+                                optionsMenu={optionsMenu}
+                                customContent={
+                                  <div
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      borderRadius: 8,
+                                    }}
+                                  >
+                                    {(() => {
+                                      const effShowBalanceColumn =
+                                        !tableHideAmount && showBalanceColumn;
+                                      const effShowUnitPriceColumn =
+                                        !tableHidePrice && showUnitPriceColumn;
+                                      return (
+                                        <WalletTokensTable
+                                          tokens={walletTokens}
+                                          showBalanceColumn={effShowBalanceColumn}
+                                          showUnitPriceColumn={effShowUnitPriceColumn}
+                                        />
+                                      );
+                                    })()}
+                                  </div>
+                                }
+                              />
+                            );
+                          })()}
+                        {/* Protocols only in Overview */}
+                        <ErrorBoundary>
+                          <ProtocolsSection
+                            getLiquidityPoolsData={getLiquidityPoolsData}
+                            getLendingAndBorrowingData={getLendingAndBorrowingData}
+                            getStakingData={getStakingData}
+                            getLockingData={getLockingData}
+                            getDepositingData={getDepositingData}
+                            selectedChains={selectedChains}
+                            isAllChainsSelected={isAllChainsSelected}
+                            getCanonicalFromObj={getCanonicalFromObj}
+                            filterLendingDefiTokens={filterLendingDefiTokens}
+                            filterStakingDefiTokens={filterStakingDefiTokens}
+                            showLendingDefiTokens={showLendingDefiTokens}
+                            showStakingDefiTokens={showStakingDefiTokens}
+                            setShowLendingDefiTokens={setShowLendingDefiTokens}
+                            setShowStakingDefiTokens={setShowStakingDefiTokens}
+                            protocolExpansions={protocolExpansions}
+                            toggleProtocolExpansion={toggleProtocolExpansion}
+                            calculatePercentage={calculatePercentage}
+                            getTotalPortfolioValue={getTotalPortfolioValue}
+                            maskValue={maskValue}
+                            theme={theme}
+                          />
+                        </ErrorBoundary>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+              {/* end inner padded content */}
+            </div>
+            {/* end main vertical layout */}
 
-              {/* (Removed legacy inline main content duplication and old horizontal view mode toggle) */}
+            {/* Tooltip */}
+            {tooltipVisible && (
+              <div
+                style={{
+                  position: 'fixed',
+                  left: tooltipPosition.x - (tooltipVisible?.length || 0) * 3,
+                  top: tooltipPosition.y - 40,
+                  backgroundColor: mode === 'light' ? 'rgba(0,0,0,0.75)' : 'rgba(0, 0, 0, 0.9)',
+                  color: theme.textPrimary,
+                  padding: '8px 12px',
+                  borderRadius: 4,
+                  fontSize: 12,
+                  whiteSpace: 'pre-line',
+                  zIndex: 1000,
+                  maxWidth: 300,
+                  wordWrap: 'break-word',
+                  border: `1px solid ${theme.border}`,
+                }}
+              >
+                {tooltipVisible}
+              </div>
+            )}
 
-          {/* Overlay de sincronização bloqueando interação até conclusão */}
-          {(DEV_FORCE_AGG_OVERLAY || aggJobId) && (
-            <div
-              aria-busy={!aggCompleted}
-              aria-live="polite"
-              style={{
-                position: 'fixed', // cobre viewport inteira
-                inset: 0,
-                background: 'linear-gradient(155deg, rgba(0,0,0,0.72), rgba(0,0,0,0.55))',
-                backdropFilter: 'blur(5px)',
-                WebkitBackdropFilter: 'blur(5px)',
-                zIndex: 2000,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: isMobile ? '24px 16px 32px 16px' : '32px 32px 48px 32px',
-                color: theme.textPrimary,
-                overflowY: 'auto',
-                pointerEvents: !aggCompleted ? 'auto' : 'none',
-                opacity: aggCompleted ? 0 : 1,
-                transition: 'opacity .55s ease',
-              }}
-            >
-              {/* Centered card with circular loader */}
-              <div style={{ width: '100%', maxWidth: isMobile ? 380 : 520, textAlign: 'center', padding: '0 12px' }}>
+            {/* Loading overlay */}
+            {loading && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  zIndex: 1000,
+                }}
+              >
                 <div
                   style={{
-                    width: isMobile ? 52 : 72,
-                    height: isMobile ? 52 : 72,
-                    margin: isMobile ? '0 auto 22px auto' : '0 auto 32px auto',
-                    border: isMobile ? '5px solid rgba(255,255,255,0.15)' : '6px solid rgba(255,255,255,0.15)',
-                    borderTop: isMobile ? '5px solid #35f7a5' : '6px solid #35f7a5',
-                    borderRight: isMobile ? '5px solid #2fbfd9' : '6px solid #2fbfd9',
-                    borderRadius: '50%',
-                    animation: !aggCompleted ? 'defiSpin 0.85s linear infinite' : 'none',
+                    backgroundColor: theme.bgPanel,
+                    padding: 20,
+                    borderRadius: 10,
+                    fontSize: 15,
+                    color: theme.textPrimary,
+                    border: `1px solid ${theme.border}`,
+                    boxShadow: theme.shadowHover,
                   }}
-                />
-                <h2 style={{ margin: '0 0 12px 0', fontSize: isMobile ? 20 : 24, fontWeight: 600, letterSpacing: '.5px' }}>
-                  {aggCompleted ? 'Synchronized' : 'Synchronizing your account'}
-                </h2>
-                <p style={{ fontSize: isMobile ? 13 : 14, lineHeight: 1.5, opacity: 0.9, margin: '0 0 18px 0' }}>
-                  {aggCompleted ? 'Data ready – unlocking interface.' : 'Aggregating your DeFi positions across multiple providers.'}
-                </p>
-                <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 500, marginBottom: 6 }}>
-                  {(() => {
-                    const expected = aggExpected || aggSnapshot?.expected;
-                    const succeeded = aggSucceeded || aggSnapshot?.succeeded || 0;
-                    const failed = aggFailed || aggSnapshot?.failed || 0;
-                    const timedOut = aggTimedOut || aggSnapshot?.timedOut || 0;
-                    if (!expected || expected <= 0) return 'Initializing sources...';
-                    const done = succeeded + failed + timedOut;
-                    const pct = Math.min(100, Math.max(0, Math.round((done / expected) * 100)));
-                    return aggCompleted ? 'Complete' : `Sources ${done}/${expected} • ${pct}%`;
-                  })()}
-                </div>
-                <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.75, marginBottom: 4 }}>
-                  Status: {aggCompleted ? 'Done' : (aggStatus || aggSnapshot?.status || 'Running')}
-                </div>
-                <div style={{ fontSize: isMobile ? 10 : 11, opacity: 0.5 }}>
-                  {aggCompleted ? 'Closing...' : 'This may take a few seconds depending on the number of protocols.'}
-                </div>
-                <div style={{ marginTop: isMobile ? 16 : 22, fontSize: isMobile ? 10 : 11, opacity: 0.55 }}>
-                  {(() => {
-                    const failed = aggFailed || aggSnapshot?.failed || 0;
-                    const timedOut = aggTimedOut || aggSnapshot?.timedOut || 0;
-                    if (failed === 0 && timedOut === 0) return null;
-                    return `Partial issues - failed: ${failed}${timedOut>0?`, timed out: ${timedOut}`:''}`;
-                  })()}
+                >
+                  Loading wallet data...
                 </div>
               </div>
-            </div>
-          )}
-            {isAggregationReady && (
-              <>
-              {viewMode === 'summary' && (
-                <SummaryView
-                  walletTokens={walletTokens}
-                  getLiquidityPoolsData={getLiquidityPoolsData}
-                  getLendingAndBorrowingData={getLendingAndBorrowingData}
-                  getStakingData={getStakingData}
-                  getTotalPortfolioValue={getTotalPortfolioValue}
-                  getPortfolioBreakdown={getPortfolioBreakdown}
-                  maskValue={maskValue}
-                  formatPrice={formatPrice}
-                  theme={theme}
-                  groupDefiByProtocol={groupDefiByProtocol}
-                  filterLendingDefiTokens={filterLendingDefiTokens}
-                  showLendingDefiTokens={showLendingDefiTokens}
-                />
-              )}
-              {viewMode === 'strategies' && (
-                <RebalancingView
-                  walletTokens={walletTokens}
-                  getLiquidityPoolsData={getLiquidityPoolsData}
-                  getLendingAndBorrowingData={getLendingAndBorrowingData}
-                  getStakingData={getStakingData}
-                  account={account}
-                  theme={theme}
-                  initialSavedKey={rebalanceInfo?.key}
-                  initialSavedCount={rebalanceInfo?.count}
-                  initialSavedItems={rebalanceInfo?.items}
-                />
-              )}
-              {viewMode === 'pools' && (
-                <PoolsView
-                  getLiquidityPoolsData={getLiquidityPoolsData}
-                />
-              )}
-              {viewMode === 'overview' && (
-                <>
-                  {/* Liquidity placeholder when viewMode === 'liquidity' */}
-                  {viewMode === 'liquidity' && (
-                    <div style={{
-                      background: theme.bgPanel,
-                      border: `1px solid ${theme.border}`,
-                      borderRadius: 16,
-                      padding: '32px 40px',
-                      marginBottom: 32,
-                      textAlign: 'center'
-                    }}>
-                      <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:.5}}>Liquidity (beta)</h2>
-                      <p style={{fontSize:13, opacity:.75, margin:'12px 0 0 0'}}>Upcoming view to consolidate pool positions and APY metrics.</p>
-                    </div>
-                  )}
-                  {/* Default Overview (wallet + protocols) shown when not in summary/strategies */}
-                  {walletTokens.length > 0 &&
-                    (() => {
-                      const columns = [
-                        { key: 'token', label: 'Token', align: 'left' },
-                        ...(showBalanceColumn
-                          ? [{ key: 'amount', label: 'Amount', align: 'right', width: 140 }]
-                          : []),
-                        ...(showUnitPriceColumn
-                          ? [{ key: 'price', label: 'Price', align: 'right', width: 120 }]
-                          : []),
-                        { key: 'value', label: 'Value', align: 'right', width: 160 },
-                      ];
-                      const rows = walletTokens.map((tokenData, index) => {
-                        const token = tokenData.token || tokenData;
-                        return {
-                          key:
-                            token.contractAddress ||
-                            token.tokenAddress ||
-                            `${token.symbol}-${index}`,
-                          token: (
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                              {token.logo && (
-                                <img
-                                  src={token.logo}
-                                  alt={token.symbol}
-                                  style={{
-                                    width: 24,
-                                    height: 24,
-                                    marginRight: 10,
-                                    borderRadius: '50%',
-                                    border: `1px solid ${theme.border}`,
-                                  }}
-                                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                                />
-                              )}
-                              <div>
-                                <div
-                                  style={{
-                                    fontWeight: 600,
-                                    fontSize: 14,
-                                    color: theme.textPrimary,
-                                    marginBottom: 2,
-                                  }}
-                                >
-                                  {token.symbol}
-                                </div>
-                                <div style={{ fontSize: 12, color: theme.textSecondary }}>
-                                  {token.name}
-                                </div>
-                              </div>
-                            </div>
-                          ),
-                          amount:
-                            !tableHideAmount && showBalanceColumn
-                              ? maskValue(formatBalance(token.balance, token.native), {
-                                  short: true,
-                                })
-                              : undefined,
-                          price:
-                            !tableHidePrice && showUnitPriceColumn
-                              ? maskValue(formatPrice(token.price), { short: true })
-                              : undefined,
-                          value: maskValue(formatPrice(token.totalPrice)),
-                        };
-                      });
-                      const infoBadges = `Tokens: ${walletTokens.length}`;
-                      const optionsMenu = (
-                        <div style={{ padding: '6px 0' }}>
-                          <label
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              padding: '6px 12px',
-                              cursor: 'pointer',
-                              fontSize: 13,
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={!showOnlyPositiveBalance}
-                              onChange={(e) => setShowOnlyPositiveBalance(!e.target.checked)}
-                            />
-                            Show assets with no balance
-                          </label>
-                          <div style={{ height: 1, background: '#e5e7eb', margin: '6px 0' }} />
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: '#6b7280',
-                              fontWeight: 700,
-                              padding: '6px 12px',
-                            }}
-                          >
-                            Visible Columns
-                          </div>
-                          <label
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              padding: '6px 12px',
-                              cursor: 'pointer',
-                              fontSize: 13,
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={showBalanceColumn}
-                              onChange={(e) => setShowBalanceColumn(e.target.checked)}
-                            />
-                            Amount
-                          </label>
-                          <label
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              padding: '6px 12px',
-                              cursor: 'pointer',
-                              fontSize: 13,
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={showUnitPriceColumn}
-                              onChange={(e) => setShowUnitPriceColumn(e.target.checked)}
-                            />
-                            Price
-                          </label>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: '#9ca3af',
-                              padding: '6px 12px',
-                              fontStyle: 'italic',
-                            }}
-                          >
-                            Token and Total Value are always visible. On small screens some columns
-                            may hide automatically.
-                          </div>
-                        </div>
-                      );
-                      return (
-                        <SectionTable
-                          title="Wallet"
-                          icon={
-                            <div
-                              style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: '50%',
-                                // border removed as requested
-                                border: 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                background: 'transparent',
-                                overflow: 'hidden',
-                              }}
-                            >
-                              <svg
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="lucide lucide-wallet-icon lucide-wallet"
-                              >
-                                <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
-                                <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
-                              </svg>
-                            </div>
-                          }
-                          isExpanded={tokensExpanded}
-                          onToggle={() => setTokensExpanded(!tokensExpanded)}
-                          transparentBody={true}
-                          optionsMenu={optionsMenu}
-                          customContent={
-                            <div
-                              style={{ background: 'transparent', border: 'none', borderRadius: 8 }}
-                            >
-                              {(() => {
-                                const effShowBalanceColumn = !tableHideAmount && showBalanceColumn;
-                                const effShowUnitPriceColumn =
-                                  !tableHidePrice && showUnitPriceColumn;
-                                return (
-                                  <WalletTokensTable
-                                    tokens={walletTokens}
-                                    showBalanceColumn={effShowBalanceColumn}
-                                    showUnitPriceColumn={effShowUnitPriceColumn}
-                                  />
-                                );
-                              })()}
-                            </div>
-                          }
-                        />
-                      );
-                    })()}
-                  {/* Protocols only in Overview */}
-                  <ErrorBoundary>
-                    <ProtocolsSection
-                      getLiquidityPoolsData={getLiquidityPoolsData}
-                      getLendingAndBorrowingData={getLendingAndBorrowingData}
-                      getStakingData={getStakingData}
-                      getLockingData={getLockingData}
-                      getDepositingData={getDepositingData}
-                      selectedChains={selectedChains}
-                      isAllChainsSelected={isAllChainsSelected}
-                      getCanonicalFromObj={getCanonicalFromObj}
-                      filterLendingDefiTokens={filterLendingDefiTokens}
-                      filterStakingDefiTokens={filterStakingDefiTokens}
-                      showLendingDefiTokens={showLendingDefiTokens}
-                      showStakingDefiTokens={showStakingDefiTokens}
-                      setShowLendingDefiTokens={setShowLendingDefiTokens}
-                      setShowStakingDefiTokens={setShowStakingDefiTokens}
-                      protocolExpansions={protocolExpansions}
-                      toggleProtocolExpansion={toggleProtocolExpansion}
-                      calculatePercentage={calculatePercentage}
-                      getTotalPortfolioValue={getTotalPortfolioValue}
-                      maskValue={maskValue}
-                      theme={theme}
-                    />
-                  </ErrorBoundary>
-                </>
-              )}
-              </>
             )}
-          </div>{/* end inner padded content */}
-        </div>{/* end main vertical layout */}
 
-  {/* Tooltip */}
-        {tooltipVisible && (
-          <div
-            style={{
-              position: 'fixed',
-              left: tooltipPosition.x - (tooltipVisible?.length || 0) * 3,
-              top: tooltipPosition.y - 40,
-              backgroundColor: mode === 'light' ? 'rgba(0,0,0,0.75)' : 'rgba(0, 0, 0, 0.9)',
-              color: theme.textPrimary,
-              padding: '8px 12px',
-              borderRadius: 4,
-              fontSize: 12,
-              whiteSpace: 'pre-line',
-              zIndex: 1000,
-              maxWidth: 300,
-              wordWrap: 'break-word',
-              border: `1px solid ${theme.border}`,
-            }}
-          >
-            {tooltipVisible}
-          </div>
-        )}
-
-        {/* Loading overlay */}
-        {loading && (
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              backgroundColor: 'rgba(0, 0, 0, 0.45)',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 1000,
-            }}
-          >
-            <div
-              style={{
-                backgroundColor: theme.bgPanel,
-                padding: 20,
-                borderRadius: 10,
-                fontSize: 15,
-                color: theme.textPrimary,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.shadowHover,
+            {/* Wallet Group Modal */}
+            <WalletGroupModal
+              isOpen={isWalletGroupModalOpen}
+              onClose={() => setIsWalletGroupModalOpen(false)}
+              onGroupCreated={(groupId) => {
+                // Auto-select the created group
+                setSelectedWalletGroupId(groupId);
+                window.history.pushState({}, '', `/${groupId}`);
+                setIsWalletGroupModalOpen(false);
               }}
-            >
-              Loading wallet data...
-            </div>
-          </div>
+              onGroupSelected={(groupId) => {
+                // Select existing group
+                setSelectedWalletGroupId(groupId);
+                window.history.pushState({}, '', `/${groupId}`);
+                setIsWalletGroupModalOpen(false);
+              }}
+            />
+          </>
         )}
 
-        {/* Wallet Group Modal */}
+        {/* Wallet Group Modal - Available in all states */}
         <WalletGroupModal
           isOpen={isWalletGroupModalOpen}
           onClose={() => setIsWalletGroupModalOpen(false)}
@@ -1639,6 +1915,20 @@ function App() {
             window.history.pushState({}, '', `/${groupId}`);
             setIsWalletGroupModalOpen(false);
           }}
+          onGroupSelected={(groupId) => {
+            // Select existing group
+            setSelectedWalletGroupId(groupId);
+            window.history.pushState({}, '', `/${groupId}`);
+            setIsWalletGroupModalOpen(false);
+          }}
+        />
+
+        {/* Wallet Selector Dialog */}
+        <WalletSelectorDialog
+          isOpen={showWalletSelector}
+          onClose={() => setShowWalletSelector(false)}
+          onSelectWallet={connectToWallet}
+          availableWallets={availableWallets}
         />
       </ChainIconsProvider>
     </MaskValuesProvider>

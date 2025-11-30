@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { api } from '../config/api';
 
 /**
@@ -50,98 +51,104 @@ export function useAggregationJob() {
     currentInterval.current = 5000;
   }, []);
 
-  const start = useCallback(async (accountOrGroupId, chains = null, { isGroup = false } = {}) => {
-    // Evita starts concorrentes
-    if (ensureInFlightRef.current) return null;
-    ensureInFlightRef.current = true;
-    try {
-      reset();
-      setLoading(true);
-      
-      // Escolhe o body builder baseado em se é grupo ou endereço único
-      const body = isGroup 
-        ? api.buildStartAggregationBodyV2({ walletGroupId: accountOrGroupId })
-        : api.buildStartAggregationBody(accountOrGroupId, chains || undefined);
-      
-      const res = await fetch(api.startAggregation(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      });
-      if (!res.ok) throw new Error(`Start failed: ${res.status}`);
-      const data = await res.json();
-      // Novo formato: { account, jobs: [ { chain, jobId }, ... ] }
-      let pickedJobId = data.jobId;
-      if (!pickedJobId && Array.isArray(data.jobs)) {
-        pickedJobId = api.pickAggregationJob(data.jobs);
+  const start = useCallback(
+    async (accountOrGroupId, chains = null, { isGroup = false } = {}) => {
+      // Evita starts concorrentes
+      if (ensureInFlightRef.current) return null;
+      ensureInFlightRef.current = true;
+      try {
+        reset();
+        setLoading(true);
+
+        // Escolhe o body builder baseado em se é grupo ou endereço único
+        const body = isGroup
+          ? api.buildStartAggregationBodyV2({ walletGroupId: accountOrGroupId })
+          : api.buildStartAggregationBody(accountOrGroupId, chains || undefined);
+
+        const res = await fetch(api.startAggregation(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+        if (!res.ok) throw new Error(`Start failed: ${res.status}`);
+        const data = await res.json();
+        // Novo formato: { account, jobs: [ { chain, jobId }, ... ] }
+        let pickedJobId = data.jobId;
+        if (!pickedJobId && Array.isArray(data.jobs)) {
+          pickedJobId = api.pickAggregationJob(data.jobs);
+        }
+        if (!pickedJobId) throw new Error('Missing jobId in start response');
+        setJobId(pickedJobId);
+        lastAccountRef.current = isGroup ? null : accountOrGroupId;
+        lastChainRef.current = null; // multi-chain ou indefinido
+        attemptRef.current = 0;
+        currentInterval.current = 5000; // Reset para intervalo inicial
+        return pickedJobId;
+      } catch (err) {
+        setError(err);
+        setLoading(false);
+        return null;
+      } finally {
+        ensureInFlightRef.current = false;
       }
-      if (!pickedJobId) throw new Error('Missing jobId in start response');
-      setJobId(pickedJobId);
-      lastAccountRef.current = isGroup ? null : accountOrGroupId;
-      lastChainRef.current = null; // multi-chain ou indefinido
-      attemptRef.current = 0;
-      currentInterval.current = 5000; // Reset para intervalo inicial
-      return pickedJobId;
-    } catch (err) {
-      setError(err);
-      setLoading(false);
-      return null;
-    } finally {
-      ensureInFlightRef.current = false;
-    }
-  }, [reset]);
+    },
+    [reset]
+  );
 
   // Tenta reutilizar job ativo antes de criar outro
-  const ensure = useCallback(async (accountOrGroupId, _unusedChain = null, { force = false, isGroup = false } = {}) => {
-    if (!accountOrGroupId) return null;
-    const now = Date.now();
-    // Throttle: ignora ensures repetidos em < 500ms
-    if (!force && now - lastEnsureTsRef.current < 500) return jobId;
-    lastEnsureTsRef.current = now;
+  const ensure = useCallback(
+    async (accountOrGroupId, _unusedChain = null, { force = false, isGroup = false } = {}) => {
+      if (!accountOrGroupId) return null;
+      const now = Date.now();
+      // Throttle: ignora ensures repetidos em < 500ms
+      if (!force && now - lastEnsureTsRef.current < 500) return jobId;
+      lastEnsureTsRef.current = now;
 
-    // Se já temos job para mesmo account/chain ativo e não expirado e não force -> reutiliza
-    if (!force && jobId && !expired && !isGroup && lastAccountRef.current === accountOrGroupId) {
-      return jobId;
-    }
-    if (ensureInFlightRef.current) return jobId; // evita corrida
-    ensureInFlightRef.current = true;
-    try {
-      setLoading(true);
-      // Endpoint GET por account deprecado: sempre inicia (idempotente no backend)
-      reset(); // agora sim reset global antes de criar
-      setLoading(true);
-      
-      // Escolhe o body builder baseado em se é grupo ou endereço único
-      const body = isGroup 
-        ? api.buildStartAggregationBodyV2({ walletGroupId: accountOrGroupId })
-        : api.buildStartAggregationBody(accountOrGroupId);
-      
-      const res = await fetch(api.startAggregation(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      });
-      if (!res.ok) throw new Error(`Start failed: ${res.status}`);
-      const data = await res.json();
-      let pickedJobId = data.jobId;
-      if (!pickedJobId && Array.isArray(data.jobs)) {
-        pickedJobId = api.pickAggregationJob(data.jobs);
+      // Se já temos job para mesmo account/chain ativo e não expirado e não force -> reutiliza
+      if (!force && jobId && !expired && !isGroup && lastAccountRef.current === accountOrGroupId) {
+        return jobId;
       }
-      if (!pickedJobId) throw new Error('Missing jobId in start response');
-      setJobId(pickedJobId);
-      lastAccountRef.current = isGroup ? null : accountOrGroupId;
-      lastChainRef.current = null;
-      attemptRef.current = 0;
-      currentInterval.current = 5000; // Reset para intervalo inicial
-      return pickedJobId;
-    } catch (err) {
-      setError(err);
-      setLoading(false);
-      return null;
-    } finally {
-      ensureInFlightRef.current = false;
-    }
-  }, [jobId, expired, reset]);
+      if (ensureInFlightRef.current) return jobId; // evita corrida
+      ensureInFlightRef.current = true;
+      try {
+        setLoading(true);
+        // Endpoint GET por account deprecado: sempre inicia (idempotente no backend)
+        reset(); // agora sim reset global antes de criar
+        setLoading(true);
+
+        // Escolhe o body builder baseado em se é grupo ou endereço único
+        const body = isGroup
+          ? api.buildStartAggregationBodyV2({ walletGroupId: accountOrGroupId })
+          : api.buildStartAggregationBody(accountOrGroupId);
+
+        const res = await fetch(api.startAggregation(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+        if (!res.ok) throw new Error(`Start failed: ${res.status}`);
+        const data = await res.json();
+        let pickedJobId = data.jobId;
+        if (!pickedJobId && Array.isArray(data.jobs)) {
+          pickedJobId = api.pickAggregationJob(data.jobs);
+        }
+        if (!pickedJobId) throw new Error('Missing jobId in start response');
+        setJobId(pickedJobId);
+        lastAccountRef.current = isGroup ? null : accountOrGroupId;
+        lastChainRef.current = null;
+        attemptRef.current = 0;
+        currentInterval.current = 5000; // Reset para intervalo inicial
+        return pickedJobId;
+      } catch (err) {
+        setError(err);
+        setLoading(false);
+        return null;
+      } finally {
+        ensureInFlightRef.current = false;
+      }
+    },
+    [jobId, expired, reset]
+  );
 
   const fetchSnapshot = useCallback(async (id) => {
     try {
@@ -158,43 +165,62 @@ export function useAggregationJob() {
         const norm = {
           TotalTokens: s.TotalTokens ?? s.totalTokens ?? s.total_tokens ?? s.tokens ?? null,
           TotalAaveSupplies: s.TotalAaveSupplies ?? s.totalAaveSupplies ?? s.aaveSupplies ?? null,
-            TotalAaveBorrows: s.TotalAaveBorrows ?? s.totalAaveBorrows ?? s.aaveBorrows ?? null,
-          TotalUniswapPositions: s.TotalUniswapPositions ?? s.totalUniswapPositions ?? s.uniswapPositions ?? null,
-          ProvidersCompleted: s.ProvidersCompleted || s.providersCompleted || s.providers || s.providers_completed || [],
+          TotalAaveBorrows: s.TotalAaveBorrows ?? s.totalAaveBorrows ?? s.aaveBorrows ?? null,
+          TotalUniswapPositions:
+            s.TotalUniswapPositions ?? s.totalUniswapPositions ?? s.uniswapPositions ?? null,
+          ProvidersCompleted:
+            s.ProvidersCompleted ||
+            s.providersCompleted ||
+            s.providers ||
+            s.providers_completed ||
+            [],
         };
         setSummary(norm);
       }
       // Deduplicar processed por provider (último vence) e detectar lista inválida
       if (Array.isArray(data.processed)) {
-        const allSameZero = data.processed.length > 0 && data.processed.every(p => !p || p.provider === '0');
+        const allSameZero =
+          data.processed.length > 0 && data.processed.every((p) => !p || p.provider === '0');
         if (allSameZero && data.summary) {
           // Reconstruir processed a partir de summary.providersCompleted
-          const pcs = (data.summary.ProvidersCompleted || data.summary.providersCompleted || data.summary.providers || [])
-            .filter(p => typeof p === 'string')
-            .map(name => ({ provider: name, status: 'Success', error: null }));
+          const pcs = (
+            data.summary.ProvidersCompleted ||
+            data.summary.providersCompleted ||
+            data.summary.providers ||
+            []
+          )
+            .filter((p) => typeof p === 'string')
+            .map((name) => ({ provider: name, status: 'Success', error: null }));
           data.processed = pcs;
         } else {
           const map = new Map();
-          data.processed.forEach(p => {
+          data.processed.forEach((p) => {
             if (!p || !p.provider) return;
             map.set(p.provider, p); // sobrescreve duplicados
           });
           data.processed = Array.from(map.values());
         }
       } else if ((!data.processed || !data.processed.length) && data.summary) {
-        const pcs = (data.summary.ProvidersCompleted || data.summary.providersCompleted || data.summary.providers || [])
-          .filter(p => typeof p === 'string')
-          .map(name => ({ provider: name, status: 'Success', error: null }));
+        const pcs = (
+          data.summary.ProvidersCompleted ||
+          data.summary.providersCompleted ||
+          data.summary.providers ||
+          []
+        )
+          .filter((p) => typeof p === 'string')
+          .map((name) => ({ provider: name, status: 'Success', error: null }));
         if (pcs.length) data.processed = pcs;
       }
       setSnapshot(data);
-      
+
       // Lógica de completude: para apenas em Completed/CompletedWithErrors, CONTINUA em TimedOut
       if (/^(Completed|CompletedWithErrors)$/i.test(data.status)) {
         setIsCompleted(true);
       } else if (data.status === 'TimedOut') {
         // TimedOut: continua polling com intervalo progressivo (mesmo que isCompleted=true do backend)
-        console.log(`Job TimedOut (attempt ${attemptRef.current}), continuing with progressive polling...`);
+        console.log(
+          `Job TimedOut (attempt ${attemptRef.current}), continuing with progressive polling...`
+        );
         setIsCompleted(false); // Força continuar polling para TimedOut
       } else if (data.isCompleted) {
         // Outros casos onde isCompleted=true do backend
@@ -209,11 +235,11 @@ export function useAggregationJob() {
   // Função para calcular intervalo progressivo
   const getProgressiveInterval = useCallback(() => {
     const attempt = attemptRef.current;
-    if (attempt <= 2) return 5000;    // Primeiras 3 tentativas: 5s
-    if (attempt <= 5) return 10000;   // Próximas 3 tentativas: 10s  
-    if (attempt <= 10) return 20000;  // Próximas 5 tentativas: 20s
-    if (attempt <= 15) return 30000;  // Próximas 5 tentativas: 30s
-    return 60000;                     // Restantes: 60s
+    if (attempt <= 2) return 5000; // Primeiras 3 tentativas: 5s
+    if (attempt <= 5) return 10000; // Próximas 3 tentativas: 10s
+    if (attempt <= 10) return 20000; // Próximas 5 tentativas: 20s
+    if (attempt <= 15) return 30000; // Próximas 5 tentativas: 30s
+    return 60000; // Restantes: 60s
   }, []);
 
   // Polling loop com intervalos progressivos
@@ -223,7 +249,7 @@ export function useAggregationJob() {
 
     const run = async () => {
       if (cancelled.current) return;
-      
+
       // Verificar limite de tentativas
       if (attemptRef.current >= maxAttempts.current) {
         console.warn(`Polling stopped: reached maximum attempts (${maxAttempts.current})`);
@@ -234,12 +260,14 @@ export function useAggregationJob() {
 
       attemptRef.current += 1;
       await fetchSnapshot(jobId);
-      
+
       if (!cancelled.current && !isCompleted) {
         // Calcular intervalo progressivo baseado no número de tentativas
         currentInterval.current = getProgressiveInterval();
-        console.log(`Scheduling next poll in ${currentInterval.current}ms (attempt ${attemptRef.current}/${maxAttempts.current})`);
-        
+        console.log(
+          `Scheduling next poll in ${currentInterval.current}ms (attempt ${attemptRef.current}/${maxAttempts.current})`
+        );
+
         pollTimer.current = setTimeout(run, currentInterval.current);
       } else {
         setLoading(false);
@@ -256,9 +284,12 @@ export function useAggregationJob() {
   }, [jobId, isCompleted, fetchSnapshot, getProgressiveInterval]);
 
   // Derivados convenientes
-  const progress = snapshot?.progress ?? (snapshot && snapshot.expected > 0
-    ? ((snapshot.succeeded || 0) + (snapshot.failed || 0) + (snapshot.timedOut || 0)) / snapshot.expected
-    : 0);
+  const progress =
+    snapshot?.progress ??
+    (snapshot && snapshot.expected > 0
+      ? ((snapshot.succeeded || 0) + (snapshot.failed || 0) + (snapshot.timedOut || 0)) /
+        snapshot.expected
+      : 0);
 
   return {
     jobId,

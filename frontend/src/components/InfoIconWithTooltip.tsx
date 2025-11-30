@@ -46,7 +46,7 @@ export default function InfoIconWithTooltip({
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-            setOpen((o) => !o);
+          setOpen((o) => !o);
         }
         if (e.key === 'Escape') setOpen(false);
       }}

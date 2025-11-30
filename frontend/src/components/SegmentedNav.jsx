@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { useTheme } from '../context/ThemeProvider.tsx';
 
 // Fixed three main tabs per request
@@ -57,8 +58,8 @@ export default function SegmentedNav({ value, onChange, disabled }) {
         <button
           key={it.key}
           role="tab"
-            aria-selected={value === it.key}
-            tabIndex={value === it.key ? 0 : -1}
+          aria-selected={value === it.key}
+          tabIndex={value === it.key ? 0 : -1}
           onClick={() => !disabled && onChange(it.key)}
           style={{
             ...baseBtn,

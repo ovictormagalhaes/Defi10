@@ -1,5 +1,6 @@
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Models.Aave.Supplies;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 using MyWebWallet.API.Aggregation;
 using System.Globalization;

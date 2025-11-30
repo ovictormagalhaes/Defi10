@@ -30,7 +30,9 @@ export default function TableSection({
     <div className="mt-12 mb-12">
       {title && (
         <div className="p-6" style={{ paddingBottom: '4px' }}>
-          <div className="text-xl font-semibold" style={{ color: theme.textPrimary }}>{title}</div>
+          <div className="text-xl font-semibold" style={{ color: theme.textPrimary }}>
+            {title}
+          </div>
         </div>
       )}
       <div className="rounded-lg overflow-hidden" style={{ backgroundColor: bodyBg }}>

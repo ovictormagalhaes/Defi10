@@ -3,16 +3,17 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
+
 import { RebalanceAssetType, CHAIN_MAPPINGS } from '../types/rebalancing';
-import type { 
-  RebalanceItem, 
-  RebalanceRequestItem, 
-  RebalanceCalculation, 
-  RebalanceValidation, 
+import type {
+  RebalanceItem,
+  RebalanceRequestItem,
+  RebalanceCalculation,
+  RebalanceValidation,
   PortfolioStats,
   RebalanceToken,
   UseRebalancingResult,
-  ChainKey
+  ChainKey,
 } from '../types/rebalancing';
 import type { WalletItem } from '../types/wallet';
 
@@ -26,7 +27,6 @@ export const useRebalancing = (
   stakingPositions: WalletItem[] = [],
   account?: string
 ): UseRebalancingResult => {
-  
   // State
   const [items, setItems] = useState<RebalanceItem[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -37,50 +37,59 @@ export const useRebalancing = (
   // Normalize chain identifier
   const getChainKey = useCallback((token: any): ChainKey => {
     if (!token || typeof token !== 'object') return 'unknown';
-    
-    const raw = token.chain || token.chainId || token.chainID || token.network || token.chainName || token.chain_name;
+
+    const raw =
+      token.chain ||
+      token.chainId ||
+      token.chainID ||
+      token.network ||
+      token.chainName ||
+      token.chain_name;
     if (raw == null) return 'unknown';
-    
+
     const lower = String(raw).trim().toLowerCase();
     return CHAIN_MAPPINGS[lower] || 'unknown';
   }, []);
 
   // Convert WalletItem to RebalanceToken
-  const convertToRebalanceToken = useCallback((item: WalletItem): RebalanceToken[] => {
-    const tokens: RebalanceToken[] = [];
-    
-    // Extract tokens from position
-    const positionTokens = item.position?.tokens || [];
-    
-    positionTokens.forEach(token => {
-      if (!token) return;
-      
-      const balance = token.financials?.amount || 0;
-      const price = token.financials?.price || 0;
-      const value = token.financials?.totalPrice || balance * price;
-      
-      tokens.push({
-        symbol: token.symbol || 'Unknown',
-        name: token.name || token.symbol || 'Unknown Token',
-        contractAddress: token.contractAddress || '',
-        chain: getChainKey(token),
-        logo: token.logo || token.thumbnail || undefined,
-        balance,
-        balanceFormatted: balance.toFixed(4),
-        price,
-        value,
-        percentage: 0, // Will be calculated later
-        decimals: token.financials?.decimalPlaces || 18
+  const convertToRebalanceToken = useCallback(
+    (item: WalletItem): RebalanceToken[] => {
+      const tokens: RebalanceToken[] = [];
+
+      // Extract tokens from position
+      const positionTokens = item.position?.tokens || [];
+
+      positionTokens.forEach((token) => {
+        if (!token) return;
+
+        const balance = token.financials?.amount || 0;
+        const price = token.financials?.price || 0;
+        const value = token.financials?.totalPrice || balance * price;
+
+        tokens.push({
+          symbol: token.symbol || 'Unknown',
+          name: token.name || token.symbol || 'Unknown Token',
+          contractAddress: token.contractAddress || '',
+          chain: getChainKey(token),
+          logo: token.logo || token.thumbnail || undefined,
+          balance,
+          balanceFormatted: balance.toFixed(4),
+          price,
+          value,
+          percentage: 0, // Will be calculated later
+          decimals: token.financials?.decimalPlaces || 18,
+        });
       });
-    });
-    
-    return tokens;
-  }, [getChainKey]);
+
+      return tokens;
+    },
+    [getChainKey]
+  );
 
   // Calculate portfolio statistics
   const portfolioStats: PortfolioStats = useMemo(() => {
     const allItems = [...walletTokens, ...liquidityPools, ...lendingPositions, ...stakingPositions];
-    
+
     const totalValue = allItems.reduce((sum, item) => {
       const value = item.totalPrice || item.totalValueUsd || 0;
       return sum + Number(value);
@@ -91,23 +100,23 @@ export const useRebalancing = (
       [RebalanceAssetType.LiquidityPool]: liquidityPools.length,
       [RebalanceAssetType.LendingAndBorrowing]: lendingPositions.length,
       [RebalanceAssetType.Staking]: stakingPositions.length,
-      [RebalanceAssetType.Group]: 0
+      [RebalanceAssetType.Group]: 0,
     };
 
     const protocolDistribution: Record<string, number> = {};
     const chainDistribution: Record<string, number> = {};
     const tokenValues: Record<string, number> = {};
 
-    allItems.forEach(item => {
+    allItems.forEach((item) => {
       const value = Number(item.totalPrice || item.totalValueUsd || 0);
-      
+
       // Protocol distribution
       const protocol = item.protocol?.name || 'Unknown';
       protocolDistribution[protocol] = (protocolDistribution[protocol] || 0) + value;
-      
+
       // Chain distribution
       const tokens = convertToRebalanceToken(item);
-      tokens.forEach(token => {
+      tokens.forEach((token) => {
         chainDistribution[token.chain] = (chainDistribution[token.chain] || 0) + token.value;
         tokenValues[token.symbol] = (tokenValues[token.symbol] || 0) + token.value;
       });
@@ -120,7 +129,7 @@ export const useRebalancing = (
       .map(([symbol, value]) => ({
         symbol,
         value,
-        percentage: totalValue > 0 ? (value / totalValue) * 100 : 0
+        percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
       }));
 
     return {
@@ -128,7 +137,7 @@ export const useRebalancing = (
       itemCounts,
       protocolDistribution,
       chainDistribution,
-      topTokens
+      topTokens,
     };
   }, [walletTokens, liquidityPools, lendingPositions, stakingPositions, convertToRebalanceToken]);
 
@@ -184,7 +193,7 @@ export const useRebalancing = (
       warnings,
       totalPercentage,
       duplicateNames: Array.from(new Set(duplicateNames)),
-      emptyItems
+      emptyItems,
     };
   }, [items]);
 
@@ -201,30 +210,32 @@ export const useRebalancing = (
       targetValue: 0,
       difference: 0,
       differencePercentage: 0,
-      tokens: []
+      tokens: [],
     };
 
-    setItems(prev => [...prev, newItem]);
+    setItems((prev) => [...prev, newItem]);
   }, []);
 
   // Update item
   const updateItem = useCallback((index: number, requestItem: RebalanceRequestItem) => {
-    setItems(prev => prev.map((item, i) => {
-      if (i !== index) return item;
-      
-      return {
-        ...item,
-        name: requestItem.name,
-        assetType: requestItem.assetType,
-        referenceType: requestItem.referenceType,
-        targetPercentage: requestItem.targetPercentage
-      };
-    }));
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+
+        return {
+          ...item,
+          name: requestItem.name,
+          assetType: requestItem.assetType,
+          referenceType: requestItem.referenceType,
+          targetPercentage: requestItem.targetPercentage,
+        };
+      })
+    );
   }, []);
 
   // Remove item
   const removeItem = useCallback((index: number) => {
-    setItems(prev => prev.filter((_, i) => i !== index));
+    setItems((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   // Calculate rebalancing
@@ -243,14 +254,14 @@ export const useRebalancing = (
     setError(null);
 
     try {
-      const requestItems: RebalanceRequestItem[] = items.map(item => ({
+      const requestItems: RebalanceRequestItem[] = items.map((item) => ({
         name: item.name,
         assetType: item.assetType,
         referenceType: item.referenceType,
         targetPercentage: item.targetPercentage,
-        tokens: item.tokens.map(t => t.contractAddress).filter(Boolean),
+        tokens: item.tokens.map((t) => t.contractAddress).filter(Boolean),
         protocolIds: [], // TODO: Extract from data
-        groupType: item.isGroup ? item.assetType : undefined
+        groupType: item.isGroup ? item.assetType : undefined,
       }));
 
       const response = await fetch(`${API_BASE_URL}/api/rebalance/calculate`, {
@@ -261,8 +272,8 @@ export const useRebalancing = (
         body: JSON.stringify({
           account,
           items: requestItems,
-          totalValue: portfolioStats.totalValue
-        })
+          totalValue: portfolioStats.totalValue,
+        }),
       });
 
       const result = await response.json();
@@ -273,24 +284,25 @@ export const useRebalancing = (
 
       // Update items with calculated values
       if (result.data?.items) {
-        setItems(prev => prev.map((item, index) => {
-          const calculated = result.data.items[index];
-          if (!calculated) return item;
+        setItems((prev) =>
+          prev.map((item, index) => {
+            const calculated = result.data.items[index];
+            if (!calculated) return item;
 
-          return {
-            ...item,
-            currentValue: calculated.currentValue,
-            currentPercentage: calculated.currentPercentage,
-            targetValue: calculated.targetValue,
-            difference: calculated.difference,
-            differencePercentage: calculated.differencePercentage,
-            tokens: calculated.tokens || item.tokens
-          };
-        }));
+            return {
+              ...item,
+              currentValue: calculated.currentValue,
+              currentPercentage: calculated.currentPercentage,
+              targetValue: calculated.targetValue,
+              difference: calculated.difference,
+              differencePercentage: calculated.differencePercentage,
+              tokens: calculated.tokens || item.tokens,
+            };
+          })
+        );
       }
 
       return result.data;
-
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
@@ -302,102 +314,110 @@ export const useRebalancing = (
   }, [account, items, portfolioStats.totalValue]);
 
   // Save configuration
-  const save = useCallback(async (key: string, name: string): Promise<boolean> => {
-    if (!account) {
-      setError('Account is required for saving');
-      return false;
-    }
-
-    setIsSaving(true);
-    setError(null);
-
-    try {
-      const requestItems: RebalanceRequestItem[] = items.map(item => ({
-        name: item.name,
-        assetType: item.assetType,
-        referenceType: item.referenceType,
-        targetPercentage: item.targetPercentage
-      }));
-
-      const response = await fetch(`${API_BASE_URL}/api/rebalance/save`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          key,
-          name,
-          account,
-          items: requestItems,
-          totalPercentage: validation.totalPercentage
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Save failed');
+  const save = useCallback(
+    async (key: string, name: string): Promise<boolean> => {
+      if (!account) {
+        setError('Account is required for saving');
+        return false;
       }
 
-      return true;
+      setIsSaving(true);
+      setError(null);
 
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(errorMessage);
-      console.error('Save error:', err);
-      return false;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [account, items, validation.totalPercentage]);
-
-  // Load configuration
-  const load = useCallback(async (key: string): Promise<boolean> => {
-    if (!account) {
-      setError('Account is required for loading');
-      return false;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/rebalance/load/${key}?account=${encodeURIComponent(account)}`);
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Load failed');
-      }
-
-      if (result.data?.items) {
-        const loadedItems: RebalanceItem[] = result.data.items.map((requestItem: RebalanceRequestItem, index: number) => ({
-          id: `loaded-${Date.now()}-${index}`,
-          name: requestItem.name,
-          assetType: requestItem.assetType,
-          referenceType: requestItem.referenceType,
-          targetPercentage: requestItem.targetPercentage,
-          currentPercentage: 0,
-          currentValue: 0,
-          targetValue: 0,
-          difference: 0,
-          differencePercentage: 0,
-          tokens: []
+      try {
+        const requestItems: RebalanceRequestItem[] = items.map((item) => ({
+          name: item.name,
+          assetType: item.assetType,
+          referenceType: item.referenceType,
+          targetPercentage: item.targetPercentage,
         }));
 
-        setItems(loadedItems);
+        const response = await fetch(`${API_BASE_URL}/api/rebalance/save`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            key,
+            name,
+            account,
+            items: requestItems,
+            totalPercentage: validation.totalPercentage,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Save failed');
+        }
+
+        return true;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+        setError(errorMessage);
+        console.error('Save error:', err);
+        return false;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [account, items, validation.totalPercentage]
+  );
+
+  // Load configuration
+  const load = useCallback(
+    async (key: string): Promise<boolean> => {
+      if (!account) {
+        setError('Account is required for loading');
+        return false;
       }
 
-      return true;
+      setIsLoading(true);
+      setError(null);
 
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(errorMessage);
-      console.error('Load error:', err);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [account]);
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/rebalance/load/${key}?account=${encodeURIComponent(account)}`
+        );
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Load failed');
+        }
+
+        if (result.data?.items) {
+          const loadedItems: RebalanceItem[] = result.data.items.map(
+            (requestItem: RebalanceRequestItem, index: number) => ({
+              id: `loaded-${Date.now()}-${index}`,
+              name: requestItem.name,
+              assetType: requestItem.assetType,
+              referenceType: requestItem.referenceType,
+              targetPercentage: requestItem.targetPercentage,
+              currentPercentage: 0,
+              currentValue: 0,
+              targetValue: 0,
+              difference: 0,
+              differencePercentage: 0,
+              tokens: [],
+            })
+          );
+
+          setItems(loadedItems);
+        }
+
+        return true;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+        setError(errorMessage);
+        console.error('Load error:', err);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [account]
+  );
 
   return {
     items,
@@ -411,7 +431,7 @@ export const useRebalancing = (
     isCalculating,
     isSaving,
     isLoading,
-    error
+    error,
   };
 };
 

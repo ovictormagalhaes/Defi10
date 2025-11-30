@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
-using MyWebWallet.API.Messaging.Contracts;
+using MyWebWallet.API.Messaging.Contracts.Enums;
+using MyWebWallet.API.Messaging.Contracts.Requests;
+using MyWebWallet.API.Messaging.Contracts.Results;
+using MyWebWallet.API.Messaging.Contracts.Progress;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MyWebWallet.API.Services.Interfaces;
@@ -16,7 +19,7 @@ namespace MyWebWallet.API.Controllers;
 public class AggregationController : ControllerBase
 {
     private readonly IConnectionMultiplexer _redis;
-    private readonly IBlockchainService _blockchainService;
+    private readonly IWalletAggregationService _blockchainService;
     private readonly IChainConfigurationService _chainConfig;
     private readonly ILogger<AggregationController> _logger;
     
@@ -33,7 +36,7 @@ public class AggregationController : ControllerBase
     private static readonly ChainEnum[] DefaultSolChains = new[] { ChainEnum.Solana };
     private const string MetaPattern = "wallet:agg:*:meta"; // used only where index not yet implemented
 
-    public AggregationController(IConnectionMultiplexer redis, IBlockchainService blockchainService, IChainConfigurationService chainConfigurationService, ILogger<AggregationController> logger)
+    public AggregationController(IConnectionMultiplexer redis, IWalletAggregationService blockchainService, IChainConfigurationService chainConfigurationService, ILogger<AggregationController> logger)
     {
         _redis = redis;
         _blockchainService = blockchainService;
@@ -127,7 +130,7 @@ public class AggregationController : ControllerBase
         _logger.LogInformation("Detected wallet types: {Types} for {Count} address(es)", 
             string.Join(", ", walletTypes), accounts.Count);
 
-        if (_blockchainService is not EthereumService eth)
+        if (_blockchainService is not WalletAggregationService eth)
             return BadRequest(new { error = "Unsupported blockchain service for aggregation start" });
 
         try

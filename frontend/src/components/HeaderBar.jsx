@@ -171,50 +171,17 @@ export default function HeaderBar({
         </div>
       )}
 
-  {/* Right Icons / Account (Area 3) */}
-  <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifySelf: isVeryNarrow ? 'end' : 'stretch', justifyContent: isVeryNarrow ? 'flex-end' : 'flex-end', minWidth: 0 }}>
-        {/* Wallet Group Chip */}
-        {selectedGroup && !isVeryNarrow && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: theme.bgPanel,
-              border: `1px solid ${theme.border}`,
-              padding: '4px 10px',
-              borderRadius: 12,
-              fontSize: 12,
-              color: theme.textSecondary,
-              cursor: 'pointer',
-            }}
-            onClick={() => onManageGroups?.()}
-            title={`Wallet Group: ${selectedGroup.displayName || 'Unnamed'}\n${selectedGroup.wallets.length} wallet(s)\nClick to manage`}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={theme.accent || theme.primary}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-            <span style={{ fontWeight: 500, color: theme.textPrimary }}>
-              {selectedGroup.displayName || 'Group'}
-            </span>
-            <span style={{ fontSize: 10, opacity: 0.7 }}>
-              ({selectedGroup.wallets.length})
-            </span>
-          </div>
-        )}
-
+      {/* Right Icons / Account (Area 3) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          justifySelf: isVeryNarrow ? 'end' : 'stretch',
+          justifyContent: isVeryNarrow ? 'flex-end' : 'flex-end',
+          minWidth: 0,
+        }}
+      >
         {/* Mobile hamburger (shows search overlay) */}
         {isVeryNarrow && (
           <IconButton
@@ -352,7 +319,10 @@ export default function HeaderBar({
                 width: 10,
                 height: 10,
                 borderRadius: '50%',
-                background: account ? theme.success || '#16a34a' : theme.danger || '#dc2626',
+                background:
+                  account || selectedWalletGroupId
+                    ? theme.success || '#16a34a'
+                    : theme.danger || '#dc2626',
                 flexShrink: 0,
               }}
             />
@@ -365,7 +335,11 @@ export default function HeaderBar({
                 flex: 1,
               }}
             >
-              {account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connect'}
+              {selectedWalletGroupId
+                ? selectedGroup?.displayName || 'Wallet Group'
+                : account
+                  ? `${account.slice(0, 6)}...${account.slice(-4)}`
+                  : 'Connect'}
             </span>
             <svg
               width="14"
@@ -480,10 +454,18 @@ export default function HeaderBar({
                   {/* List available groups for quick selection */}
                   {groups.length > 0 && (
                     <>
-                      <div style={{ fontSize: 10, color: theme.textSecondary, padding: '6px 12px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: theme.textSecondary,
+                          padding: '6px 12px',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                        }}
+                      >
                         Quick Select
                       </div>
-                      {groups.slice(0, 3).map(group => (
+                      {groups.slice(0, 3).map((group) => (
                         <DropdownItem
                           key={group.id}
                           onClick={() => {
@@ -503,16 +485,22 @@ export default function HeaderBar({
                               width="16"
                               height="16"
                               viewBox="0 0 24 24"
-                              fill={selectedWalletGroupId === group.id ? theme.accent || theme.primary : 'none'}
-                              stroke={selectedWalletGroupId === group.id ? theme.accent || theme.primary : theme.textSecondary}
+                              fill={
+                                selectedWalletGroupId === group.id
+                                  ? theme.accent || theme.primary
+                                  : 'none'
+                              }
+                              stroke={
+                                selectedWalletGroupId === group.id
+                                  ? theme.accent || theme.primary
+                                  : theme.textSecondary
+                              }
                               strokeWidth="2"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             >
                               <circle cx="12" cy="12" r="10" />
-                              {selectedWalletGroupId === group.id && (
-                                <path d="m9 12 2 2 4-4" />
-                              )}
+                              {selectedWalletGroupId === group.id && <path d="m9 12 2 2 4-4" />}
                             </svg>
                           }
                         />
@@ -527,6 +515,142 @@ export default function HeaderBar({
                       setWalletOpen(false);
                     }}
                     label="Disconnect"
+                    danger
+                    icon={
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={theme.danger || '#dc2626'}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 12h11" />
+                        <path d="M17 8l4 4-4 4" />
+                        <path d="M10 3H7a4 4 0 0 0-4 4v10a4 4 0 0 0 4 4h3" />
+                      </svg>
+                    }
+                  />
+                </>
+              ) : selectedWalletGroupId ? (
+                <>
+                  {/* When wallet group is selected but no direct wallet connection */}
+                  <DropdownItem
+                    onClick={() => {
+                      onConnect?.();
+                      setWalletOpen(false);
+                    }}
+                    label="Connect Wallet"
+                    icon={
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={theme.textPrimary}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 7v10a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4V7" />
+                        <path d="M3 7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4" />
+                        <path d="M7 7h10" />
+                      </svg>
+                    }
+                  />
+                  {/* Divider */}
+                  <div style={{ height: 1, background: theme.border, margin: '4px 0' }} />
+                  {/* Wallet Groups Management */}
+                  <DropdownItem
+                    onClick={() => {
+                      onManageGroups?.();
+                      setWalletOpen(false);
+                    }}
+                    label="Manage Groups"
+                    icon={
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={theme.textPrimary}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                    }
+                  />
+                  {/* List available groups for quick selection */}
+                  {groups.length > 0 && (
+                    <>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: theme.textSecondary,
+                          padding: '6px 12px',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                        }}
+                      >
+                        Switch Group
+                      </div>
+                      {groups.slice(0, 3).map((group) => (
+                        <DropdownItem
+                          key={group.id}
+                          onClick={() => {
+                            onSelectWalletGroup?.(group.id);
+                            setWalletOpen(false);
+                          }}
+                          label={
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span>{group.displayName || 'Unnamed Group'}</span>
+                              <span style={{ fontSize: 10, opacity: 0.6 }}>
+                                {group.wallets.length} wallet(s)
+                              </span>
+                            </span>
+                          }
+                          icon={
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill={
+                                selectedWalletGroupId === group.id
+                                  ? theme.accent || theme.primary
+                                  : 'none'
+                              }
+                              stroke={
+                                selectedWalletGroupId === group.id
+                                  ? theme.accent || theme.primary
+                                  : theme.textSecondary
+                              }
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              {selectedWalletGroupId === group.id && <path d="m9 12 2 2 4-4" />}
+                            </svg>
+                          }
+                        />
+                      ))}
+                    </>
+                  )}
+                  {/* Divider */}
+                  <div style={{ height: 1, background: theme.border, margin: '4px 0' }} />
+                  <DropdownItem
+                    onClick={() => {
+                      onDisconnect?.();
+                      setWalletOpen(false);
+                    }}
+                    label="Disconnect Group"
                     danger
                     icon={
                       <svg
@@ -601,10 +725,18 @@ export default function HeaderBar({
                   {/* List available groups for quick selection */}
                   {groups.length > 0 && (
                     <>
-                      <div style={{ fontSize: 10, color: theme.textSecondary, padding: '6px 12px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: theme.textSecondary,
+                          padding: '6px 12px',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                        }}
+                      >
                         Select Group
                       </div>
-                      {groups.slice(0, 3).map(group => (
+                      {groups.slice(0, 3).map((group) => (
                         <DropdownItem
                           key={group.id}
                           onClick={() => {
@@ -624,16 +756,22 @@ export default function HeaderBar({
                               width="16"
                               height="16"
                               viewBox="0 0 24 24"
-                              fill={selectedWalletGroupId === group.id ? theme.accent || theme.primary : 'none'}
-                              stroke={selectedWalletGroupId === group.id ? theme.accent || theme.primary : theme.textSecondary}
+                              fill={
+                                selectedWalletGroupId === group.id
+                                  ? theme.accent || theme.primary
+                                  : 'none'
+                              }
+                              stroke={
+                                selectedWalletGroupId === group.id
+                                  ? theme.accent || theme.primary
+                                  : theme.textSecondary
+                              }
                               strokeWidth="2"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             >
                               <circle cx="12" cy="12" r="10" />
-                              {selectedWalletGroupId === group.id && (
-                                <path d="m9 12 2 2 4-4" />
-                              )}
+                              {selectedWalletGroupId === group.id && <path d="m9 12 2 2 4-4" />}
                             </svg>
                           }
                         />

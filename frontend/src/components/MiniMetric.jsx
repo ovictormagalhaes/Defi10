@@ -1,4 +1,5 @@
 import React from 'react';
+
 import InfoIconWithTooltip from './InfoIconWithTooltip';
 
 /**
@@ -63,22 +64,24 @@ export default function MiniMetric({
   return (
     <div className={baseCls} style={style}>
       {label && <span className="mini-metric-label">{label}</span>}
-      <div className="mini-metric-row" style={{ justifyContent: align === 'left' ? 'flex-start' : align === 'center' ? 'center' : 'flex-end' }}>
+      <div
+        className="mini-metric-row"
+        style={{
+          justifyContent:
+            align === 'left' ? 'flex-start' : align === 'center' ? 'center' : 'flex-end',
+        }}
+      >
         {icon && <span className="mini-metric-icon">{icon}</span>}
         {custom ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'inherit' }}>
             {custom}
           </div>
         ) : (
-          <span className={valueCls} style={{ fontSize }}>{value}</span>
+          <span className={valueCls} style={{ fontSize }}>
+            {value}
+          </span>
         )}
-        {tooltip && (
-          <InfoIconWithTooltip
-            content={tooltip}
-            align="center"
-            maxWidth={240}
-          />
-        )}
+        {tooltip && <InfoIconWithTooltip content={tooltip} align="center" maxWidth={240} />}
       </div>
     </div>
   );

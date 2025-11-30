@@ -1,6 +1,9 @@
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Models.Solana.Kamino;
+using MyWebWallet.API.Services.Models.Solana.Common;
+using MyWebWallet.API.Services.Models.Solana.Raydium;
 using System.Text.Json.Serialization;
 using Chain = MyWebWallet.API.Models.Chain;
 

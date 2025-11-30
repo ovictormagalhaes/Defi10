@@ -160,7 +160,8 @@ export default function TokenDisplay({
                   width: '100%',
                   height: '100%',
                   borderRadius: '50%',
-                  background: theme.tableBg || theme.bgPanel || 'var(--mw-surface-1, var(--app-bg-panel))',
+                  background:
+                    theme.tableBg || theme.bgPanel || 'var(--mw-surface-1, var(--app-bg-panel))',
                   border: 'none',
                   boxSizing: 'border-box',
                   overflow: 'hidden',
@@ -218,29 +219,32 @@ export default function TokenDisplay({
               }}
             />
           </div>
-        ) : showChain && chainKey && (
-          <div
-            style={{
-              position: 'absolute',
-              top: -4,
-              right: -4,
-              width: Math.round(size * 0.45),
-              height: Math.round(size * 0.45),
-              borderRadius: '50%',
-              background: theme.bgPanel,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: Math.round(size * 0.22),
-              fontWeight: 600,
-              color: theme.textSecondary,
-              letterSpacing: '.5px',
-              boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06), 0 0 0 1px rgba(0,0,0,0.35)'
-            }}
-            title={chainKey}
-          >
-            {chainKey.slice(0,2).toUpperCase()}
-          </div>
+        ) : (
+          showChain &&
+          chainKey && (
+            <div
+              style={{
+                position: 'absolute',
+                top: -4,
+                right: -4,
+                width: Math.round(size * 0.45),
+                height: Math.round(size * 0.45),
+                borderRadius: '50%',
+                background: theme.bgPanel,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: Math.round(size * 0.22),
+                fontWeight: 600,
+                color: theme.textSecondary,
+                letterSpacing: '.5px',
+                boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06), 0 0 0 1px rgba(0,0,0,0.35)',
+              }}
+              title={chainKey}
+            >
+              {chainKey.slice(0, 2).toUpperCase()}
+            </div>
+          )
         )}
       </div>
       {/* Text */}

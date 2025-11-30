@@ -28,10 +28,9 @@ export interface WalletGroupResponse {
 }
 
 // Validation helpers
-export const isEVMAddress = (addr: string): boolean => 
-  /^0x[a-fA-F0-9]{40}$/.test(addr);
+export const isEVMAddress = (addr: string): boolean => /^0x[a-fA-F0-9]{40}$/.test(addr);
 
-export const isSolanaAddress = (addr: string): boolean => 
+export const isSolanaAddress = (addr: string): boolean =>
   /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr);
 
 export const getAddressType = (addr: string): 'EVM' | 'Solana' | 'Unknown' => {
@@ -49,28 +48,26 @@ export const validateWalletGroup = (wallets: string[]): ValidationResult => {
   if (wallets.length === 0) {
     return { valid: false, error: 'At least 1 wallet required' };
   }
-  
+
   if (wallets.length > 3) {
     return { valid: false, error: 'Maximum 3 wallets allowed' };
   }
-  
+
   const types = wallets.map(getAddressType);
-  
+
   // Check for invalid addresses
   if (types.includes('Unknown')) {
     return { valid: false, error: 'Invalid wallet address format' };
   }
-  
+
   // Check for duplicates (case-insensitive for EVM, case-sensitive for Solana)
-  const normalized = wallets.map(w => 
-    isEVMAddress(w) ? w.toLowerCase() : w
-  );
+  const normalized = wallets.map((w) => (isEVMAddress(w) ? w.toLowerCase() : w));
   const uniqueSet = new Set(normalized);
-  
+
   if (uniqueSet.size !== wallets.length) {
     return { valid: false, error: 'Duplicate wallet addresses detected' };
   }
-  
+
   return { valid: true };
 };
 
@@ -78,13 +75,13 @@ export const validateSingleAddress = (addr: string): ValidationResult => {
   if (!addr || addr.trim().length === 0) {
     return { valid: false, error: 'Address is required' };
   }
-  
+
   const type = getAddressType(addr.trim());
-  
+
   if (type === 'Unknown') {
     return { valid: false, error: 'Invalid address format (expected EVM 0x... or Solana Base58)' };
   }
-  
+
   return { valid: true };
 };
 

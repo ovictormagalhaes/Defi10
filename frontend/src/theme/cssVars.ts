@@ -18,7 +18,7 @@ export function applyThemeCssVars(
     if (typeof v === 'string') {
       const appVarName = tokenKeyToVarName(k);
       const mwVarName = appVarName.replace('--app-', '--mw-');
-      
+
       // Define both --app-* and --mw-* variables for compatibility
       target.style.setProperty(appVarName, v);
       target.style.setProperty(mwVarName, v);

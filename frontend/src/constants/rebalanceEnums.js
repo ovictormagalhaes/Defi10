@@ -1,5 +1,5 @@
 // Frontend mirror of backend RebalanceAssetType and RebalanceReferenceType numeric values
-// Backend: Unknown=0, Wallet=1, LiquidityPool=2, LendingAndBorrowing=3, Staking=4, Token=5, Group=6, Protocol=7, Other=50
+// Backend: Unknown=0, Wallet=1, LiquidityPool=2, LendingAndBorrowing=3, Staking=4, Token=5, Group=6, Protocol=7, Depositing=8, Locking=9, Other=50
 // NOTE: Previously frontend used ITEM_TYPES.GROUP = 98 (virtual). We'll migrate to backend-aligned numeric enums.
 
 export const RebalanceAssetType = Object.freeze({
@@ -11,6 +11,8 @@ export const RebalanceAssetType = Object.freeze({
   Token: 5,
   Group: 6,
   Protocol: 7,
+  Depositing: 8,
+  Locking: 9,
   Other: 50,
 });
 
@@ -27,12 +29,14 @@ export const RebalanceAssetTypeLabel = {
   [RebalanceAssetType.LiquidityPool]: 'Liquidity Pools',
   [RebalanceAssetType.LendingAndBorrowing]: 'Lending Position', // singular naming safe now
   [RebalanceAssetType.Staking]: 'Staking Position',
+  [RebalanceAssetType.Depositing]: 'Depositing Position',
+  [RebalanceAssetType.Locking]: 'Locking Position',
   [RebalanceAssetType.Group]: 'Group',
   [RebalanceAssetType.Protocol]: 'Protocol',
   [RebalanceAssetType.Token]: 'Token',
   [RebalanceAssetType.Other]: 'Other',
 };
 
-export function getAssetTypeLabel(t){
+export function getAssetTypeLabel(t) {
   return RebalanceAssetTypeLabel[t] || 'Unknown';
 }

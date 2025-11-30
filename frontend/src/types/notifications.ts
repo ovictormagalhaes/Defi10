@@ -8,7 +8,7 @@ export enum NotificationType {
   ERROR = 'error',
   WARNING = 'warning',
   INFO = 'info',
-  LOADING = 'loading'
+  LOADING = 'loading',
 }
 
 export enum NotificationPosition {
@@ -17,7 +17,7 @@ export enum NotificationPosition {
   TOP_CENTER = 'top-center',
   BOTTOM_RIGHT = 'bottom-right',
   BOTTOM_LEFT = 'bottom-left',
-  BOTTOM_CENTER = 'bottom-center'
+  BOTTOM_CENTER = 'bottom-center',
 }
 
 export enum NotificationAction {
@@ -26,7 +26,7 @@ export enum NotificationAction {
   CONFIRM = 'confirm',
   CANCEL = 'cancel',
   VIEW_DETAILS = 'view_details',
-  UNDO = 'undo'
+  UNDO = 'undo',
 }
 
 export interface NotificationButton {
@@ -83,7 +83,11 @@ export interface NotificationContextValue {
 
 // Specialized notification types for common use cases
 export interface ToastConfig extends Omit<NotificationConfig, 'type'> {
-  type?: NotificationType.SUCCESS | NotificationType.ERROR | NotificationType.WARNING | NotificationType.INFO;
+  type?:
+    | NotificationType.SUCCESS
+    | NotificationType.ERROR
+    | NotificationType.WARNING
+    | NotificationType.INFO;
 }
 
 export interface AlertConfig extends Omit<NotificationConfig, 'type' | 'duration'> {
@@ -118,7 +122,7 @@ export enum TransactionStatus {
   PENDING = 'pending',
   CONFIRMED = 'confirmed',
   FAILED = 'failed',
-  REJECTED = 'rejected'
+  REJECTED = 'rejected',
 }
 
 export interface TransactionNotification extends TransactionNotificationConfig {
@@ -169,56 +173,66 @@ export const NOTIFICATION_TEMPLATES = {
       title: 'Transaction Confirmed',
       message: `Successfully sent ${amount} ${token}`,
       duration: 5000,
-      buttons: [{
-        label: 'View on Explorer',
-        action: NotificationAction.VIEW_DETAILS,
-        handler: () => { window.open(`https://etherscan.io/tx/${hash}`, '_blank'); }
-      }]
+      buttons: [
+        {
+          label: 'View on Explorer',
+          action: NotificationAction.VIEW_DETAILS,
+          handler: () => {
+            window.open(`https://etherscan.io/tx/${hash}`, '_blank');
+          },
+        },
+      ],
     }),
-    
+
     WALLET_CONNECTED: (walletType: string): NotificationConfig => ({
       type: NotificationType.SUCCESS,
       title: 'Wallet Connected',
       message: `Successfully connected to ${walletType}`,
-      duration: 3000
+      duration: 3000,
     }),
-    
+
     REBALANCE_COMPLETED: (portfolioValue: string): NotificationConfig => ({
       type: NotificationType.SUCCESS,
       title: 'Portfolio Rebalanced',
       message: `Successfully rebalanced portfolio worth $${portfolioValue}`,
-      duration: 5000
-    })
+      duration: 5000,
+    }),
   },
-  
+
   ERROR: {
     TRANSACTION_FAILED: (reason?: string): NotificationConfig => ({
       type: NotificationType.ERROR,
       title: 'Transaction Failed',
       message: reason || 'Transaction was rejected or failed to execute',
       duration: 0,
-      buttons: [{
-        label: 'Retry',
-        action: NotificationAction.RETRY,
-        handler: () => {} // To be implemented by caller
-      }]
+      buttons: [
+        {
+          label: 'Retry',
+          action: NotificationAction.RETRY,
+          handler: () => {}, // To be implemented by caller
+        },
+      ],
     }),
-    
+
     WALLET_CONNECTION_FAILED: (error: string): NotificationConfig => ({
       type: NotificationType.ERROR,
       title: 'Connection Failed',
       message: `Could not connect to wallet: ${error}`,
-      duration: 0
+      duration: 0,
     }),
-    
-    INSUFFICIENT_BALANCE: (token: string, required: string, available: string): NotificationConfig => ({
+
+    INSUFFICIENT_BALANCE: (
+      token: string,
+      required: string,
+      available: string
+    ): NotificationConfig => ({
       type: NotificationType.ERROR,
       title: 'Insufficient Balance',
       message: `Need ${required} ${token}, but only ${available} available`,
-      duration: 0
-    })
+      duration: 0,
+    }),
   },
-  
+
   WARNING: {
     HIGH_GAS_FEE: (gasPrice: string): NotificationConfig => ({
       type: NotificationType.WARNING,
@@ -230,45 +244,51 @@ export const NOTIFICATION_TEMPLATES = {
           label: 'Proceed Anyway',
           action: NotificationAction.CONFIRM,
           handler: () => {},
-          variant: 'danger'
+          variant: 'danger',
         },
         {
           label: 'Wait',
           action: NotificationAction.CANCEL,
-          handler: () => {}
-        }
-      ]
+          handler: () => {},
+        },
+      ],
     }),
-    
+
     SLIPPAGE_HIGH: (slippage: number): NotificationConfig => ({
       type: NotificationType.WARNING,
       title: 'High Slippage Warning',
       message: `Slippage tolerance is set to ${slippage}%. You may receive fewer tokens than expected.`,
-      duration: 0
-    })
+      duration: 0,
+    }),
   },
-  
+
   INFO: {
-    PRICE_ALERT: (token: string, price: string, direction: 'above' | 'below'): NotificationConfig => ({
+    PRICE_ALERT: (
+      token: string,
+      price: string,
+      direction: 'above' | 'below'
+    ): NotificationConfig => ({
       type: NotificationType.INFO,
       title: 'Price Alert',
       message: `${token} is now ${direction} $${price}`,
       duration: 0,
-      buttons: [{
-        label: 'View Chart',
-        action: NotificationAction.VIEW_DETAILS,
-        handler: () => {}
-      }]
+      buttons: [
+        {
+          label: 'View Chart',
+          action: NotificationAction.VIEW_DETAILS,
+          handler: () => {},
+        },
+      ],
     }),
-    
+
     PORTFOLIO_UPDATE: (change: string, period: string): NotificationConfig => ({
       type: NotificationType.INFO,
       title: 'Portfolio Update',
       message: `Your portfolio ${change > '0' ? 'gained' : 'lost'} ${Math.abs(parseFloat(change))}% in the last ${period}`,
-      duration: 8000
-    })
+      duration: 8000,
+    }),
   },
-  
+
   LOADING: {
     TRANSACTION_PENDING: (hash: string): LoadingConfig => ({
       type: NotificationType.LOADING,
@@ -276,20 +296,24 @@ export const NOTIFICATION_TEMPLATES = {
       message: 'Waiting for blockchain confirmation...',
       dismissible: false,
       progress: true,
-      buttons: [{
-        label: 'View on Explorer',
-        action: NotificationAction.VIEW_DETAILS,
-        handler: () => { window.open(`https://etherscan.io/tx/${hash}`, '_blank'); }
-      }]
+      buttons: [
+        {
+          label: 'View on Explorer',
+          action: NotificationAction.VIEW_DETAILS,
+          handler: () => {
+            window.open(`https://etherscan.io/tx/${hash}`, '_blank');
+          },
+        },
+      ],
     }),
-    
+
     WALLET_CONNECTING: (walletType: string): LoadingConfig => ({
       type: NotificationType.LOADING,
       title: 'Connecting Wallet',
       message: `Connecting to ${walletType}...`,
-      dismissible: false
+      dismissible: false,
     }),
-    
+
     REBALANCE_CALCULATING: (): ProgressConfig => ({
       type: NotificationType.LOADING,
       title: 'Calculating Rebalance',
@@ -298,9 +322,9 @@ export const NOTIFICATION_TEMPLATES = {
       progress: true,
       currentStep: 1,
       totalSteps: 3,
-      stepLabel: 'Fetching current prices'
-    })
-  }
+      stepLabel: 'Fetching current prices',
+    }),
+  },
 } as const;
 
 // Notification queue management

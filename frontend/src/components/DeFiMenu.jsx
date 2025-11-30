@@ -542,9 +542,7 @@ const LiquidityPositions = ({ protocolGroup }) => {
 
           return (
             <div key={poolKey} className="defi-pool-wrapper">
-              <div className="defi-pool-title">
-                {poolTitle}
-              </div>
+              <div className="defi-pool-title">{poolTitle}</div>
               <div className="defi-pool-tokens">
                 {poolData.tokens.map((token, tokenIndex) => {
                   const correspondingReward = poolData.rewards?.find(
@@ -618,9 +616,7 @@ const TokenRow = ({ token, tokenReward, isLast, showType }) => {
             onError={(e) => (e.target.style.display = 'none')}
           />
         )}
-        <span className="token-symbol">
-          {token.symbol}
-        </span>
+        <span className="token-symbol">{token.symbol}</span>
         {showType && token.type && (
           <span className="ml-8">
             <Chip variant={token.type === 'supplied' ? 'success' : 'danger'} minimal size="xs">
@@ -638,7 +634,9 @@ const TokenRow = ({ token, tokenReward, isLast, showType }) => {
         )}
         <div className="defi-value-block">
           <div className="defi-value-label">Balance</div>
-          <span className="defi-value-mono-strong">{maskValue(formatPrice(token.totalPrice || 0))}</span>
+          <span className="defi-value-mono-strong">
+            {maskValue(formatPrice(token.totalPrice || 0))}
+          </span>
         </div>
       </div>
     </div>

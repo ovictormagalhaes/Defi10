@@ -35,7 +35,7 @@ export default function StandardHeader({
     advanced = columnDefs.map((d) => {
       // Preserve intentionally empty string labels (e.g., blank placeholder column header)
       const provided = Object.prototype.hasOwnProperty.call(d, 'label');
-      const finalLabel = provided ? d.label : (merged[d.key] || d.key);
+      const finalLabel = provided ? d.label : merged[d.key] || d.key;
       return {
         key: d.key,
         label: finalLabel,

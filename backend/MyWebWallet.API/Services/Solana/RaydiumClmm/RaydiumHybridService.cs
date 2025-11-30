@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MyWebWallet.API.Services.Solana.DTO;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Models.Solana.Raydium;
 
 namespace MyWebWallet.API.Services.Solana.RaydiumClmm
 {

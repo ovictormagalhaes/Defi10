@@ -157,9 +157,9 @@ namespace MyWebWallet.API.Services;
 
         try
         {
-            var hydrationHelper = new TokenHydrationHelper(_tokenLogoService);
+            var hydrationHelper = new TokenHydrationHelper(_tokenLogoService, _logger);
             var tokenLogos = await hydrationHelper.HydrateTokenLogosAsync(items, chain);
-            hydrationHelper.ApplyTokenLogosToWalletItems(items, tokenLogos);
+            await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(items, tokenLogos);
             
             Console.WriteLine($"SUCCESS: WalletService: Batch hydrated tokens for chain {chain}");
         }

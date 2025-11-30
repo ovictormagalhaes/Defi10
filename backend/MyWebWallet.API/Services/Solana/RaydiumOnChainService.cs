@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Models.Solana.Raydium;
+using MyWebWallet.API.Services.Models.Solana.Common;
 using MyWebWallet.API.Services.Solana.DTO;
 using MyWebWallet.API.Services.Solana.RaydiumClmm;
 using Solnet.Programs;

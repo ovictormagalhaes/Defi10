@@ -27,7 +27,9 @@ export default function ProtocolTables({ icon = null, title, rightValue = null, 
             {icon}
             <span className="protocol-header-title text-primary">{title}</span>
           </div>
-          {rightValue !== null && <div className="protocol-header-value text-primary">{rightValue}</div>}
+          {rightValue !== null && (
+            <div className="protocol-header-value text-primary">{rightValue}</div>
+          )}
         </div>
       )}
       {tables.map((t, idx) => (
@@ -39,7 +41,8 @@ export default function ProtocolTables({ icon = null, title, rightValue = null, 
                 <tr className="thead-row">
                   {t.columns.map((col) => {
                     const align = col.align || 'left';
-                    const alignClass = align === 'right' ? 'th-right' : align === 'center' ? 'th-center' : 'th-left';
+                    const alignClass =
+                      align === 'right' ? 'th-right' : align === 'center' ? 'th-center' : 'th-left';
                     return (
                       <th
                         key={col.key}
@@ -66,7 +69,11 @@ export default function ProtocolTables({ icon = null, title, rightValue = null, 
                       className={`table-row table-row-hover ${rIdx === t.rows.length - 1 ? '' : 'tbody-divider'}`}
                     >
                       {t.columns.map((col) => (
-                        <td key={col.key} className="td text-primary" style={{ textAlign: col.align || 'left' }}>
+                        <td
+                          key={col.key}
+                          className="td text-primary"
+                          style={{ textAlign: col.align || 'left' }}
+                        >
                           {row[col.key]}
                         </td>
                       ))}

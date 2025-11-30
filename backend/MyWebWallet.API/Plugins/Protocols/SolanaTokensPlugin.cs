@@ -1,5 +1,6 @@
 using MyWebWallet.API.Messaging;
-using MyWebWallet.API.Messaging.Contracts;
+using MyWebWallet.API.Messaging.Contracts.Enums;
+using MyWebWallet.API.Messaging.Contracts.Results;
 using MyWebWallet.API.Messaging.Rabbit;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Models;

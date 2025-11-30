@@ -4,7 +4,8 @@ using MyWebWallet.API.Services.Mappers;
 using System.Text.RegularExpressions;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 using MyWebWallet.API.Messaging.Rabbit;
-using MyWebWallet.API.Messaging.Contracts;
+using MyWebWallet.API.Messaging.Contracts.Enums;
+using MyWebWallet.API.Messaging.Contracts.Requests;
 using StackExchange.Redis;
 using Microsoft.Extensions.Logging;
 using MyWebWallet.API.Configuration;
@@ -14,43 +15,38 @@ using MyWebWallet.API.Aggregation; // use centralized RedisKeys
 
 namespace MyWebWallet.API.Services;
 
-public class EthereumService : IBlockchainService
+/// <summary>
+/// Multi-chain wallet aggregation orchestration service.
+/// Handles async aggregation jobs for EVM chains (Base, Arbitrum, Ethereum, BNB, Polygon) and Solana.
+/// </summary>
+public class WalletAggregationService : IWalletAggregationService
 {
     private readonly TimeSpan _aggregationTtl;
-    private readonly IMoralisService _moralisService; // MoralisEVMService for EVM chains
-    private readonly IAaveeService _aaveeService;
-    private readonly IUniswapV3OnChainService _uniswapV3OnChainService;
     private readonly IWalletItemMapperFactory _mapperFactory;
     private readonly IMessagePublisher _publisher;
     private readonly IConnectionMultiplexer _redis;
-    private readonly ILogger<EthereumService> _logger;
+    private readonly ILogger<WalletAggregationService> _logger;
     private readonly ISystemClock _clock;
     private readonly IConfiguration _configuration;
 
     private readonly string _instanceId = Guid.NewGuid().ToString("N");
     private const ChainEnum DEFAULT_CHAIN = ChainEnum.Base;
-    public string NetworkName => "Ethereum";
+    public string NetworkName => "Multi-Chain";
 
     private static readonly Regex EthAddressRegex = new("^0x[a-fA-F0-9]{40}$", RegexOptions.Compiled);
     // Solana base58 address (rough validation: 32-44 chars, Base58 alphabet without 0 O I l)
     private static readonly Regex SolAddressRegex = new("^[1-9A-HJ-NP-Za-km-z]{32,44}$", RegexOptions.Compiled);
 
-    public EthereumService(
+    public WalletAggregationService(
         IMoralisService moralisService, // Injected as MoralisEVMService
         IConfiguration configuration,
-        IAaveeService aaveeService,
-        IUniswapV3Service _unusedLegacy,
-        IUniswapV3OnChainService uniswapV3OnChainService,
         IWalletItemMapperFactory mapperFactory,
         IMessagePublisher publisher,
         IConnectionMultiplexer redis,
         IOptions<AggregationOptions> aggOptions,
-        ILogger<EthereumService> logger,
+        ILogger<WalletAggregationService> logger,
         ISystemClock clock)
     {
-        _moralisService = moralisService;
-        _aaveeService = aaveeService;
-        _uniswapV3OnChainService = uniswapV3OnChainService;
         _mapperFactory = mapperFactory;
         _publisher = publisher;
         _redis = redis;
@@ -59,7 +55,7 @@ public class EthereumService : IBlockchainService
         _configuration = configuration;
         var ttlSeconds = Math.Clamp(aggOptions.Value.JobTtlSeconds, 30, 1800);
         _aggregationTtl = TimeSpan.FromSeconds(ttlSeconds);
-        _logger.LogInformation("EthereumService instance created id={Id} ttl={Ttl}s", _instanceId, ttlSeconds);
+        _logger.LogInformation("WalletAggregationService instance created id={Id} ttl={Ttl}s", _instanceId, ttlSeconds);
     }
 
     public bool IsValidAddress(string account) => EthAddressRegex.IsMatch(account);
@@ -168,6 +164,29 @@ public class EthereumService : IBlockchainService
         if (accountsList.Count == 0) throw new ArgumentException("No accounts provided");
         if (chainsList.Count == 0) throw new ArgumentException("No chains provided");
         
+        // Check cache if walletGroupId is provided
+        var db = _redis.GetDatabase();
+        if (walletGroupId.HasValue)
+        {
+            var activeGroupKey = RedisKeys.ActiveWalletGroup(walletGroupId.Value, chainsList);
+            var existing = await db.StringGetAsync(activeGroupKey);
+            
+            if (existing.HasValue && Guid.TryParse(existing.ToString(), out var existingJobId))
+            {
+                var metaKeyCheck = RedisKeys.Meta(existingJobId);
+                if (await db.KeyExistsAsync(metaKeyCheck))
+                {
+                    _logger.LogInformation(
+                        "Aggregation reuse multi-wallet group={GroupId} job={Job} chains={Chains}",
+                        walletGroupId.Value,
+                        existingJobId,
+                        string.Join(',', chainsList)
+                    );
+                    return existingJobId;
+                }
+            }
+        }
+        
         // CRITICAL FIX: Validate each address only for its compatible chains
         // Do NOT require all addresses to be valid for all chains (allows EVM + Solana mixing)
         foreach (var account in accountsList)
@@ -194,7 +213,6 @@ public class EthereumService : IBlockchainService
         
         foreach (var c in chainsList) ValidateChainSupport(c);
         
-        var db = _redis.GetDatabase();
         var jobId = Guid.NewGuid();
         
         // Build all (wallet, chain, provider) combinations
@@ -249,7 +267,7 @@ public class EthereumService : IBlockchainService
         }
         
         _logger.LogInformation(
-            "Multi-wallet aggregation: {Wallets} wallets × {Chains} chains = {Total} requests (mixed wallet types allowed)",
+            "Multi-wallet aggregation: {Wallets} wallets ï¿½ {Chains} chains = {Total} requests (mixed wallet types allowed)",
             accountsList.Count,
             chainsList.Count,
             combos.Count
@@ -257,6 +275,13 @@ public class EthereumService : IBlockchainService
         
         // Initialize meta with walletGroupId support
         await InitializeAggregationMetaMultiWalletAsync(jobId, accountsList, combos, chainsList, walletGroupId);
+        
+        // Cache the active job if walletGroupId is provided
+        if (walletGroupId.HasValue)
+        {
+            var activeGroupKey = RedisKeys.ActiveWalletGroup(walletGroupId.Value, chainsList);
+            await db.StringSetAsync(activeGroupKey, jobId.ToString(), _aggregationTtl);
+        }
         
         // Publish all requests
         var now = _clock.UtcNow;

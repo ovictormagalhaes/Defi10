@@ -4,7 +4,10 @@ using MyWebWallet.API.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using MyWebWallet.API.Aggregation;
-using MyWebWallet.API.Messaging.Contracts;
+using MyWebWallet.API.Messaging.Contracts.Enums;
+using MyWebWallet.API.Messaging.Contracts.Requests;
+using MyWebWallet.API.Messaging.Contracts.Results;
+using MyWebWallet.API.Messaging.Contracts.Progress;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Aggregation;

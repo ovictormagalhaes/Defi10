@@ -147,7 +147,7 @@ function CollapsibleMenu({
         style={{
           border: isFlat ? '0' : `1px solid ${theme.tableBorder || theme.border}`,
           borderRadius: isFlat ? 0 : 10,
-          background: isFlat ? 'transparent' : (theme.bgPanelAlt || theme.bgPanel),
+          background: isFlat ? 'transparent' : theme.bgPanelAlt || theme.bgPanel,
           transition: 'border-color .25s, background-color .25s',
         }}
       >
@@ -158,14 +158,23 @@ function CollapsibleMenu({
             padding: isFlat ? '0 0 8px 0' : basePadding,
             cursor: 'pointer',
             userSelect: 'none',
-            borderBottom: isFlat && showSummary && expanded ? `1px solid ${theme.tableBorder || theme.border}` : '0',
+            borderBottom:
+              isFlat && showSummary && expanded
+                ? `1px solid ${theme.tableBorder || theme.border}`
+                : '0',
           }}
           onClick={(e) => {
             if (onToggle) onToggle(e);
             else setInternalExpanded((v) => !v);
           }}
         >
-          <span style={{ fontWeight: isFlat ? 600 : 'bold', fontSize: isFlat ? 14 : titleFontSize, color: theme.textPrimary }}>
+          <span
+            style={{
+              fontWeight: isFlat ? 600 : 'bold',
+              fontSize: isFlat ? 14 : titleFontSize,
+              color: theme.textPrimary,
+            }}
+          >
             {title}
           </span>
           <span style={{ fontSize: 12, fontFamily: 'monospace', color: theme.textSecondary }}>
@@ -184,7 +193,7 @@ function CollapsibleMenu({
               padding: isFlat ? '0 0 8px 0' : '4px 14px 8px 14px',
               borderTop: isFlat ? '0' : `1px solid ${theme.tableBorder || theme.border}`,
               fontSize: 13,
-              background: expanded || isFlat ? 'transparent' : (theme.bgPanel || 'transparent'),
+              background: expanded || isFlat ? 'transparent' : theme.bgPanel || 'transparent',
               opacity: expanded ? 1 : 0.85,
             }}
           >
@@ -284,7 +293,7 @@ function CollapsibleMenu({
         {expanded && (
           <div
             style={{
-              padding: isFlat ? 0 : (isNested ? '0 8px 8px 8px' : '0 14px 14px 14px'),
+              padding: isFlat ? 0 : isNested ? '0 8px 8px 8px' : '0 14px 14px 14px',
               background: 'transparent',
             }}
           >

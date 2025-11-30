@@ -39,10 +39,7 @@ export function formatTokenDisplay(tokens = [], { showName = false } = {}) {
     const name = (t.name || '').toString();
     return {
       logos,
-      text:
-        showName && name && sym && sym !== name
-          ? `${name} (${sym})`
-          : sym || name || '',
+      text: showName && name && sym && sym !== name ? `${name} (${sym})` : sym || name || '',
     };
   }
   // Two tokens

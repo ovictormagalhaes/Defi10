@@ -203,21 +203,46 @@ export interface UseRebalancingResult {
 
 // Tipos utilitários
 export type RebalanceAction = 'buy' | 'sell' | 'hold';
-export type ChainKey = 'eth' | 'polygon' | 'avalanche' | 'optimism' | 'bsc' | 'fantom' | 'base' | 'unknown';
+export type ChainKey =
+  | 'eth'
+  | 'polygon'
+  | 'avalanche'
+  | 'optimism'
+  | 'bsc'
+  | 'fantom'
+  | 'base'
+  | 'unknown';
 
 // Constants tipados
 export const ASSET_TYPE_OPTIONS: AssetTypeOption[] = [
   { value: RebalanceAssetType.Wallet, label: 'Wallet', description: 'Individual wallet tokens' },
-  { value: RebalanceAssetType.LiquidityPool, label: 'Liquidity Pools', description: 'LP positions and pools' },
-  { value: RebalanceAssetType.LendingAndBorrowing, label: 'Lending Position', description: 'Lending and borrowing positions' },
-  { value: RebalanceAssetType.Staking, label: 'Staking Position', description: 'Staking rewards and positions' },
+  {
+    value: RebalanceAssetType.LiquidityPool,
+    label: 'Liquidity Pools',
+    description: 'LP positions and pools',
+  },
+  {
+    value: RebalanceAssetType.LendingAndBorrowing,
+    label: 'Lending Position',
+    description: 'Lending and borrowing positions',
+  },
+  {
+    value: RebalanceAssetType.Staking,
+    label: 'Staking Position',
+    description: 'Staking rewards and positions',
+  },
   { value: RebalanceAssetType.Group, label: 'Group', description: 'Grouped assets by type' },
 ];
 
 export const GROUP_OPTIONS: GroupOption[] = [
   { value: RebalanceAssetType.Wallet, label: 'Wallet', count: 0, totalValue: 0 },
   { value: RebalanceAssetType.LiquidityPool, label: 'Liquidity Pools', count: 0, totalValue: 0 },
-  { value: RebalanceAssetType.LendingAndBorrowing, label: 'Lending Position', count: 0, totalValue: 0 },
+  {
+    value: RebalanceAssetType.LendingAndBorrowing,
+    label: 'Lending Position',
+    count: 0,
+    totalValue: 0,
+  },
   { value: RebalanceAssetType.Staking, label: 'Staking Position', count: 0, totalValue: 0 },
   { value: RebalanceAssetType.Group, label: 'Group', count: 0, totalValue: 0 },
 ];
@@ -231,27 +256,27 @@ export const REBALANCE_REFERENCE_TYPES = {
 
 export const CHAIN_MAPPINGS: Record<string, ChainKey> = {
   '1': 'eth',
-  'eth': 'eth',
-  'ethereum': 'eth',
-  'mainnet': 'eth',
-  'erc20': 'eth',
+  eth: 'eth',
+  ethereum: 'eth',
+  mainnet: 'eth',
+  erc20: 'eth',
   '137': 'polygon',
-  'polygon': 'polygon',
-  'matic': 'polygon',
-  'avalanche': 'avalanche',
+  polygon: 'polygon',
+  matic: 'polygon',
+  avalanche: 'avalanche',
   '43114': 'avalanche',
-  'avax': 'avalanche',
+  avax: 'avalanche',
   '10': 'optimism',
-  'optimism': 'optimism',
-  'op': 'optimism',
+  optimism: 'optimism',
+  op: 'optimism',
   '56': 'bsc',
-  'bsc': 'bsc',
-  'bnb': 'bsc',
-  'binance': 'bsc',
+  bsc: 'bsc',
+  bnb: 'bsc',
+  binance: 'bsc',
   '250': 'fantom',
-  'fantom': 'fantom',
-  'ftm': 'fantom',
-  'base': 'base',
+  fantom: 'fantom',
+  ftm: 'fantom',
+  base: 'base',
   '84531': 'base',
 };
 
@@ -261,5 +286,5 @@ export default {
   ASSET_TYPE_OPTIONS,
   GROUP_OPTIONS,
   REBALANCE_REFERENCE_TYPES,
-  CHAIN_MAPPINGS
+  CHAIN_MAPPINGS,
 };

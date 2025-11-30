@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Models.Aave.Supplies;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services;

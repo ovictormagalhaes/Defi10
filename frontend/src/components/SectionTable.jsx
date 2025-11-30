@@ -89,23 +89,6 @@ const createTableStyle = (additionalProps = {}) => ({
   ...additionalProps,
 });
 
-// Settings icon component
-const SettingsIcon = ({ color, width = 16, height = 16 }) => (
-  <svg
-    width={width}
-    height={height}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color}
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09c0 .7.4 1.34 1 1.51.46.17.96.05 1.32-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.38.38-.5.86-.33 1.32.17.46.51.81 1 .98H21a2 2 0 0 1 0 4h-.09c-.7 0-1.34.4-1.51 1Z" />
-  </svg>
-);
-
 // Circle Alert icon component
 const CircleAlertIcon = ({ color, width = 14, height = 14, style = {}, onClick = undefined }) => (
   <svg
@@ -127,35 +110,6 @@ const CircleAlertIcon = ({ color, width = 14, height = 14, style = {}, onClick =
 );
 
 import MiniMetric from './MiniMetric';
-
-const createMenuOption = (
-  checked,
-  onChange,
-  children,
-  name,
-  value,
-  fontStyles,
-  stopPropagation = true
-) => (
-  <label className="block mb-4 cursor-pointer">
-    <input
-      type="radio"
-      name={name}
-      value={value}
-      checked={checked}
-      onChange={
-        stopPropagation
-          ? (e) => {
-              e.stopPropagation();
-              onChange(e.target.value);
-            }
-          : onChange
-      }
-      className="mr-6"
-    />
-    <span style={fontStyles.secondary}>{children}</span>
-  </label>
-);
 
 export default function SectionTable({
   icon = null,
@@ -188,27 +142,9 @@ export default function SectionTable({
   const { theme } = useTheme();
   const fontStyles = getFontStyles(theme);
   const [uncontrolledExpanded, setUncontrolledExpanded] = useState(true);
-  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
-  const [groupByType, setGroupByType] = useState(false);
-  const [sortBy, setSortBy] = useState('balance');
-  const [sortDirection, setSortDirection] = useState('desc');
   const isControlled = typeof controlledExpanded === 'boolean';
   const expanded = isControlled ? controlledExpanded : uncontrolledExpanded;
   const [optionsExpanded, setOptionsExpanded] = useState(false);
-
-  // Close options menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showOptionsMenu && !event.target.closest('.options-menu-container')) {
-        setShowOptionsMenu(false);
-      }
-    };
-
-    if (showOptionsMenu) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [showOptionsMenu]);
 
   const handleToggle = () => {
     if (onToggle) onToggle();
@@ -338,9 +274,7 @@ export default function SectionTable({
                               {/* 3-col: percent + actions (col2) */}
                               <td style={{ padding: '0px', textAlign: 'center' }}>
                                 <div style={createFlexCenter(6)}>
-                                  {rightPercent !== null && (
-                                    <MiniMetric value={rightPercent} />
-                                  )}
+                                  {rightPercent !== null && <MiniMetric value={rightPercent} />}
                                   {actions}
                                 </div>
                               </td>
@@ -353,15 +287,11 @@ export default function SectionTable({
                             <>
                               {/* 4-col: badges */}
                               <td style={{ padding: '0px' }}>
-                                {infoBadges && (
-                                  <div className="mini-metric-pill">{infoBadges}</div>
-                                )}
+                                {infoBadges && <div className="mini-metric-pill">{infoBadges}</div>}
                               </td>
                               {/* 4-col: percent */}
                               <td style={{ padding: '0px', textAlign: 'center' }}>
-                                {rightPercent !== null && (
-                                  <MiniMetric value={rightPercent} />
-                                )}
+                                {rightPercent !== null && <MiniMetric value={rightPercent} />}
                               </td>
                               {/* 4-col: actions/options */}
                               <td style={{ padding: '0px', textAlign: 'right' }}>
@@ -386,100 +316,7 @@ export default function SectionTable({
                 </div>
               )}
             <div style={createFlexRow(8)}>
-              {/* Options Button - só visível quando seção está expandida */}
-              {expanded && (
-                <div className="options-menu-container" style={{ position: 'relative' }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowOptionsMenu(!showOptionsMenu);
-                    }}
-                    style={createButtonStyle(theme, fontStyles, {
-                      color: showOptionsMenu ? theme.textPrimary : theme.textSecondary,
-                      opacity: showOptionsMenu ? 1 : 0.3,
-                    })}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = 1;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = showOptionsMenu ? 1 : 0.3;
-                    }}
-                  >
-                    <SettingsIcon
-                      color={showOptionsMenu ? theme.textPrimary : theme.textSecondary}
-                    />
-                  </button>
-
-                  {/* Options Menu */}
-                  {showOptionsMenu && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        right: 0,
-                        backgroundColor: theme.bgPanel,
-                        border: `1px solid ${theme.border}`,
-                        borderRadius: 8,
-                        padding: 8,
-                        boxShadow: theme.shadowHover || '0 4px 12px rgba(0,0,0,0.25)',
-                        zIndex: 1000,
-                        minWidth: 180,
-                        marginTop: 4,
-                      }}
-                    >
-                      <div style={{ ...fontStyles.small, marginBottom: 6 }}>Options</div>
-
-                      {/* Group by Type */}
-                      <label style={{ display: 'block', marginBottom: 8, cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={groupByType}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            setGroupByType(e.target.checked);
-                          }}
-                          style={{ marginRight: 6 }}
-                        />
-                        <span style={fontStyles.secondary}>Group by Type</span>
-                      </label>
-
-                      {/* Sort Options */}
-                      <div style={{ ...fontStyles.small, marginBottom: 4 }}>Sort by</div>
-                      {['balance', 'name', 'type'].map((option) => (
-                        <div key={option}>
-                          {createMenuOption(
-                            sortBy === option,
-                            setSortBy,
-                            option.charAt(0).toUpperCase() + option.slice(1),
-                            `sort-${title.replace(/\s+/g, '-')}`,
-                            option,
-                            fontStyles
-                          )}
-                        </div>
-                      ))}
-
-                      {/* Sort Direction */}
-                      <div style={{ ...fontStyles.small, marginBottom: 4, marginTop: 8 }}>
-                        Order
-                      </div>
-                      {['asc', 'desc'].map((direction) => (
-                        <div key={direction}>
-                          {createMenuOption(
-                            sortDirection === direction,
-                            setSortDirection,
-                            direction === 'asc' ? 'Ascending' : 'Descending',
-                            `direction-${title.replace(/\s+/g, '-')}`,
-                            direction,
-                            fontStyles
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Hide/Show Toggle */}
+              {/* Toggle */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -493,7 +330,7 @@ export default function SectionTable({
                   e.currentTarget.style.opacity = 1;
                 }}
               >
-                {expanded ? 'Hide -' : 'Show +'}
+                {expanded ? '-' : '+'}
               </button>
             </div>
           </div>
@@ -571,9 +408,7 @@ export default function SectionTable({
                                 {/* 3-col condensed metrics row with total forced to last column */}
                                 <td style={{ padding: '0 0px' }}>
                                   <div style={createFlexRow(8)}>
-                                    {rightPercent !== null && (
-                                      <MiniMetric value={rightPercent} />
-                                    )}
+                                    {rightPercent !== null && <MiniMetric value={rightPercent} />}
                                     {infoBadges && (
                                       <div className="mini-metric-pill">{infoBadges}</div>
                                     )}
@@ -606,9 +441,7 @@ export default function SectionTable({
                                 {/* 4-col metrics row with total forced last */}
                                 <td style={{ padding: '0px' }}>
                                   <div style={createFlexRow(8)}>
-                                    {rightPercent !== null && (
-                                      <MiniMetric value={rightPercent} />
-                                    )}
+                                    {rightPercent !== null && <MiniMetric value={rightPercent} />}
                                     {infoBadges && (
                                       <div className="mini-metric-pill">{infoBadges}</div>
                                     )}

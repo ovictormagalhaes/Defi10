@@ -9,21 +9,21 @@ import type { WalletItem } from './wallet';
  * Filtra WalletItems para obter apenas posições de liquidez
  */
 export function getLiquidityPoolItems(items: WalletItem[]): WalletItem[] {
-  return items.filter(item => item.type === "LiquidityPool");
+  return items.filter((item) => item.type === 'LiquidityPool');
 }
 
 /**
  * Filtra WalletItems para obter apenas posições de lending/borrowing
  */
 export function getLendingItems(items: WalletItem[]): WalletItem[] {
-  return items.filter(item => item.type === "LendingAndBorrowing");
+  return items.filter((item) => item.type === 'LendingAndBorrowing');
 }
 
 /**
  * Filtra WalletItems para obter apenas posições de staking
  */
 export function getStakingItems(items: WalletItem[]): WalletItem[] {
-  return items.filter(item => item.type === "Staking");
+  return items.filter((item) => item.type === 'Staking');
 }
 
 /**
@@ -31,9 +31,9 @@ export function getStakingItems(items: WalletItem[]): WalletItem[] {
  */
 export function getLockingItems(items: WalletItem[]): WalletItem[] {
   console.log('getLockingItems called with items:', items);
-  const lockingItems = items.filter(item => {
+  const lockingItems = items.filter((item) => {
     console.log('Checking item type:', item.type, 'for item:', item);
-    return item.type === "Locking";
+    return item.type === 'Locking';
   });
   console.log('getLockingItems returning:', lockingItems);
   return lockingItems;
@@ -41,9 +41,9 @@ export function getLockingItems(items: WalletItem[]): WalletItem[] {
 
 export function getDepositingItems(items: WalletItem[]): WalletItem[] {
   console.log('getDepositingItems called with items:', items);
-  const depositingItems = items.filter(item => {
+  const depositingItems = items.filter((item) => {
     console.log('Checking item type:', item.type, 'for item:', item);
-    return item.type === "Depositing";
+    return item.type === 'Depositing';
   });
   console.log('getDepositingItems returning:', depositingItems);
   return depositingItems;
@@ -53,49 +53,55 @@ export function getDepositingItems(items: WalletItem[]): WalletItem[] {
  * Filtra WalletItems para obter apenas tokens de carteira
  */
 export function getWalletTokenItems(items: WalletItem[]): WalletItem[] {
-  return items.filter(item => item.type === "Wallet");
+  return items.filter((item) => item.type === 'Wallet');
 }
 
 /**
  * Filtra WalletItems por protocolo
  */
 export function getItemsByProtocol(items: WalletItem[], protocolId: string): WalletItem[] {
-  return items.filter(item => item.protocol.id === protocolId);
+  return items.filter((item) => item.protocol.id === protocolId);
 }
 
 /**
  * Filtra WalletItems por chain
  */
 export function getItemsByChain(items: WalletItem[], chain: string): WalletItem[] {
-  return items.filter(item => item.protocol.chain === chain);
+  return items.filter((item) => item.protocol.chain === chain);
 }
 
 /**
  * Agrupa WalletItems por protocolo
  */
 export function groupItemsByProtocol(items: WalletItem[]): Record<string, WalletItem[]> {
-  return items.reduce((acc, item) => {
-    const protocolId = item.protocol.id;
-    if (!acc[protocolId]) {
-      acc[protocolId] = [];
-    }
-    acc[protocolId].push(item);
-    return acc;
-  }, {} as Record<string, WalletItem[]>);
+  return items.reduce(
+    (acc, item) => {
+      const protocolId = item.protocol.id;
+      if (!acc[protocolId]) {
+        acc[protocolId] = [];
+      }
+      acc[protocolId].push(item);
+      return acc;
+    },
+    {} as Record<string, WalletItem[]>
+  );
 }
 
 /**
  * Agrupa WalletItems por chain
  */
 export function groupItemsByChain(items: WalletItem[]): Record<string, WalletItem[]> {
-  return items.reduce((acc, item) => {
-    const chain = item.protocol.chain;
-    if (!acc[chain]) {
-      acc[chain] = [];
-    }
-    acc[chain].push(item);
-    return acc;
-  }, {} as Record<string, WalletItem[]>);
+  return items.reduce(
+    (acc, item) => {
+      const chain = item.protocol.chain;
+      if (!acc[chain]) {
+        acc[chain] = [];
+      }
+      acc[chain].push(item);
+      return acc;
+    },
+    {} as Record<string, WalletItem[]>
+  );
 }
 
 /**
@@ -111,6 +117,6 @@ export function groupItemsByType(items: WalletItem[]): {
     liquidityPools: getLiquidityPoolItems(items),
     lending: getLendingItems(items),
     staking: getStakingItems(items),
-    walletTokens: getWalletTokenItems(items)
+    walletTokens: getWalletTokenItems(items),
   };
 }

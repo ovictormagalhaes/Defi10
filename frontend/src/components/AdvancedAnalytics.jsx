@@ -1,7 +1,8 @@
 import React from 'react';
-import DataTable from './DataTable';
 
 import { getFontStyles } from '../styles/fontStyles';
+
+import DataTable from './DataTable';
 
 const AdvancedAnalytics = ({
   walletTokens,
@@ -455,18 +456,58 @@ const AdvancedAnalytics = ({
             <div style={{ width: '100%' }}>
               <DataTable
                 columns={[
-                  { id: 'marker', width: 20, render: (row) => (
-                    <div style={{ width:12, height:12, borderRadius:'50%', background: row.color }} />
-                  ) },
-                  { id: 'asset', label: 'ASSET', render: (row) => (
-                    <div style={{ ...fontStyles.normal, wordBreak: 'break-word', maxWidth: 120 }}>{row.label}</div>
-                  ) },
-                  { id: 'pct', label: '%', width: 70, align: 'center', render: (row) => (
-                    <div style={{ ...fontStyles.normal, color: theme.textSecondary, fontWeight:600, whiteSpace:'nowrap' }}>{row.percentage}%</div>
-                  ) },
-                  { id: 'value', label: 'VALUE', width: 100, align: 'right', render: (row) => (
-                    <div style={{ ...fontStyles.normal, fontWeight:500, whiteSpace:'nowrap' }}>{maskValue(formatPrice(row.value))}</div>
-                  ) },
+                  {
+                    id: 'marker',
+                    width: 20,
+                    render: (row) => (
+                      <div
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: '50%',
+                          background: row.color,
+                        }}
+                      />
+                    ),
+                  },
+                  {
+                    id: 'asset',
+                    label: 'ASSET',
+                    render: (row) => (
+                      <div style={{ ...fontStyles.normal, wordBreak: 'break-word', maxWidth: 120 }}>
+                        {row.label}
+                      </div>
+                    ),
+                  },
+                  {
+                    id: 'pct',
+                    label: '%',
+                    width: 70,
+                    align: 'center',
+                    render: (row) => (
+                      <div
+                        style={{
+                          ...fontStyles.normal,
+                          color: theme.textSecondary,
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {row.percentage}%
+                      </div>
+                    ),
+                  },
+                  {
+                    id: 'value',
+                    label: 'VALUE',
+                    width: 100,
+                    align: 'right',
+                    render: (row) => (
+                      <div style={{ ...fontStyles.normal, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        {maskValue(formatPrice(row.value))}
+                      </div>
+                    ),
+                  },
                 ]}
                 rows={distributionData}
                 rowKey={(r, i) => `${r.label}-${i}`}
@@ -591,32 +632,82 @@ const AdvancedAnalytics = ({
               <div style={{ width: '100%' }}>
                 <DataTable
                   columns={[
-                    { id: 'marker', width: 20, render: (row) => (
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        {row.logo ? (
-                          <img
-                            src={row.logo}
-                            alt={row.name}
-                            style={{ width:16, height:16, borderRadius:'50%', border:`1px solid ${theme.border}` }}
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              const sib = e.currentTarget.nextElementSibling;
-                              if (sib) (sib).style.display = 'block';
+                    {
+                      id: 'marker',
+                      width: 20,
+                      render: (row) => (
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          {row.logo ? (
+                            <img
+                              src={row.logo}
+                              alt={row.name}
+                              style={{
+                                width: 16,
+                                height: 16,
+                                borderRadius: '50%',
+                                border: `1px solid ${theme.border}`,
+                              }}
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const sib = e.currentTarget.nextElementSibling;
+                                if (sib) sib.style.display = 'block';
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            style={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: '50%',
+                              background: row.color,
+                              display: row.logo ? 'none' : 'block',
                             }}
                           />
-                        ) : null}
-                        <div style={{ width:12, height:12, borderRadius:'50%', background: row.color, display: row.logo ? 'none':'block' }} />
-                      </div>
-                    ) },
-                    { id: 'protocol', label: 'PROTOCOL', render: (row) => (
-                      <div style={{ ...fontStyles.normal, wordBreak:'break-word', maxWidth:120 }}>{row.name}</div>
-                    ) },
-                    { id: 'pct', label: '%', width: 70, align: 'center', render: (row) => (
-                      <div style={{ ...fontStyles.normal, color: theme.textSecondary, fontWeight:600, whiteSpace:'nowrap' }}>{row.percentage}%</div>
-                    ) },
-                    { id: 'value', label: 'VALUE', width: 100, align: 'right', render: (row) => (
-                      <div style={{ ...fontStyles.normal, fontWeight:500, whiteSpace:'nowrap' }}>{maskValue(formatPrice(row.value))}</div>
-                    ) },
+                        </div>
+                      ),
+                    },
+                    {
+                      id: 'protocol',
+                      label: 'PROTOCOL',
+                      render: (row) => (
+                        <div
+                          style={{ ...fontStyles.normal, wordBreak: 'break-word', maxWidth: 120 }}
+                        >
+                          {row.name}
+                        </div>
+                      ),
+                    },
+                    {
+                      id: 'pct',
+                      label: '%',
+                      width: 70,
+                      align: 'center',
+                      render: (row) => (
+                        <div
+                          style={{
+                            ...fontStyles.normal,
+                            color: theme.textSecondary,
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {row.percentage}%
+                        </div>
+                      ),
+                    },
+                    {
+                      id: 'value',
+                      label: 'VALUE',
+                      width: 100,
+                      align: 'right',
+                      render: (row) => (
+                        <div
+                          style={{ ...fontStyles.normal, fontWeight: 500, whiteSpace: 'nowrap' }}
+                        >
+                          {maskValue(formatPrice(row.value))}
+                        </div>
+                      ),
+                    },
                   ]}
                   rows={protocolDistribution}
                   rowKey={(r, i) => `${r.name}-${i}`}

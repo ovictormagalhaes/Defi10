@@ -1,0 +1,9 @@
+namespace MyWebWallet.API.Messaging.Contracts.Results;
+
+public sealed record UniswapV3PositionDataResult(
+    string TokenId,
+    object? PositionData,
+    string? PoolAddress,
+    bool Success,
+    string? ErrorMessage
+);

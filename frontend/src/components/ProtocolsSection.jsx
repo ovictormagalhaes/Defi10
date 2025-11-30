@@ -1,19 +1,25 @@
 import React from 'react';
 
 import { useChainIcons } from '../context/ChainIconsProvider';
+import { extractHealthFactor } from '../types/wallet';
+import { isRewardToken, calculateTokensValue } from '../utils/tokenFilters';
 import {
   formatPrice,
   groupDefiByProtocol,
   groupTokensByType,
   groupStakingTokensByType,
 } from '../utils/walletUtils';
-import { isRewardToken, calculateTokensValue } from '../utils/tokenFilters';
-import { extractHealthFactor } from '../types/wallet';
 
-import { PoolTables, LendingTables, WalletTokensTable, LockingTables, DepositTables } from './tables';
+import MiniMetric from './MiniMetric';
 import ProtocolTables from './ProtocolTables';
 import SectionTable from './SectionTable';
-import MiniMetric from './MiniMetric';
+import {
+  PoolTables,
+  LendingTables,
+  WalletTokensTable,
+  LockingTables,
+  DepositTables,
+} from './tables';
 
 const ProtocolsSection = ({
   getLiquidityPoolsData,
@@ -55,7 +61,7 @@ const ProtocolsSection = ({
   const { getIcon } = useChainIcons();
   const stakingData = getStakingData();
   const lockingData = getLockingData();
-  const depositingData = (typeof getDepositingData === 'function') ? getDepositingData() : [];
+  const depositingData = typeof getDepositingData === 'function' ? getDepositingData() : [];
 
   console.log('ProtocolsSection - depositingData:', depositingData);
 
@@ -73,13 +79,18 @@ const ProtocolsSection = ({
   return (
     <div>
       {protocolGroups.map((protocolGroup, pgIdx) => {
-        console.log('Processing protocolGroup:', protocolGroup.protocol.name, 'positions:', protocolGroup.positions);
-        
+        console.log(
+          'Processing protocolGroup:',
+          protocolGroup.protocol.name,
+          'positions:',
+          protocolGroup.positions
+        );
+
         // Classify positions by type using label/name heuristics
         const liqPositionsOriginal = protocolGroup.positions.filter((p) => {
           // Check type first for explicit categorization
           if (p.type === 'LiquidityPool') return true;
-          
+
           const lbl = (p.position?.label || p.position?.name || p.label || '')
             .toString()
             .toLowerCase();
@@ -94,36 +105,48 @@ const ProtocolsSection = ({
         const lockingPositionsOriginal = protocolGroup.positions.filter((p) => {
           // Check type first for explicit categorization
           if (p.type === 'Locking') return true;
-          
+
           const lbl = (p.position?.label || p.position?.name || p.label || '')
             .toString()
             .toLowerCase();
-          
+
           // Only check label if contains "lock" but NOT "deposit" (to avoid ambiguity)
           const hasLock = lbl.includes('lock') || lbl.includes('vesting');
           const hasDeposit = lbl.includes('deposit');
-          
+
           // If has both lock and deposit, it's NOT a locking position (it's depositing)
           if (hasLock && hasDeposit) return false;
-          
+
           return hasLock;
         });
         const depositingPositionsOriginal = protocolGroup.positions.filter((p) => {
           // Only use explicit type, do NOT use label heuristics
           return p.type === 'Depositing';
         });
-        
-        console.log('Protocol:', protocolGroup.protocol.name, 'depositingPositionsOriginal:', depositingPositionsOriginal);
+
+        console.log(
+          'Protocol:',
+          protocolGroup.protocol.name,
+          'depositingPositionsOriginal:',
+          depositingPositionsOriginal
+        );
         const lendingPositionsOriginal = protocolGroup.positions.filter((p) => {
           // Exclude positions already classified
           if (p.type === 'LiquidityPool') return false;
           if (p.type === 'Locking') return false;
           if (p.type === 'Depositing') return false;
-          
+
           const lbl = (p.position?.label || p.position?.name || p.label || '')
             .toString()
             .toLowerCase();
-          return !lbl.includes('liquidity') && !lbl.includes('pool') && !lbl.includes('staking') && !lbl.includes('lock') && !lbl.includes('vesting') && !lbl.includes('deposit');
+          return (
+            !lbl.includes('liquidity') &&
+            !lbl.includes('pool') &&
+            !lbl.includes('staking') &&
+            !lbl.includes('lock') &&
+            !lbl.includes('vesting') &&
+            !lbl.includes('deposit')
+          );
         });
 
         // Helper to filter tokens inside a position according to selected chains.
@@ -180,7 +203,13 @@ const ProtocolsSection = ({
         const lendingPositions = filterPositionArray(lendingPositionsOriginal);
 
         // If after filtering everything vanished (should be rare now), still skip.
-        if (!liqPositions.length && !stakingPositions.length && !lockingPositions.length && !depositingPositions.length && !lendingPositions.length) {
+        if (
+          !liqPositions.length &&
+          !stakingPositions.length &&
+          !lockingPositions.length &&
+          !depositingPositions.length &&
+          !lendingPositions.length
+        ) {
           return null;
         }
 
@@ -195,19 +224,31 @@ const ProtocolsSection = ({
           const tokens = Array.isArray(pos.tokens)
             ? filterStakingDefiTokens(pos.tokens, showStakingDefiTokens)
             : [];
-            // Staking rarely has negatives, but guard anyway
+          // Staking rarely has negatives, but guard anyway
           const v = tokens.reduce((s, t) => s + Math.max(parseFloat(t.totalPrice) || 0, 0), 0);
           return sum + v;
         }, 0);
         const lockingTotal = lockingPositions.reduce((sum, pos) => {
           const container = pos.position || pos;
           const tokens = container.tokens || [];
-          return sum + tokens.reduce((s, t) => s + (parseFloat(t.financials?.totalPrice || t.totalPrice || 0) || 0), 0);
+          return (
+            sum +
+            tokens.reduce(
+              (s, t) => s + (parseFloat(t.financials?.totalPrice || t.totalPrice || 0) || 0),
+              0
+            )
+          );
         }, 0);
         const depositingTotal = depositingPositions.reduce((sum, pos) => {
           const container = pos.position || pos;
           const tokens = container.tokens || [];
-          return sum + tokens.reduce((s, t) => s + (parseFloat(t.financials?.totalPrice || t.totalPrice || 0) || 0), 0);
+          return (
+            sum +
+            tokens.reduce(
+              (s, t) => s + (parseFloat(t.financials?.totalPrice || t.totalPrice || 0) || 0),
+              0
+            )
+          );
         }, 0);
         // (2) Lending net: supplied positive, borrowed negative
         const lendingNetProvisional = lendingPositions.reduce((sum, pos) => {
@@ -245,17 +286,18 @@ const ProtocolsSection = ({
         let lendingGroup = null;
         let lendingRewardsValue = 0;
         let lendingHealthFactor = null;
-        
+
         if (lendingPositions.length > 0) {
           // EXTRAIR HEALTH FACTOR ANTES DE QUEBRAR A ESTRUTURA - usando função TypeScript
-          lendingHealthFactor = lendingPositions
-            .map(pos => extractHealthFactor(pos))
-            .find(hf => hf != null && isFinite(hf)) || null;
-          
+          lendingHealthFactor =
+            lendingPositions
+              .map((pos) => extractHealthFactor(pos))
+              .find((hf) => hf != null && isFinite(hf)) || null;
+
           const filtered = lendingPositions.map((p) => ({
             ...p,
             tokens: Array.isArray(p.tokens)
-              ? filterLendingDefiTokens(p.tokens, showLendingDefiTokens).map(tok => {
+              ? filterLendingDefiTokens(p.tokens, showLendingDefiTokens).map((tok) => {
                   // If token itself lacks collateral flags, inherit from position.additionalData
                   const add = p.additionalData || p.AdditionalData;
                   if (add && (add.isCollateral === true || add.IsCollateral === true)) {
@@ -382,13 +424,14 @@ const ProtocolsSection = ({
             lendingGroup.borrowed.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0)
           : lendingNetProvisional;
 
-        const protocolTotal = liquidityTotal + stakingTotal + lockingTotal + depositingTotal + lendingNet;
+        const protocolTotal =
+          liquidityTotal + stakingTotal + lockingTotal + depositingTotal + lendingNet;
         // Positive contribution (used for %): ignore pure debt (negative net)
-        const protocolPositive = liquidityTotal + stakingTotal + lockingTotal + depositingTotal + Math.max(lendingNet, 0);
+        const protocolPositive =
+          liquidityTotal + stakingTotal + lockingTotal + depositingTotal + Math.max(lendingNet, 0);
         const totalPortfolio = getTotalPortfolioValue();
-        const protocolPercent = protocolPositive <= 0
-          ? '0%'
-          : calculatePercentage(protocolPositive, totalPortfolio);
+        const protocolPercent =
+          protocolPositive <= 0 ? '0%' : calculatePercentage(protocolPositive, totalPortfolio);
         const totalRewardsValue = liquidityRewardsValue + lendingRewardsValue + stakingRewardsValue;
         const infoBadges = [
           liqPositions.length > 0 ? `Pools: ${liqPositions.length}` : null,
@@ -451,7 +494,6 @@ const ProtocolsSection = ({
         );
         const hasLocking = lockingPositions.length > 0;
         const hasDepositing = depositingPositions.length > 0;
-        
 
         // Pools: 5 cols (Pool|Range|Amount|Rewards|Value), Lending/Staking: 3 cols ([2,1,1])
         const metricsRatio = hasPools ? [2, 1, 1, 1, 1] : [2, 1, 1];
@@ -572,14 +614,14 @@ const ProtocolsSection = ({
               const cells = [];
               // Coluna 1: percent + info badges agrupadas
               cells.push(
-                <div style={{ display:'flex', gap:12, alignItems:'center' }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <MiniMetric label="Percent" value={protocolPercent || '—'} />
                   {infoBadges && <div className="mini-metric-pill">{infoBadges}</div>}
                 </div>
               );
               // Coluna 2: Rewards (se houver)
               cells.push(
-                <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   {totalRewardsValue > 0 && (
                     <MiniMetric label="Rewards" value={maskValue(formatPrice(totalRewardsValue))} />
                   )}
@@ -587,22 +629,22 @@ const ProtocolsSection = ({
               );
               // Coluna 3: Value total
               cells.push(
-                <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <MiniMetric label="Value" value={maskValue(formatPrice(protocolTotal))} />
                 </div>
               );
               // Se pools presentes e quiser mostrar Fees 24h agregadas futuras (placeholder)
               if (hasPools) {
                 cells.push(
-                  <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <MiniMetric label="Fees 24h" value={totalRewardsValue > 0 ? '—' : '—'} />
                   </div>
                 );
               }
-              const ratio = hasPools ? [2,1,1,1] : [2,1,1];
+              const ratio = hasPools ? [2, 1, 1, 1] : [2, 1, 1];
               return { ratio, cells };
             }}
-            metricsRatio={hasPools ? [2,1,1,1] : [2,1,1]}
+            metricsRatio={hasPools ? [2, 1, 1, 1] : [2, 1, 1]}
             summaryColumns={null}
             renderSummaryCell={undefined}
             isExpanded={
@@ -614,9 +656,7 @@ const ProtocolsSection = ({
             optionsMenu={optionsMenu}
             customContent={
               <>
-                {liqPositions && liqPositions.length > 0 && (
-                  <PoolTables items={liqPositions} />
-                )}
+                {liqPositions && liqPositions.length > 0 && <PoolTables items={liqPositions} />}
                 {lendingGroup &&
                   (lendingGroup.supplied.length > 0 ||
                     lendingGroup.borrowed.length > 0 ||

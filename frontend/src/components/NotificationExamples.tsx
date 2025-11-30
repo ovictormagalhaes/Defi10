@@ -4,18 +4,19 @@
  */
 
 import React from 'react';
+
 import {
   useNotifications,
   useToast,
   useTransactionNotifications,
   useWalletNotifications,
-  useRebalanceNotifications
+  useRebalanceNotifications,
 } from '../hooks/useNotifications';
 import {
   NotificationType,
   NotificationPosition,
   NotificationAction,
-  NOTIFICATION_TEMPLATES
+  NOTIFICATION_TEMPLATES,
 } from '../types/notifications';
 
 // Exemplo básico de uso de notificações
@@ -43,19 +44,19 @@ export const BasicNotificationExamples: React.FC = () => {
           label: 'Action 1',
           action: NotificationAction.CONFIRM,
           handler: () => console.log('Action 1 clicked'),
-          variant: 'primary'
+          variant: 'primary',
         },
         {
           label: 'Action 2',
           action: NotificationAction.VIEW_DETAILS,
           handler: async () => {
             // Simulate async operation
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise((resolve) => setTimeout(resolve, 1000));
             toast.success('Action completed!');
           },
-          variant: 'secondary'
-        }
-      ]
+          variant: 'secondary',
+        },
+      ],
     });
   };
 
@@ -65,7 +66,7 @@ export const BasicNotificationExamples: React.FC = () => {
       title: 'Processing...',
       message: 'Please wait while we process your request',
       progress: true,
-      dismissible: false
+      dismissible: false,
     });
 
     // Simulate progress updates
@@ -106,11 +107,11 @@ export const TransactionNotificationExamples: React.FC = () => {
 
     try {
       // Simulate transaction processing
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
       // Simulate random success/failure
       const success = Math.random() > 0.3;
-      
+
       if (success) {
         txNotifications.showConfirmed(txHash, '1.5', 'ETH');
       } else {
@@ -127,9 +128,9 @@ export const TransactionNotificationExamples: React.FC = () => {
 
     // Simulate confirmation progress
     for (let confirmations = 0; confirmations <= 12; confirmations++) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       const progress = txNotifications.updateProgress(pendingId, confirmations, 12);
-      
+
       if (confirmations === 12) {
         toast.success('Transaction fully confirmed!');
       }
@@ -153,14 +154,14 @@ export const WalletNotificationExamples: React.FC = () => {
 
   const simulateWalletConnection = async () => {
     const connectingId = walletNotifications.showConnecting('MetaMask');
-    
+
     try {
       // Simulate connection process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       // Simulate random success/failure
       const success = Math.random() > 0.2;
-      
+
       if (success) {
         walletNotifications.showConnected('MetaMask');
       } else {
@@ -188,20 +189,20 @@ export const RebalanceNotificationExamples: React.FC = () => {
 
   const simulateRebalancing = async () => {
     const calculatingId = rebalanceNotifications.showCalculating();
-    
+
     try {
       // Simulate calculation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       // Show high slippage warning
       const slippageWarning = rebalanceNotifications.showHighSlippage(5.2);
-      
+
       // Wait for user decision (simplified for demo)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // Simulate successful rebalancing
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
       rebalanceNotifications.showCompleted('$125,430.50');
     } catch (error) {
       toast.error('Rebalancing Failed', 'An error occurred during portfolio rebalancing');
@@ -245,10 +246,10 @@ export const AdvancedNotificationExamples: React.FC = () => {
               type: NotificationType.SUCCESS,
               title: 'Transaction Submitted',
               message: 'Your transaction has been submitted with high gas fees',
-              duration: 5000
+              duration: 5000,
             });
           },
-          variant: 'danger'
+          variant: 'danger',
         },
         {
           label: 'Wait for Lower Fees',
@@ -257,12 +258,12 @@ export const AdvancedNotificationExamples: React.FC = () => {
             showNotification({
               type: NotificationType.INFO,
               title: 'Transaction Cancelled',
-              message: 'We\'ll notify you when gas fees are lower',
-              duration: 3000
+              message: "We'll notify you when gas fees are lower",
+              duration: 3000,
             });
-          }
-        }
-      ]
+          },
+        },
+      ],
     });
   };
 
@@ -272,7 +273,7 @@ export const AdvancedNotificationExamples: React.FC = () => {
       NotificationPosition.TOP_LEFT,
       NotificationPosition.TOP_RIGHT,
       NotificationPosition.BOTTOM_LEFT,
-      NotificationPosition.BOTTOM_RIGHT
+      NotificationPosition.BOTTOM_RIGHT,
     ];
 
     positions.forEach((position, index) => {
@@ -282,7 +283,7 @@ export const AdvancedNotificationExamples: React.FC = () => {
           title: `Notification ${index + 1}`,
           message: `This notification appears in ${position}`,
           position,
-          duration: 5000
+          duration: 5000,
         });
       }, index * 500);
     });
@@ -303,12 +304,12 @@ export const AdvancedNotificationExamples: React.FC = () => {
               type: NotificationType.INFO,
               title: 'Token Restored',
               message: 'USDC has been added back to your watchlist',
-              duration: 3000
+              duration: 3000,
             });
           },
-          variant: 'primary'
-        }
-      ]
+          variant: 'primary',
+        },
+      ],
     });
   };
 
@@ -331,7 +332,7 @@ export const NotificationExamplesDemo: React.FC = () => {
   return (
     <div className="notification-examples-demo">
       <h2>Notification System Demo - Phase 3 TypeScript</h2>
-      
+
       <div className="examples-grid">
         <BasicNotificationExamples />
         <TransactionNotificationExamples />

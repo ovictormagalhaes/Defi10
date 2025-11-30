@@ -1,4 +1,4 @@
-using System.Text.Json;
+using MyWebWallet.API.Infrastructure.Http;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Models;
@@ -11,16 +11,19 @@ namespace MyWebWallet.API.Services;
 /// Moralis service for EVM chains (Ethereum, Base, Arbitrum, BNB, etc.)
 /// Uses Moralis EVM Web3 Data API
 /// </summary>
-public class MoralisEVMService : IMoralisService, IChainSupportService
+public class MoralisEVMService : BaseHttpService, IMoralisService, IChainSupportService
 {
-    private readonly HttpClient _httpClient;
     private readonly string _apiKey;
     private readonly string _baseUrl;
     private readonly IProtocolConfigurationService _protocolConfig;
 
-    public MoralisEVMService(HttpClient httpClient, IConfiguration configuration, IProtocolConfigurationService protocolConfigurationService)
+    public MoralisEVMService(
+        HttpClient httpClient, 
+        IConfiguration configuration, 
+        IProtocolConfigurationService protocolConfigurationService, 
+        ILogger<MoralisEVMService> logger)
+        : base(httpClient, logger)
     {
-        _httpClient = httpClient;
         _apiKey = configuration["Moralis:ApiKey"] ?? string.Empty;
         _baseUrl = configuration["Moralis:BaseUrl"] ?? string.Empty;
         _protocolConfig = protocolConfigurationService;
@@ -60,80 +63,18 @@ public class MoralisEVMService : IMoralisService, IChainSupportService
     public async Task<MoralisGetERC20TokenResponse> GetERC20TokenBalanceAsync(string address, string chain)
     {
         var apiChain = ResolveApiChain(chain);
-        try
-        {
-            var url = $"{_baseUrl}/wallets/{address}/tokens?chain={apiChain}&exclude_spam=true";
-            _httpClient.DefaultRequestHeaders.Clear();
-            _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-            _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
-            var response = await _httpClient.GetAsync(url);
-            if (response.IsSuccessStatusCode)
-            {
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var moralisResponse = JsonSerializer.Deserialize<MoralisGetERC20TokenResponse>(responseJson);
-                return moralisResponse ?? new MoralisGetERC20TokenResponse();
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"ERROR: MoralisEVMService: HTTP error - Status: {response.StatusCode}, Chain={apiChain}, Content: {errorContent}");
-                throw new HttpRequestException($"Moralis EVM API returned {response.StatusCode}: {errorContent}");
-            }
-        }
-        catch (HttpRequestException ex)
-        {
-            Console.WriteLine($"ERROR: MoralisEVMService: HTTP Request failed in GetERC20TokenBalanceAsync - {ex.Message}");
-            throw new Exception($"MoralisEVMService HTTP error: {ex.Message}", ex);
-        }
-        catch (JsonException ex)
-        {
-            Console.WriteLine($"ERROR: MoralisEVMService: JSON Deserialization failed in GetERC20TokenBalanceAsync - {ex.Message}");
-            throw new Exception($"MoralisEVMService JSON error: {ex.Message}", ex);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"ERROR: MoralisEVMService: Unexpected error in GetERC20TokenBalanceAsync - {ex.Message}");
-            throw new Exception($"MoralisEVMService unexpected error: {ex.Message}", ex);
-        }
+        var url = $"{_baseUrl}/wallets/{address}/tokens?chain={apiChain}&exclude_spam=true";
+        var headers = new Dictionary<string, string> { ["X-API-Key"] = _apiKey };
+        
+        return await GetAsync<MoralisGetERC20TokenResponse>(url, headers);
     }
 
     public async Task<MoralisGetDeFiPositionsResponse> GetDeFiPositionsAsync(string address, string chain)
     {
         var apiChain = ResolveApiChain(chain);
-        try
-        {
-            var url = $"{_baseUrl}/wallets/{address}/defi/positions?chain={apiChain}";
-            _httpClient.DefaultRequestHeaders.Clear();
-            _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-            _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
-            var response = await _httpClient.GetAsync(url);
-            if (response.IsSuccessStatusCode)
-            {
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var moralisResponse = JsonSerializer.Deserialize<MoralisGetDeFiPositionsResponse>(responseJson);
-                return moralisResponse ?? new MoralisGetDeFiPositionsResponse();
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"ERROR: MoralisEVMService: HTTP error - Status: {response.StatusCode}, Chain={apiChain}, Content: {errorContent}");
-                throw new HttpRequestException($"Moralis EVM API returned {response.StatusCode}: {errorContent}");
-            }
-        }
-        catch (HttpRequestException ex)
-        {
-            Console.WriteLine($"ERROR: MoralisEVMService: HTTP Request failed in GetDeFiPositionsAsync - {ex.Message}");
-            throw new Exception($"MoralisEVMService HTTP error: {ex.Message}", ex);
-        }
-        catch (JsonException ex)
-        {
-            Console.WriteLine($"ERROR: MoralisEVMService: JSON Deserialization failed in GetDeFiPositionsAsync - {ex.Message}");
-            throw new Exception($"MoralisEVMService JSON error: {ex.Message}", ex);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"ERROR: MoralisEVMService: Unexpected error in GetDeFiPositionsAsync - {ex.Message}");
-            throw new Exception($"MoralisEVMService unexpected error: {ex.Message}", ex);
-        }
+        var url = $"{_baseUrl}/wallets/{address}/defi/positions?chain={apiChain}";
+        var headers = new Dictionary<string, string> { ["X-API-Key"] = _apiKey };
+        
+        return await GetAsync<MoralisGetDeFiPositionsResponse>(url, headers);
     }
 }

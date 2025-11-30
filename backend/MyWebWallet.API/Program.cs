@@ -5,11 +5,16 @@ using MyWebWallet.API.Infrastructure.Redis;
 using MyWebWallet.API.Messaging;
 using MyWebWallet.API.Messaging.Rabbit;
 using MyWebWallet.API.Messaging.Workers;
+using MyWebWallet.API.Middleware;
 using MyWebWallet.API.Services;
 using MyWebWallet.API.Services.Helpers;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Mappers;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Models.Aave.Supplies;
+using MyWebWallet.API.Services.Models.Solana.Common;
+using MyWebWallet.API.Services.Models.Solana.Kamino;
+using MyWebWallet.API.Services.Models.Solana.Raydium;
 using MyWebWallet.API.Services.Solana;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -46,7 +51,12 @@ var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get
 builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMQ"));
 
 // Services
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Accept both camelCase and PascalCase in requests
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 builder.Services.AddEndpointsApiExplorer();
 if (builder.Environment.IsDevelopment())
 {
@@ -101,7 +111,7 @@ builder.Services.AddSingleton<IRpcClient>(sp =>
 });
 
 // Blockchain / protocol services
-builder.Services.AddScoped<IBlockchainService, EthereumService>();
+builder.Services.AddScoped<IWalletAggregationService, WalletAggregationService>();
 builder.Services.AddScoped<IMoralisService, MoralisEVMService>();  // EVM chains (Ethereum, Base, Arbitrum, BNB)
 builder.Services.AddScoped<IAaveeService, AaveeService>();
 builder.Services.AddScoped<IUniswapV3Service, UniswapV3Service>();
@@ -122,7 +132,7 @@ builder.Services.AddScoped<WalletItemLabelEnricher>();
 
 builder.Services.AddHttpClient<KaminoService>();
 builder.Services.AddHttpClient<MoralisSolanaService>();
-builder.Services.AddHttpClient<EthereumService>();
+builder.Services.AddHttpClient<WalletAggregationService>();
 builder.Services.AddHttpClient<MoralisEVMService>();
 builder.Services.AddHttpClient<ICoinMarketCapService, CoinMarketCapService>();
 builder.Services.AddHttpClient<PendleService>();
@@ -172,6 +182,11 @@ if (app.Environment.IsDevelopment())
 }
 
 var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+
+// Apply middleware in correct order
+app.UseCorrelationId();           // First: Add correlation ID to all requests
+app.UseGlobalExceptionHandler();  // Second: Catch all unhandled exceptions
+app.UseRateLimiting();            // Third: Rate limiting before routing
 
 try
 {

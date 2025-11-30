@@ -10,6 +10,8 @@ export function useWalletConnection() {
   const [supportedChains, setSupportedChains] = useState([]);
   const [chainsLoading, setChainsLoading] = useState(false);
   const chainsFetchedRef = useRef(false);
+  const [showWalletSelector, setShowWalletSelector] = useState(false);
+  const [availableWallets, setAvailableWallets] = useState({ metamask: false, phantom: false });
 
   const fetchSupportedChains = useCallback(async ({ force } = {}) => {
     if (chainsFetchedRef.current && !force) return;
@@ -74,89 +76,50 @@ export function useWalletConnection() {
     }
   }
 
-  // Connect to wallet - prompts user to choose if multiple wallets available
+  // Connect to wallet - opens dialog for user to choose
   async function connectWallet() {
     const hasPhantom = window.solana && window.solana.isPhantom;
     const hasMetaMask = window.ethereum;
-    
+
     // No wallet installed
     if (!hasPhantom && !hasMetaMask) {
       alert('No wallet found. Please install MetaMask (Ethereum) or Phantom (Solana).');
       return;
     }
-    
-    // Both wallets available - ask user to choose
-    if (hasPhantom && hasMetaMask) {
-      const choice = window.confirm(
-        'Which wallet do you want to connect?\n\n' +
-        'OK = Phantom (Solana)\n' +
-        'Cancel = MetaMask (Ethereum)'
-      );
-      
-      if (choice) {
-        // Connect Phantom
-        try {
-          const response = await window.solana.connect({ onlyIfTrusted: false });
-          const publicKey = response.publicKey.toString();
-          saveAccount(publicKey);
-          return;
-        } catch (error) {
-          console.error('Error connecting Phantom wallet:', error);
-          if (error.message?.includes('User rejected')) {
-            return; // User cancelled, don't show error
-          }
-          alert('Failed to connect Phantom. Please try again.');
-          return;
-        }
-      } else {
-        // Connect MetaMask
-        try {
-          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-          const acc = accounts[0];
-          saveAccount(acc);
-          return;
-        } catch (error) {
-          console.error('Error connecting MetaMask wallet:', error);
-          if (error.code === 4001) {
-            return; // User rejected, don't show error
-          }
-          alert('Failed to connect MetaMask. Please try again.');
-          return;
-        }
-      }
-    }
-    
-    // Only Phantom available
-    if (hasPhantom) {
+
+    // Set available wallets and show selector
+    setAvailableWallets({
+      metamask: hasMetaMask,
+      phantom: hasPhantom,
+    });
+    setShowWalletSelector(true);
+  }
+
+  // Connect to specific wallet
+  async function connectToWallet(walletType) {
+    setShowWalletSelector(false);
+
+    if (walletType === 'phantom') {
       try {
         const response = await window.solana.connect({ onlyIfTrusted: false });
         const publicKey = response.publicKey.toString();
         saveAccount(publicKey);
-        return;
       } catch (error) {
         console.error('Error connecting Phantom wallet:', error);
-        if (error.message?.includes('User rejected')) {
-          return;
+        if (!error.message?.includes('User rejected')) {
+          alert('Failed to connect Phantom. Please try again.');
         }
-        alert('Failed to connect Phantom. Please try again.');
-        return;
       }
-    }
-    
-    // Only MetaMask available
-    if (hasMetaMask) {
+    } else if (walletType === 'metamask') {
       try {
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         const acc = accounts[0];
         saveAccount(acc);
-        return;
       } catch (error) {
         console.error('Error connecting MetaMask wallet:', error);
-        if (error.code === 4001) {
-          return;
+        if (error.code !== 4001) {
+          alert('Failed to connect MetaMask. Please try again.');
         }
-        alert('Failed to connect MetaMask. Please try again.');
-        return;
       }
     }
   }
@@ -176,7 +139,7 @@ export function useWalletConnection() {
   async function disconnect() {
     localStorage.removeItem(STORAGE_KEY);
     setAccount(null);
-    
+
     // Disconnect Phantom if connected
     if (window.solana && window.solana.isPhantom && window.solana.isConnected) {
       try {
@@ -206,7 +169,7 @@ export function useWalletConnection() {
         saveAccount(accounts[0]);
       }
     };
-    
+
     const handlePhantomAccountChanged = (publicKey) => {
       if (publicKey) {
         saveAccount(publicKey.toString());
@@ -219,7 +182,7 @@ export function useWalletConnection() {
     if (window.ethereum) {
       window.ethereum.on?.('accountsChanged', handleAccountsChanged);
     }
-    
+
     // Phantom listener
     if (window.solana && window.solana.isPhantom) {
       window.solana.on?.('accountChanged', handlePhantomAccountChanged);
@@ -231,7 +194,7 @@ export function useWalletConnection() {
       if (window.ethereum) {
         window.ethereum.removeListener?.('accountsChanged', handleAccountsChanged);
       }
-      
+
       // Cleanup Phantom listeners
       if (window.solana && window.solana.isPhantom) {
         window.solana.removeListener?.('accountChanged', handlePhantomAccountChanged);
@@ -260,6 +223,10 @@ export function useWalletConnection() {
     chainsLoading,
     refreshSupportedChains,
     connectWallet,
+    connectToWallet,
+    showWalletSelector,
+    setShowWalletSelector,
+    availableWallets,
     copyAddress,
     disconnect,
     getRebalances,

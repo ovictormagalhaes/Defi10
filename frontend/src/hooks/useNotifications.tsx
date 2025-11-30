@@ -3,7 +3,15 @@
  * Sistema completo de gerenciamento de notificações com React Context
  */
 
-import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react';
+
 import {
   Notification,
   NotificationConfig,
@@ -12,7 +20,7 @@ import {
   NotificationType,
   NotificationPosition,
   NotificationSettings,
-  NOTIFICATION_TEMPLATES
+  NOTIFICATION_TEMPLATES,
 } from '../types/notifications';
 
 // Initial state
@@ -22,7 +30,7 @@ const initialState: NotificationState = {
   defaultDuration: 4000,
   defaultPosition: NotificationPosition.TOP_RIGHT,
   soundEnabled: true,
-  animationsEnabled: true
+  animationsEnabled: true,
 };
 
 // Action types for reducer
@@ -36,75 +44,78 @@ type NotificationAction =
   | { type: 'UPDATE_TIME_REMAINING'; payload: { id: string; timeRemaining: number } };
 
 // Notification reducer
-function notificationReducer(state: NotificationState, action: NotificationAction): NotificationState {
+function notificationReducer(
+  state: NotificationState,
+  action: NotificationAction
+): NotificationState {
   switch (action.type) {
     case 'ADD_NOTIFICATION': {
       const newNotifications = [...state.notifications, action.payload];
-      
+
       // Remove oldest notifications if exceeding max
       if (newNotifications.length > state.maxNotifications) {
         const excess = newNotifications.length - state.maxNotifications;
         newNotifications.splice(0, excess);
       }
-      
+
       return {
         ...state,
-        notifications: newNotifications
+        notifications: newNotifications,
       };
     }
-    
+
     case 'REMOVE_NOTIFICATION':
       return {
         ...state,
-        notifications: state.notifications.filter(n => n.id !== action.payload)
+        notifications: state.notifications.filter((n) => n.id !== action.payload),
       };
-    
+
     case 'CLEAR_ALL':
       return {
         ...state,
-        notifications: []
+        notifications: [],
       };
-    
+
     case 'UPDATE_NOTIFICATION':
       return {
         ...state,
-        notifications: state.notifications.map(notification =>
+        notifications: state.notifications.map((notification) =>
           notification.id === action.payload.id
             ? { ...notification, ...action.payload.updates }
             : notification
-        )
+        ),
       };
-    
+
     case 'SET_VISIBILITY':
       return {
         ...state,
-        notifications: state.notifications.map(notification =>
+        notifications: state.notifications.map((notification) =>
           notification.id === action.payload.id
             ? { ...notification, isVisible: action.payload.isVisible }
             : notification
-        )
+        ),
       };
-    
+
     case 'UPDATE_PROGRESS':
       return {
         ...state,
-        notifications: state.notifications.map(notification =>
+        notifications: state.notifications.map((notification) =>
           notification.id === action.payload.id
             ? { ...notification, progressValue: action.payload.progress }
             : notification
-        )
+        ),
       };
-    
+
     case 'UPDATE_TIME_REMAINING':
       return {
         ...state,
-        notifications: state.notifications.map(notification =>
+        notifications: state.notifications.map((notification) =>
           notification.id === action.payload.id
             ? { ...notification, timeRemaining: action.payload.timeRemaining }
             : notification
-        )
+        ),
       };
-    
+
     default:
       return state;
   }
@@ -127,18 +138,21 @@ function generateId(): string {
 // Play notification sound
 function playNotificationSound(type: NotificationType, soundEnabled: boolean): void {
   if (!soundEnabled) return;
-  
+
   try {
     const audio = new Audio();
     switch (type) {
       case NotificationType.SUCCESS:
-        audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEF';
+        audio.src =
+          'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEF';
         break;
       case NotificationType.ERROR:
-        audio.src = 'data:audio/wav;base64,UklGRt4DAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YboDAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEF';
+        audio.src =
+          'data:audio/wav;base64,UklGRt4DAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YboDAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEF';
         break;
       default:
-        audio.src = 'data:audio/wav;base64,UklGRr4BAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YZoBAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEF';
+        audio.src =
+          'data:audio/wav;base64,UklGRr4BAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YZoBAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjeH1PLWeDEF';
     }
     audio.volume = 0.3;
     audio.play().catch(() => {
@@ -152,20 +166,20 @@ function playNotificationSound(type: NotificationType, soundEnabled: boolean): v
 // Provider Component
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   children,
-  settings = {}
+  settings = {},
 }) => {
   const [state, dispatch] = useReducer(notificationReducer, {
     ...initialState,
-    ...settings
+    ...settings,
   });
-  
+
   const timersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Clear timers on unmount
   useEffect(() => {
     return () => {
-      timersRef.current.forEach(timer => clearTimeout(timer));
+      timersRef.current.forEach((timer) => clearTimeout(timer));
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -175,15 +189,19 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   // Update time remaining for notifications with duration
   useEffect(() => {
     intervalRef.current = setInterval(() => {
-      state.notifications.forEach(notification => {
-        if (notification.duration && notification.duration > 0 && notification.timeRemaining !== undefined) {
+      state.notifications.forEach((notification) => {
+        if (
+          notification.duration &&
+          notification.duration > 0 &&
+          notification.timeRemaining !== undefined
+        ) {
           const newTimeRemaining = notification.timeRemaining - 100;
           if (newTimeRemaining <= 0) {
             dismissNotification(notification.id);
           } else {
             dispatch({
               type: 'UPDATE_TIME_REMAINING',
-              payload: { id: notification.id, timeRemaining: newTimeRemaining }
+              payload: { id: notification.id, timeRemaining: newTimeRemaining },
             });
           }
         }
@@ -197,70 +215,76 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     };
   }, [state.notifications]);
 
-  const showNotification = useCallback((config: NotificationConfig): string => {
-    const id = generateId();
-    const duration = config.duration ?? state.defaultDuration;
-    
-    const notification: Notification = {
-      ...config,
-      id,
-      timestamp: Date.now(),
-      isVisible: true,
-      timeRemaining: duration > 0 ? duration : undefined,
-      position: config.position ?? state.defaultPosition
-    };
+  const showNotification = useCallback(
+    (config: NotificationConfig): string => {
+      const id = generateId();
+      const duration = config.duration ?? state.defaultDuration;
 
-    // Play sound
-    playNotificationSound(config.type, state.soundEnabled);
+      const notification: Notification = {
+        ...config,
+        id,
+        timestamp: Date.now(),
+        isVisible: true,
+        timeRemaining: duration > 0 ? duration : undefined,
+        position: config.position ?? state.defaultPosition,
+      };
 
-    // Add notification
-    dispatch({ type: 'ADD_NOTIFICATION', payload: notification });
+      // Play sound
+      playNotificationSound(config.type, state.soundEnabled);
 
-    // Call onShow callback
-    if (config.onShow) {
-      config.onShow();
-    }
+      // Add notification
+      dispatch({ type: 'ADD_NOTIFICATION', payload: notification });
 
-    // Auto-dismiss if duration is set
-    if (duration > 0) {
-      const timer = setTimeout(() => {
-        dismissNotification(id);
-        if (config.onExpire) {
-          config.onExpire();
-        }
-      }, duration);
-      
-      timersRef.current.set(id, timer);
-    }
+      // Call onShow callback
+      if (config.onShow) {
+        config.onShow();
+      }
 
-    return id;
-  }, [state.defaultDuration, state.defaultPosition, state.soundEnabled]);
+      // Auto-dismiss if duration is set
+      if (duration > 0) {
+        const timer = setTimeout(() => {
+          dismissNotification(id);
+          if (config.onExpire) {
+            config.onExpire();
+          }
+        }, duration);
 
-  const dismissNotification = useCallback((id: string) => {
-    const notification = state.notifications.find(n => n.id === id);
-    
-    // Clear timer if exists
-    const timer = timersRef.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      timersRef.current.delete(id);
-    }
+        timersRef.current.set(id, timer);
+      }
 
-    // Call onDismiss callback
-    if (notification?.onDismiss) {
-      notification.onDismiss();
-    }
+      return id;
+    },
+    [state.defaultDuration, state.defaultPosition, state.soundEnabled]
+  );
 
-    dispatch({ type: 'REMOVE_NOTIFICATION', payload: id });
-  }, [state.notifications]);
+  const dismissNotification = useCallback(
+    (id: string) => {
+      const notification = state.notifications.find((n) => n.id === id);
+
+      // Clear timer if exists
+      const timer = timersRef.current.get(id);
+      if (timer) {
+        clearTimeout(timer);
+        timersRef.current.delete(id);
+      }
+
+      // Call onDismiss callback
+      if (notification?.onDismiss) {
+        notification.onDismiss();
+      }
+
+      dispatch({ type: 'REMOVE_NOTIFICATION', payload: id });
+    },
+    [state.notifications]
+  );
 
   const dismissAll = useCallback(() => {
     // Clear all timers
-    timersRef.current.forEach(timer => clearTimeout(timer));
+    timersRef.current.forEach((timer) => clearTimeout(timer));
     timersRef.current.clear();
 
     // Call onDismiss for all notifications
-    state.notifications.forEach(notification => {
+    state.notifications.forEach((notification) => {
       if (notification.onDismiss) {
         notification.onDismiss();
       }
@@ -272,13 +296,16 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const updateNotification = useCallback((id: string, updates: Partial<NotificationConfig>) => {
     dispatch({
       type: 'UPDATE_NOTIFICATION',
-      payload: { id, updates }
+      payload: { id, updates },
     });
   }, []);
 
-  const getNotification = useCallback((id: string): Notification | undefined => {
-    return state.notifications.find(n => n.id === id);
-  }, [state.notifications]);
+  const getNotification = useCallback(
+    (id: string): Notification | undefined => {
+      return state.notifications.find((n) => n.id === id);
+    },
+    [state.notifications]
+  );
 
   const contextValue: NotificationContextValue = {
     state,
@@ -286,13 +313,11 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     dismissNotification,
     dismissAll,
     updateNotification,
-    getNotification
+    getNotification,
   };
 
   return (
-    <NotificationContext.Provider value={contextValue}>
-      {children}
-    </NotificationContext.Provider>
+    <NotificationContext.Provider value={contextValue}>{children}</NotificationContext.Provider>
   );
 };
 
@@ -315,40 +340,40 @@ export const useToast = () => {
         type: NotificationType.SUCCESS,
         title,
         message,
-        duration
+        duration,
       }),
-    
+
     error: (title: string, message?: string) =>
       showNotification({
         type: NotificationType.ERROR,
         title,
         message,
-        duration: 0
+        duration: 0,
       }),
-    
+
     warning: (title: string, message?: string) =>
       showNotification({
         type: NotificationType.WARNING,
         title,
         message,
-        duration: 0
+        duration: 0,
       }),
-    
+
     info: (title: string, message?: string, duration?: number) =>
       showNotification({
         type: NotificationType.INFO,
         title,
         message,
-        duration
+        duration,
       }),
-    
+
     loading: (title: string, message?: string) =>
       showNotification({
         type: NotificationType.LOADING,
         title,
         message,
-        dismissible: false
-      })
+        dismissible: false,
+      }),
   };
 };
 
@@ -361,27 +386,27 @@ export const useTransactionNotifications = () => {
       const config = NOTIFICATION_TEMPLATES.LOADING.TRANSACTION_PENDING(hash);
       return showNotification(config);
     },
-    
+
     showConfirmed: (hash: string, amount: string, token: string) => {
       const config = NOTIFICATION_TEMPLATES.SUCCESS.TRANSACTION_CONFIRMED(hash, amount, token);
       return showNotification(config);
     },
-    
+
     showFailed: (reason?: string) => {
       const config = NOTIFICATION_TEMPLATES.ERROR.TRANSACTION_FAILED(reason);
       return showNotification(config);
     },
-    
+
     updateProgress: (id: string, confirmations: number, required: number) => {
       const progress = Math.min((confirmations / required) * 100, 100);
       updateNotification(id, {
         message: `Confirmations: ${confirmations}/${required}`,
-        progress: true
+        progress: true,
       });
-      
+
       // Update progress value separately
       return progress;
-    }
+    },
   };
 };
 
@@ -394,16 +419,16 @@ export const useWalletNotifications = () => {
       const config = NOTIFICATION_TEMPLATES.SUCCESS.WALLET_CONNECTED(walletType);
       return showNotification(config);
     },
-    
+
     showConnectionFailed: (error: string) => {
       const config = NOTIFICATION_TEMPLATES.ERROR.WALLET_CONNECTION_FAILED(error);
       return showNotification(config);
     },
-    
+
     showConnecting: (walletType: string) => {
       const config = NOTIFICATION_TEMPLATES.LOADING.WALLET_CONNECTING(walletType);
       return showNotification(config);
-    }
+    },
   };
 };
 
@@ -416,21 +441,21 @@ export const useRebalanceNotifications = () => {
       const config = NOTIFICATION_TEMPLATES.LOADING.REBALANCE_CALCULATING();
       return showNotification(config);
     },
-    
+
     showCompleted: (portfolioValue: string) => {
       const config = NOTIFICATION_TEMPLATES.SUCCESS.REBALANCE_COMPLETED(portfolioValue);
       return showNotification(config);
     },
-    
+
     showHighSlippage: (slippage: number) => {
       const config = NOTIFICATION_TEMPLATES.WARNING.SLIPPAGE_HIGH(slippage);
       return showNotification(config);
     },
-    
+
     showInsufficientBalance: (token: string, required: string, available: string) => {
       const config = NOTIFICATION_TEMPLATES.ERROR.INSUFFICIENT_BALANCE(token, required, available);
       return showNotification(config);
-    }
+    },
   };
 };
 

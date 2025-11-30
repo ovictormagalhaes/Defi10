@@ -1,13 +1,16 @@
 using Microsoft.Extensions.Options;
-using MyWebWallet.API.Messaging.Contracts;
+using MyWebWallet.API.Messaging.Contracts.Enums;
+using MyWebWallet.API.Messaging.Contracts.Requests;
+using MyWebWallet.API.Messaging.Contracts.Results;
 using MyWebWallet.API.Messaging.Rabbit;
+using MyWebWallet.API.Messaging.Constants;
 using RabbitMQ.Client;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
-using MyWebWallet.API.Services.Solana; // Added for IRaydiumOnChainService
-using MyWebWallet.API.Services.Models; // Added for RaydiumPosition
+using MyWebWallet.API.Services.Solana;
+using MyWebWallet.API.Services.Models.Solana.Raydium;
 using MyWebWallet.API.Messaging.Extensions;
 using System.Numerics;
 using ChainEnum = MyWebWallet.API.Models.Chain;
@@ -52,7 +55,7 @@ public class IntegrationRequestWorker : BaseConsumer
     protected override void DeclareQueues(IModel channel)
     {
         channel.QueueDeclare(QueueName, durable: true, exclusive: false, autoDelete: false);
-        channel.QueueBind(QueueName, exchange: Options.Exchange, routingKey: "integration.request.*");
+        channel.QueueBind(QueueName, exchange: Options.Exchange, routingKey: RoutingKeys.IntegrationRequestPattern);
     }
 
     protected override async Task HandleMessageAsync(string routingKey, ReadOnlyMemory<byte> body, IBasicProperties props, CancellationToken ct)
@@ -244,7 +247,7 @@ public class IntegrationRequestWorker : BaseConsumer
                         Attempt: nextAttempt,
                         OperationTimeout: request.OperationTimeout,
                         Metadata: request.Metadata);
-                    var rk = $"integration.request.{ProviderSlug(request.Provider)}";
+                    var rk = RoutingKeys.ForIntegrationRequest(request.Provider);
                     await _publisher.PublishAsync(rk, retryReq);
                     _logger.LogInformation("Retry published Attempt={Attempt} JobId={JobId} Provider={Provider}", 
                         nextAttempt, request.JobId, request.Provider);
@@ -277,7 +280,7 @@ public class IntegrationRequestWorker : BaseConsumer
             _logger.LogInformation("Publishing IntegrationResult JobId={JobId} Provider={Provider} Status={Status} Attempt={Attempt}", 
                 request.JobId, request.Provider, status, request.Attempt);
 
-            await _publisher.PublishAsync($"integration.result.{request.Provider.ToString().ToLowerInvariant()}", result, ct);
+            await _publisher.PublishAsync(RoutingKeys.ForIntegrationResult(request.Provider), result, ct);
         }
         catch (TimeoutException tex)
         {
@@ -292,6 +295,4 @@ public class IntegrationRequestWorker : BaseConsumer
             throw;
         }
     }
-
-    private static string ProviderSlug(IntegrationProvider provider) => provider.ToString().ToLowerInvariant();
 }

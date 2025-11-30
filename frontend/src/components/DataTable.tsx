@@ -58,11 +58,7 @@ export function DataTable<T extends Record<string, unknown>>({
       <div className="table">
         {rows.map((row, rIdx) => {
           const key = rowKey ? rowKey(row, rIdx) : rIdx;
-          const rowClasses = [
-            'table-row',
-            hover ? 'row-hover' : '',
-            'token-row',
-          ]
+          const rowClasses = ['table-row', hover ? 'row-hover' : '', 'token-row']
             .filter(Boolean)
             .join(' ');
           return (

@@ -42,9 +42,9 @@ const SummaryView = ({
   const stakingValueCalc = breakdown ? breakdown.stakingValue : 0;
   // portfolioGross removido conforme solicitação; manter apenas net
   return (
-  <div className="summary-panel panel-unified" style={{ marginTop: 18 }}>
+    <div className="summary-panel panel-unified" style={{ marginTop: 18 }}>
       <div className="summary-header">
-  <div className="circle-32 bg-primary-subtle" style={{ marginTop:2 }}>
+        <div className="circle-32 bg-primary-subtle" style={{ marginTop: 2 }}>
           <svg
             width="18"
             height="18"
@@ -60,47 +60,33 @@ const SummaryView = ({
           </svg>
         </div>
         <div className="">
-          <h2 className="panel-heading" style={{ fontSize:20, fontWeight:600 }}>
+          <h2 className="panel-heading" style={{ fontSize: 20, fontWeight: 600 }}>
             Portfolio Summary
           </h2>
-          <p className="summary-sub text-secondary">
-            Overview of your DeFi portfolio
-          </p>
+          <p className="summary-sub text-secondary">Overview of your DeFi portfolio</p>
         </div>
       </div>
 
       <div className="summary-grid">
         {/* Total Portfolio Value */}
         <div className="metric-card">
-          <div className="metric-label">
-            Total Portfolio
-          </div>
-          <div className="metric-value-lg text-primary">
-            {maskValue(formatPrice(totalValue))}
-          </div>
+          <div className="metric-label">Total Portfolio</div>
+          <div className="metric-value-lg text-primary">{maskValue(formatPrice(totalValue))}</div>
         </div>
 
         {/* Wallet Tokens */}
         <div className="metric-card">
-          <div className="metric-label">
-            Wallet Assets
-          </div>
+          <div className="metric-label">Wallet Assets</div>
           <div className="metric-value-md text-primary mb-1">
             {maskValue(formatPrice(walletValue))}
           </div>
-          <div className="text-xs text-secondary">
-            {walletTokens.length} tokens
-          </div>
+          <div className="text-xs text-secondary">{walletTokens.length} tokens</div>
         </div>
 
         {/* DeFi Positions (Gross) */}
         <div className="metric-card">
-          <div className="metric-label">
-            DeFi Positions
-          </div>
-          <div className="metric-value-md text-primary mb-1">
-            {maskValue(formatPrice(defiNet))}
-          </div>
+          <div className="metric-label">DeFi Positions</div>
+          <div className="metric-value-md text-primary mb-1">{maskValue(formatPrice(defiNet))}</div>
           <div className="text-xs text-secondary">
             {liquidityData.length + lendingData.length + stakingData.length} positions
           </div>

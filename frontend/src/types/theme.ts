@@ -16,13 +16,13 @@ export interface BaseColors {
   primary700: string;
   primary800: string;
   primary900: string;
-  
+
   // Semantic colors
   success: string;
   warning: string;
   error: string;
   info: string;
-  
+
   // Neutral colors
   gray50: string;
   gray100: string;
@@ -34,23 +34,23 @@ export interface BaseColors {
   gray700: string;
   gray800: string;
   gray900: string;
-  
+
   // Background colors
   background: string;
   backgroundSecondary: string;
   backgroundTertiary: string;
-  
+
   // Text colors
   textPrimary: string;
   textSecondary: string;
   textTertiary: string;
   textInverse: string;
-  
+
   // Border colors
   border: string;
   borderLight: string;
   borderHeavy: string;
-  
+
   // Status colors
   statusSuccess: string;
   statusWarning: string;
@@ -64,7 +64,7 @@ export interface Typography {
   fontPrimary: string;
   fontSecondary: string;
   fontMono: string;
-  
+
   // Font sizes
   xs: string;
   sm: string;
@@ -75,12 +75,12 @@ export interface Typography {
   xl3: string;
   xl4: string;
   xl5: string;
-  
+
   // Line heights
   lineHeightTight: string;
   lineHeightNormal: string;
   lineHeightRelaxed: string;
-  
+
   // Font weights
   weightThin: string;
   weightLight: string;
@@ -173,13 +173,13 @@ export interface Transitions {
   durationFast: string;
   durationNormal: string;
   durationSlow: string;
-  
+
   // Easings
   easingLinear: string;
   easingIn: string;
   easingOut: string;
   easingInOut: string;
-  
+
   // Common transitions
   all: string;
   colors: string;
@@ -221,7 +221,7 @@ export interface ComponentThemes {
       border: string;
     };
   };
-  
+
   // Card variants
   card: {
     background: string;
@@ -230,7 +230,7 @@ export interface ComponentThemes {
     shadow: string;
     shadowHover: string;
   };
-  
+
   // Input variants
   input: {
     background: string;
@@ -241,7 +241,7 @@ export interface ComponentThemes {
     text: string;
     placeholder: string;
   };
-  
+
   // Metric cards
   metric: {
     background: string;
@@ -254,7 +254,7 @@ export interface ComponentThemes {
     iconWarning: string;
     iconError: string;
   };
-  
+
   // Table variants
   table: {
     background: string;
@@ -289,7 +289,10 @@ export type ThemeConfig = {
 // Utility types for theme usage
 export type ColorValue = keyof BaseColors;
 export type SpacingValue = keyof Spacing;
-export type FontSizeValue = keyof Pick<Typography, 'xs' | 'sm' | 'base' | 'lg' | 'xl' | 'xl2' | 'xl3' | 'xl4' | 'xl5'>;
+export type FontSizeValue = keyof Pick<
+  Typography,
+  'xs' | 'sm' | 'base' | 'lg' | 'xl' | 'xl2' | 'xl3' | 'xl4' | 'xl5'
+>;
 export type ShadowValue = keyof Shadows;
 export type BorderRadiusValue = keyof BorderRadius;
 
@@ -312,7 +315,7 @@ export interface SpacingProps {
   marginLeft?: SpacingValue;
   marginX?: SpacingValue;
   marginY?: SpacingValue;
-  
+
   padding?: SpacingValue;
   paddingTop?: SpacingValue;
   paddingRight?: SpacingValue;
@@ -324,7 +327,17 @@ export interface SpacingProps {
 
 export interface TypographyProps {
   fontSize?: FontSizeValue;
-  fontWeight?: keyof Pick<Typography, 'weightThin' | 'weightLight' | 'weightNormal' | 'weightMedium' | 'weightSemibold' | 'weightBold' | 'weightExtrabold' | 'weightBlack'>;
+  fontWeight?: keyof Pick<
+    Typography,
+    | 'weightThin'
+    | 'weightLight'
+    | 'weightNormal'
+    | 'weightMedium'
+    | 'weightSemibold'
+    | 'weightBold'
+    | 'weightExtrabold'
+    | 'weightBlack'
+  >;
   lineHeight?: keyof Pick<Typography, 'lineHeightTight' | 'lineHeightNormal' | 'lineHeightRelaxed'>;
   fontFamily?: keyof Pick<Typography, 'fontPrimary' | 'fontSecondary' | 'fontMono'>;
 }
@@ -342,9 +355,21 @@ export interface FlexProps {
   display?: 'flex' | 'inline-flex';
   flexDirection?: 'row' | 'column' | 'row-reverse' | 'column-reverse';
   flexWrap?: 'wrap' | 'nowrap' | 'wrap-reverse';
-  justifyContent?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly';
+  justifyContent?:
+    | 'flex-start'
+    | 'flex-end'
+    | 'center'
+    | 'space-between'
+    | 'space-around'
+    | 'space-evenly';
   alignItems?: 'flex-start' | 'flex-end' | 'center' | 'baseline' | 'stretch';
-  alignContent?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'stretch';
+  alignContent?:
+    | 'flex-start'
+    | 'flex-end'
+    | 'center'
+    | 'space-between'
+    | 'space-around'
+    | 'stretch';
   gap?: SpacingValue;
 }
 
@@ -361,24 +386,25 @@ export interface GridProps {
 }
 
 // Combined props for full styled system
-export type SystemProps = 
-  & ColorProps 
-  & SpacingProps 
-  & TypographyProps 
-  & LayoutProps 
-  & FlexProps 
-  & GridProps 
-  & ThemedProps;
+export type SystemProps = ColorProps &
+  SpacingProps &
+  TypographyProps &
+  LayoutProps &
+  FlexProps &
+  GridProps &
+  ThemedProps;
 
 // Responsive value type
-export type ResponsiveValue<T> = T | {
-  xs?: T;
-  sm?: T;
-  md?: T;
-  lg?: T;
-  xl?: T;
-  xl2?: T;
-};
+export type ResponsiveValue<T> =
+  | T
+  | {
+      xs?: T;
+      sm?: T;
+      md?: T;
+      lg?: T;
+      xl?: T;
+      xl2?: T;
+    };
 
 // Component variant system
 export interface VariantConfig<T = Record<string, any>> {

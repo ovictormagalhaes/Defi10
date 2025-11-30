@@ -1,4 +1,5 @@
 import React, { ReactNode } from 'react';
+
 import InfoIconWithTooltip from './InfoIconWithTooltip';
 
 /**
@@ -28,10 +29,7 @@ export default function ValueWithTooltip({
   autoPosition = true,
 }: ValueWithTooltipProps) {
   return (
-    <div
-      className={`flex-end gap-6 ${className}`.trim()}
-      style={{ width: '100%' }}
-    >
+    <div className={`flex-end gap-6 ${className}`.trim()} style={{ width: '100%' }}>
       {value}
       <InfoIconWithTooltip content={tooltip} align={infoAlign} maxWidth={infoMaxWidth} />
     </div>

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MyWebWallet.API.Messaging.Contracts;
+using MyWebWallet.API.Messaging.Contracts.Enums;
+using MyWebWallet.API.Messaging.Contracts.Results;
+using MyWebWallet.API.Messaging.Contracts.Progress;
 using MyWebWallet.API.Messaging.Rabbit;
 using RabbitMQ.Client;
 using System.Text.Json;
@@ -9,6 +11,10 @@ using StackExchange.Redis;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 using MyWebWallet.API.Services.Mappers;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Models.Aave.Supplies;
+using MyWebWallet.API.Services.Models.Solana.Common;
+using MyWebWallet.API.Services.Models.Solana.Kamino;
+using MyWebWallet.API.Services.Models.Solana.Raydium;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
@@ -225,11 +231,15 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
                         if (newlyMapped.Count > 0)
                         {
+                            // Populate hierarchical keys (Protocol -> Position -> Token)
+                            newlyMapped.PopulateKeys();
+                            
                             // 1. Logos via ITokenMetadataService
                             var metadataService = scope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
-                            var hydrationHelper = new TokenHydrationHelper(metadataService);
+                            var hydrationLogger = scope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
+                            var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
                             var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
-                            hydrationHelper.ApplyTokenLogosToWalletItems(newlyMapped, logos);
+                            await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(newlyMapped, logos);
 
                             // 2. Prices (novo passo)
                             try
@@ -399,13 +409,17 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
                         if (newlyMapped.Count > 0)
                         {
+                            // Populate hierarchical keys (Protocol -> Position -> Token)
+                            newlyMapped.PopulateKeys();
+                            
                             // 1. Logos via ITokenMetadataService
                             var metadataService = scope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
-                            var hydrationHelper = new TokenHydrationHelper(metadataService);
+                            var hydrationLogger = scope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
+                            var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
                             var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
-                            hydrationHelper.ApplyTokenLogosToWalletItems(newlyMapped, logos);
+                            await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(newlyMapped, logos);
 
-                            // 2. Prices
+                            // 2. Prices (novo passo)
                             try
                             {
                                 var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();

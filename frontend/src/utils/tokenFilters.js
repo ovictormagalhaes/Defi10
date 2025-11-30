@@ -32,7 +32,7 @@ export const TOKEN_TYPES = {
  */
 export function isSuppliedToken(token) {
   if (!token) return false;
-  
+
   const type = normalizeTokenType(token.type);
   return (
     type === 'supplied' ||
@@ -51,7 +51,7 @@ export function isSuppliedToken(token) {
  */
 export function isBorrowedToken(token) {
   if (!token) return false;
-  
+
   const type = normalizeTokenType(token.type);
   return (
     type === 'borrowed' ||
@@ -68,12 +68,9 @@ export function isBorrowedToken(token) {
  */
 export function isUncollectedFeeToken(token) {
   if (!token) return false;
-  
+
   const type = normalizeTokenType(token.type);
-  return (
-    type === 'liquidityuncollectedfee' ||
-    token.type === TOKEN_TYPES.LIQUIDITY_UNCOLLECTED_FEE
-  );
+  return type === 'liquidityuncollectedfee' || token.type === TOKEN_TYPES.LIQUIDITY_UNCOLLECTED_FEE;
 }
 
 /**
@@ -83,12 +80,9 @@ export function isUncollectedFeeToken(token) {
  */
 export function isCollectedFeeToken(token) {
   if (!token) return false;
-  
+
   const type = normalizeTokenType(token.type);
-  return (
-    type === 'liquiditycollectedfee' ||
-    token.type === TOKEN_TYPES.LIQUIDITY_COLLECTED_FEE
-  );
+  return type === 'liquiditycollectedfee' || token.type === TOKEN_TYPES.LIQUIDITY_COLLECTED_FEE;
 }
 
 /**
@@ -98,25 +92,21 @@ export function isCollectedFeeToken(token) {
  */
 export function isRewardToken(token) {
   if (!token) return false;
-  
+
   const type = normalizeTokenType(token.type);
   const symbol = (token.symbol || '').toLowerCase();
   const name = (token.name || '').toLowerCase();
 
   // Check explicit reward types
   if (type === 'reward' || type === 'rewards') return true;
-  
+
   // Check uncollected fees as rewards (they're displayed in rewards section)
   if (isUncollectedFeeToken(token)) return true;
 
   // Check by symbol/name patterns for common reward tokens
-  const rewardPatterns = [
-    'reward', 'comp', 'crv', 'cake', 'uni', 'ldo', 'bal', 'aura'
-  ];
-  
-  return rewardPatterns.some(pattern => 
-    symbol.includes(pattern) || name.includes(pattern)
-  );
+  const rewardPatterns = ['reward', 'comp', 'crv', 'cake', 'uni', 'ldo', 'bal', 'aura'];
+
+  return rewardPatterns.some((pattern) => symbol.includes(pattern) || name.includes(pattern));
 }
 
 /**
@@ -126,11 +116,11 @@ export function isRewardToken(token) {
  */
 export function isGovernanceToken(token) {
   if (!token) return false;
-  
+
   const type = normalizeTokenType(token.type);
   const symbol = (token.symbol || '').toLowerCase();
   const name = (token.name || '').toLowerCase();
-  
+
   return (
     type === 'governancepower' ||
     token.type === TOKEN_TYPES.GOVERNANCE_POWER ||
@@ -148,7 +138,7 @@ export function isGovernanceToken(token) {
  */
 export function filterSuppliedTokens(tokens) {
   if (!Array.isArray(tokens)) return [];
-  return tokens.filter(token => isSuppliedToken(token));
+  return tokens.filter((token) => isSuppliedToken(token));
 }
 
 /**
@@ -188,7 +178,7 @@ export function filterUncollectedFeeTokens(tokens) {
  */
 export function filterGovernanceTokens(tokens) {
   if (!Array.isArray(tokens)) return [];
-  return tokens.filter(token => isGovernanceToken(token));
+  return tokens.filter((token) => isGovernanceToken(token));
 }
 
 /**
@@ -199,7 +189,7 @@ export function filterGovernanceTokens(tokens) {
  */
 export function calculateTokensValue(tokens, valueField = 'totalPrice') {
   if (!Array.isArray(tokens)) return 0;
-  
+
   return tokens.reduce((sum, token) => {
     const value = parseFloat(token[valueField]) || 0;
     return sum + value;
@@ -213,41 +203,37 @@ export function calculateTokensValue(tokens, valueField = 'totalPrice') {
  */
 export function extractAllRewards(position) {
   if (!position) return [];
-  
+
   const rewards = [];
-  
+
   // Direct rewards array
   if (Array.isArray(position.rewards)) {
     rewards.push(...position.rewards);
   }
-  
+
   // Alternative rewards field names
   if (Array.isArray(position.rewardTokens)) {
     rewards.push(...position.rewardTokens);
   }
-  
+
   // Extract reward tokens from main tokens array
   if (Array.isArray(position.tokens)) {
     const rewardTokensFromArray = filterRewardTokens(position.tokens);
     rewards.push(...rewardTokensFromArray);
   }
-  
+
   // Extract from uncollected fees arrays
-  const uncollectedSources = [
-    position.uncollectedFees,
-    position.fees,
-    position.uncollected
-  ];
-  
-  uncollectedSources.forEach(source => {
+  const uncollectedSources = [position.uncollectedFees, position.fees, position.uncollected];
+
+  uncollectedSources.forEach((source) => {
     if (Array.isArray(source)) {
-      const uncollectedRewards = source.filter(item => 
-        item && (isUncollectedFeeToken(item) || item.financials)
+      const uncollectedRewards = source.filter(
+        (item) => item && (isUncollectedFeeToken(item) || item.financials)
       );
       rewards.push(...uncollectedRewards);
     }
   });
-  
+
   return rewards;
 }
 
@@ -258,19 +244,19 @@ export function extractAllRewards(position) {
  */
 export function normalizeTokenPrice(token) {
   if (!token) return token;
-  
+
   // Find the best price field available
   const priceFields = [
     'totalPrice',
-    'totalValueUsd', 
+    'totalValueUsd',
     'totalValueUSD',
     'totalValue',
     'valueUsd',
-    'price'
+    'price',
   ];
-  
+
   let totalPrice = 0;
-  
+
   // Check direct fields
   for (const field of priceFields) {
     if (token[field] !== undefined && token[field] !== null) {
@@ -278,7 +264,7 @@ export function normalizeTokenPrice(token) {
       break;
     }
   }
-  
+
   // Check financials object
   if (!totalPrice && token.financials) {
     for (const field of priceFields) {
@@ -288,9 +274,9 @@ export function normalizeTokenPrice(token) {
       }
     }
   }
-  
+
   return {
     ...token,
-    totalPrice
+    totalPrice,
   };
 }

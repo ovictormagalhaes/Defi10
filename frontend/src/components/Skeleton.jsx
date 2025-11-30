@@ -19,7 +19,10 @@ export function Skeleton({ width, height, circle = false, inline = false, classN
 export function TextSkeleton({ lines = 1, lineHeight = 13, gap = 6, className = '' }) {
   const arr = Array.from({ length: lines });
   return (
-    <span className={['skeleton-text-stack', className].filter(Boolean).join(' ')} style={{ display: 'flex', flexDirection: 'column', gap }}>
+    <span
+      className={['skeleton-text-stack', className].filter(Boolean).join(' ')}
+      style={{ display: 'flex', flexDirection: 'column', gap }}
+    >
       {arr.map((_, i) => (
         <Skeleton key={i} height={lineHeight} className="text" />
       ))}

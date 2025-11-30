@@ -4,6 +4,7 @@ using MyWebWallet.API.Services.Solana;
 using Solnet.Rpc;
 using Xunit;
 using Xunit.Abstractions;
+using System.Net.Http;
 
 namespace MyWebWallet.API.Tests
 {
@@ -12,6 +13,7 @@ namespace MyWebWallet.API.Tests
         private readonly ITestOutputHelper _output;
         private readonly IRpcClient _rpcClient;
         private readonly ILogger<RaydiumOnChainService> _logger;
+        private readonly HttpClient _httpClient;
         private readonly RaydiumOnChainService _service;
         
         private const string TEST_WALLET_ADDRESS = "GSyqNADxpnyo57KDWXHGE7gjd63ovGB2FuYCtnZQZSWu";
@@ -21,6 +23,7 @@ namespace MyWebWallet.API.Tests
         {
             _output = output;
             _rpcClient = ClientFactory.GetClient("https://api.mainnet-beta.solana.com");
+            _httpClient = new HttpClient();
             
             // Create mock logger
             var mockLogger = new Mock<ILogger<RaydiumOnChainService>>();
@@ -45,7 +48,7 @@ namespace MyWebWallet.API.Tests
                 }));
 
             _logger = mockLogger.Object;
-            _service = new RaydiumOnChainService(_rpcClient, _logger);
+            _service = new RaydiumOnChainService(_rpcClient, _logger, _httpClient);
         }
 
         [Fact]
@@ -81,11 +84,17 @@ namespace MyWebWallet.API.Tests
                 // Validations
                 Assert.NotNull(position.Pool);
                 Assert.NotNull(position.Tokens);
-                Assert.Equal(2, position.Tokens.Count); // CLMM positions have exactly 2 tokens
+                // CLMM positions have 2 supplied tokens + 2 uncollected fee tokens = 4 total
+                Assert.True(position.Tokens.Count >= 2, "Position should have at least 2 tokens");
 
-                // Validate token amounts
-                var tokenA = position.Tokens[0];
-                var tokenB = position.Tokens[1];
+                // Separate supplied tokens from uncollected fees
+                var suppliedTokens = position.Tokens.Where(t => t.Type == MyWebWallet.API.Models.TokenType.Supplied).ToList();
+                var feeTokens = position.Tokens.Where(t => t.Type == MyWebWallet.API.Models.TokenType.LiquidityUncollectedFee).ToList();
+                
+                Assert.Equal(2, suppliedTokens.Count); // Always 2 supplied tokens (tokenA and tokenB)
+                
+                var tokenA = suppliedTokens[0];
+                var tokenB = suppliedTokens[1];
 
                 _output.WriteLine($"\nToken A Amount: {tokenA.Amount}");
                 _output.WriteLine($"Token B Amount: {tokenB.Amount}");

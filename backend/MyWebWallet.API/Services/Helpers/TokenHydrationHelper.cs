@@ -10,10 +10,12 @@ namespace MyWebWallet.API.Services.Helpers;
 public class TokenHydrationHelper
 {
     private readonly ITokenMetadataService _metadataService;
+    private readonly ILogger<TokenHydrationHelper> _logger;
 
-    public TokenHydrationHelper(ITokenMetadataService metadataService)
+    public TokenHydrationHelper(ITokenMetadataService metadataService, ILogger<TokenHydrationHelper> logger)
     {
         _metadataService = metadataService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -29,7 +31,7 @@ public class TokenHydrationHelper
         if (!uniqueTokens.Any())
             return new Dictionary<string, string?>();
 
-        Console.WriteLine($"DEBUG: TokenHydrationHelper: Found {uniqueTokens.Count} unique tokens for hydration on {chain}");
+        _logger.LogDebug("Found {TokenCount} unique tokens for hydration on {Chain}", uniqueTokens.Count, chain);
 
         var existingLogos = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         var tokensToStore = new Dictionary<string, TokenMetadata>();
@@ -91,7 +93,7 @@ public class TokenHydrationHelper
 
         if (tokensToStore.Any())
         {
-            Console.WriteLine($"DEBUG: TokenHydrationHelper: Stored {tokensToStore.Count} new token metadata entries on {chain}");
+            _logger.LogDebug("Stored {TokenCount} new token metadata entries on {Chain}", tokensToStore.Count, chain);
         }
 
         return existingLogos;
@@ -100,7 +102,7 @@ public class TokenHydrationHelper
     /// <summary>
     /// Applies logos to wallet items based on metadata lookup
     /// </summary>
-    public void ApplyTokenLogosToWalletItems(IEnumerable<WalletItem> walletItems, Dictionary<string, string?> tokenLogos)
+    public async Task ApplyTokenLogosToWalletItemsAsync(IEnumerable<WalletItem> walletItems, Dictionary<string, string?> tokenLogos)
     {
         // Build symbol → logo mapping for fallback lookup
         var symbolToLogo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -160,14 +162,29 @@ public class TokenHydrationHelper
                         }
                     }
                     
-                    // Strategy 2: Fallback by symbol (secondary)
+                    // Strategy 2: Fallback by symbol+name (cross-chain lookup)
+                    if (!string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(token.Name))
+                    {
+                        var crossChainMetadata = await _metadataService.GetTokenMetadataBySymbolAndNameAsync(
+                            token.Symbol, token.Name);
+                        
+                        if (crossChainMetadata?.LogoUrl != null)
+                        {
+                            token.Logo = crossChainMetadata.LogoUrl;
+                            _logger.LogDebug("Applied logo by symbol+name cross-chain fallback - {Symbol}/{Name}", 
+                                token.Symbol, token.Name);
+                            continue;
+                        }
+                    }
+                    
+                    // Strategy 3: Fallback by symbol only (within batch)
                     if (!string.IsNullOrEmpty(token.Symbol))
                     {
                         var normalizedSymbol = token.Symbol.ToUpperInvariant();
                         if (symbolToLogo.TryGetValue(normalizedSymbol, out logoUrl) && !string.IsNullOrEmpty(logoUrl))
                         {
                             token.Logo = logoUrl;
-                            Console.WriteLine($"DEBUG: TokenHydrationHelper: Applied logo by symbol fallback - {token.Symbol}");
+                            _logger.LogDebug("Applied logo by symbol fallback - {Symbol}", token.Symbol);
                             continue;
                         }
                     }

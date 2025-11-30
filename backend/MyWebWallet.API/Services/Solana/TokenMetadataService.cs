@@ -15,6 +15,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
     private readonly ILogger<TokenMetadataService> _logger;
     
     private const string METADATA_PREFIX = "token:metadata:";
+    private const string METADATA_BY_SYMBOL_PREFIX = "token:metadata:symbol:";
     private const string PRICE_PREFIX = "token:price:";
     private static readonly TimeSpan METADATA_TTL = TimeSpan.FromDays(7);  // Metadata rarely changes
     private static readonly TimeSpan PRICE_TTL = TimeSpan.FromMinutes(5);  // Prices change frequently
@@ -79,6 +80,36 @@ public sealed class TokenMetadataService : ITokenMetadataService
         catch (Exception ex)
         {
             _logger.LogError(ex, "[TokenMetadata] Failed to get metadata for mint={Mint}", mintAddress);
+            return null;
+        }
+    }
+    
+    public async Task<TokenMetadata?> GetTokenMetadataBySymbolAndNameAsync(string symbol, string name)
+    {
+        if (string.IsNullOrWhiteSpace(symbol) || string.IsNullOrWhiteSpace(name))
+            return null;
+
+        try
+        {
+            // Normalize key: symbol:name (uppercase symbol, original name)
+            string compositeKey = $"{METADATA_BY_SYMBOL_PREFIX}{symbol.ToUpperInvariant()}:{name}";
+            string? cached = await _cache.GetAsync<string>(compositeKey);
+            
+            if (cached != null)
+            {
+                _logger.LogDebug("[TokenMetadata] Cross-chain lookup HIT for symbol={Symbol}, name={Name}", 
+                    symbol, name);
+                return JsonSerializer.Deserialize<TokenMetadata>(cached);
+            }
+            
+            _logger.LogDebug("[TokenMetadata] Cross-chain lookup MISS for symbol={Symbol}, name={Name}", 
+                symbol, name);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[TokenMetadata] Failed to get metadata by symbol={Symbol}, name={Name}", 
+                symbol, name);
             return null;
         }
     }
@@ -165,12 +196,23 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
+            // Store by mint address
             string key = $"{METADATA_PREFIX}{mintAddress}";
             string json = JsonSerializer.Serialize(metadata);
             await _cache.SetAsync(key, json, METADATA_TTL);
             
             _logger.LogInformation("[TokenMetadata] Cached metadata for mint={Mint}, symbol={Symbol}, name={Name}", 
                 mintAddress, metadata.Symbol, metadata.Name);
+            
+            // Also store by symbol:name for cross-chain lookup
+            if (!string.IsNullOrWhiteSpace(metadata.Symbol) && !string.IsNullOrWhiteSpace(metadata.Name))
+            {
+                string compositeKey = $"{METADATA_BY_SYMBOL_PREFIX}{metadata.Symbol.ToUpperInvariant()}:{metadata.Name}";
+                await _cache.SetAsync(compositeKey, json, METADATA_TTL);
+                
+                _logger.LogDebug("[TokenMetadata] Cached metadata for cross-chain lookup: {CompositeKey}", 
+                    compositeKey);
+            }
         }
         catch (Exception ex)
         {

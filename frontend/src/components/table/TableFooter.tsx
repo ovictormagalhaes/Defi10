@@ -1,6 +1,7 @@
 import React from 'react';
-import { formatPrice } from '../../utils/walletUtils';
+
 import { useMaskValues } from '../../context/MaskValuesContext';
+import { formatPrice } from '../../utils/walletUtils';
 
 interface TableFooterProps {
   totalValue?: number;
@@ -23,14 +24,14 @@ const TableFooter: React.FC<TableFooterProps> = ({
   className = '',
 }) => {
   const { maskValue } = useMaskValues();
-  
+
   // Don't show footer if less than 2 items
   if (itemsCount < 2) return null;
 
   // Determine column structure (same logic as StandardHeader)
   let sequence = null;
   let advanced = null;
-  
+
   if (Array.isArray(columnDefs) && columnDefs.length) {
     advanced = columnDefs;
   } else {
@@ -48,7 +49,10 @@ const TableFooter: React.FC<TableFooterProps> = ({
   );
 
   const renderTotalCell = (key: string | null, index: number) => (
-    <td key={key || index} className="td td-right td-mono tabular-nums td-mono-strong text-primary font-semibold">
+    <td
+      key={key || index}
+      className="td td-right td-mono tabular-nums td-mono-strong text-primary font-semibold"
+    >
       {maskValue(formatPrice(totalValue))}
     </td>
   );
@@ -57,21 +61,17 @@ const TableFooter: React.FC<TableFooterProps> = ({
     <tfoot>
       <tr className={`table-footer-row border-t ${className}`.trim()}>
         {/* Token column - always shows "Total" */}
-        <td className="td td-left font-semibold text-primary">
-          Total
-        </td>
-        
+        <td className="td td-left font-semibold text-primary">Total</td>
+
         {/* Dynamic columns based on table structure */}
         {advanced
-          ? advanced.map((col, index) => 
-              col.key === 'value' 
+          ? advanced.map((col, index) =>
+              col.key === 'value'
                 ? renderTotalCell(col.key, index)
                 : renderEmptyCell(col.key, index)
             )
-          : sequence?.map((col, index) => 
-              col === 'value' 
-                ? renderTotalCell(col, index)
-                : renderEmptyCell(col, index)
+          : sequence?.map((col, index) =>
+              col === 'value' ? renderTotalCell(col, index) : renderEmptyCell(col, index)
             )}
       </tr>
     </tfoot>

@@ -1,8 +1,9 @@
 import React from 'react';
+
 import { useChainIcons } from '../context/ChainIconsProvider';
 import { useTheme } from '../context/ThemeProvider';
-import { formatTokenDisplay } from '../utils/tokenDisplay.js';
 import type { Token } from '../types/wallet';
+import { formatTokenDisplay } from '../utils/tokenDisplay.js';
 
 interface TokenDisplayProps {
   tokens?: (Token | any)[];
@@ -33,12 +34,12 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
 }) => {
   const { theme } = useTheme();
   const { getIcon: getChainIconFromContext } = useChainIcons();
-  
+
   // Normalize lending/position tokens: map [{token, type}, ...] to token objects when needed
   const normalizedTokens = Array.isArray(tokens)
     ? tokens.map((t: any) => (t && t.token ? t.token : t))
     : tokens;
-    
+
   const { logos, text } = formatTokenDisplay(normalizedTokens, { showName });
 
   const isPair = logos.length === 2;
@@ -47,9 +48,9 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
 
   // Determine chain (prefer first token's chain-like fields)
   const baseToken = normalizedTokens[0] || {};
-  
+
   // Attempt direct field extraction
-  let raw: string =
+  const raw: string =
     baseToken.chain ||
     baseToken.chainId ||
     baseToken.chainID ||
@@ -72,7 +73,7 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
   if (typeof raw === 'string') {
     chainKey = raw.toLowerCase();
   }
-  
+
   // Map numeric chain IDs to keys
   const chainIdMapping: Record<number, string> = {
     1: 'ethereum',
@@ -85,15 +86,13 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
     25: 'cronos',
     100: 'xdai',
   };
-  
+
   if (chainNumericId && chainIdMapping[chainNumericId]) {
     chainKey = chainIdMapping[chainNumericId];
   }
 
   // Get chain icon
-  const chainIconUrl = getChainIcon 
-    ? getChainIcon(chainKey) 
-    : getChainIconFromContext();
+  const chainIconUrl = getChainIcon ? getChainIcon(chainKey) : getChainIconFromContext();
 
   return (
     <div
@@ -133,7 +132,7 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
             }}
           />
         ))}
-        
+
         {/* Chain badge overlay */}
         {showChain && chainIconUrl && (
           <img

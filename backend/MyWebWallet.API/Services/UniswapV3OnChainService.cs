@@ -116,7 +116,7 @@ namespace MyWebWallet.API.Services
 
                 if (string.IsNullOrWhiteSpace(aggregator))
                 {
-                    Console.WriteLine($"CHAINLINK_NATIVE_PRICE_SKIP: chain={ctx.Chain} reason=no-aggregator-configured");
+                    _logger.LogDebug("CHAINLINK_NATIVE_PRICE_SKIP: chain={Chain} reason=no-aggregator-configured", ctx.Chain);
                     return null;
                 }
 
@@ -124,23 +124,23 @@ namespace MyWebWallet.API.Services
                 var data = await handler.QueryDeserializingToObjectAsync<LatestRoundDataFunction, LatestRoundDataOutputDTO>(new LatestRoundDataFunction());
                 if (data == null)
                 {
-                    Console.WriteLine($"CHAINLINK_NATIVE_PRICE_WARN: chain={ctx.Chain} reason=null-response");
+                    _logger.LogWarning("CHAINLINK_NATIVE_PRICE_WARN: chain={Chain} reason=null-response", ctx.Chain);
                     return null;
                 }
                 var answer = data.Answer;
                 if (answer <= 0)
                 {
-                    Console.WriteLine($"CHAINLINK_NATIVE_PRICE_WARN: chain={ctx.Chain} reason=non-positive-answer value={answer}");
+                    _logger.LogWarning("CHAINLINK_NATIVE_PRICE_WARN: chain={Chain} reason=non-positive-answer value={Answer}", ctx.Chain, answer);
                     return null;
                 }
                 // ETH / USD feeds use 8 decimals
                 double val = (double)answer / Math.Pow(10, 8);
-                Console.WriteLine($"CHAINLINK_NATIVE_PRICE: chain={ctx.Chain} priceUSD={val:G17} source={(configured!=null?"config":"default")}");
+                _logger.LogInformation("CHAINLINK_NATIVE_PRICE: chain={Chain} priceUSD={Price:G17} source={Source}", ctx.Chain, val, configured != null ? "config" : "default");
                 return val;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"CHAINLINK_NATIVE_PRICE_WARN: chain={ctx.Chain} msg={ex.Message}");
+                _logger.LogWarning(ex, "CHAINLINK_NATIVE_PRICE_WARN: chain={Chain}", ctx.Chain);
                 return null;
             }
         }
@@ -188,14 +188,14 @@ namespace MyWebWallet.API.Services
                 ? _configuration["UniswapV3:Arbitrum:PoolInitCodeHash"]
                 : _configuration["UniswapV3:Base:PoolInitCodeHash"]) ?? _configuration["UniswapV3:PoolInitCodeHash"] ?? "0xe34f4a2e3af081af0d5af2c5d0a8f0d492adefafbd18e23601d79d64c6f3d6f";
             init = init.ToLowerInvariant();
-            Console.WriteLine($"INFO: UniswapV3OnChainService: Created ctx chain={chain} rpc={rpc} pm={pm} factory={factory}");
+            _logger.LogInformation("Created context - chain={Chain} rpc={Rpc} positionManager={Pm} factory={Factory}", chain, rpc, pm, factory);
             return new(chain, new Web3(rpc), pm, factory, init);
         }
 
         private static string Normalize(string? a) 
         {
             if (string.IsNullOrEmpty(a)) 
-                return "0x0000000000000000000000000000000000000000"; // endereço zero como fallback
+                return "0x0000000000000000000000000000000000000000"; // endereï¿½o zero como fallback
             
             return a.StartsWith("0x") ? a.ToLowerInvariant() : "0x" + a.ToLowerInvariant();
         }
@@ -288,7 +288,7 @@ namespace MyWebWallet.API.Services
                 
                 if (positionResult == null)
                 {
-                    Console.WriteLine($"WARNING: position {id} chain={ctx.Chain} failed: Position not found");
+                    _logger.LogWarning("Position {TokenId} on chain {Chain} not found", id, ctx.Chain);
                     return null;
                 }
 
@@ -296,12 +296,12 @@ namespace MyWebWallet.API.Services
             }
             catch (Exception ex) when (ex.Message.Contains("Invalid token ID") || ex.Message.Contains("ERC721: owner query"))
             {
-                Console.WriteLine($"WARNING: position {id} chain={ctx.Chain} failed: {ex.Message}");
+                _logger.LogWarning("Position {TokenId} on chain {Chain} failed: {Message}", id, ctx.Chain, ex.Message);
                 return null;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR: position {id} chain={ctx.Chain} failed with exception: {ex.Message}");
+                _logger.LogError(ex, "Position {TokenId} on chain {Chain} failed with exception", id, ctx.Chain);
                 throw;
             }
         }
@@ -650,7 +650,7 @@ namespace MyWebWallet.API.Services
         public async Task<PositionRangeInfo> GetPositionRangeAsync(BigInteger positionTokenId)
         { var pos=await GetPositionAsync(positionTokenId); var ctx=BaseCtx; var pool=await ResolvePoolAsync(ctx,pos.Token0,pos.Token1,pos.Fee); var slot=await TryGetSlot0Async(ctx,pool); int currentTick=slot?.Tick??0; var min=TickToPrice(pos.TickLower,0,0); var max=TickToPrice(pos.TickUpper,0,0); var cur=TickToPrice(currentTick,0,0); var status=currentTick<pos.TickLower?"below":(currentTick>pos.TickUpper?"above":"in-range"); return new PositionRangeInfo(positionTokenId,pool,pos.TickLower,pos.TickUpper,currentTick,min,max,cur,status); }
         
-        // Implementações dos novos métodos granulares resilientes
+        // Implementaï¿½ï¿½es dos novos mï¿½todos granulares resilientes
         public async Task<IEnumerable<BigInteger>> EnumeratePositionIdsAsync(string ownerAddress, ChainEnum chain, bool onlyOpen = true)
         {
             try
@@ -684,7 +684,7 @@ namespace MyWebWallet.API.Services
                     } 
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"WARNING: Failed to get tokenId at index {i} for owner {ownerAddress}: {ex.Message}");
+                        _logger.LogWarning(ex, "Failed to get tokenId at index {Index} for owner {Owner}", i, ownerAddress);
                         break;
                     }
                 }
@@ -693,7 +693,7 @@ namespace MyWebWallet.API.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR: Failed to enumerate positions for owner {ownerAddress}: {ex.Message}");
+                _logger.LogError(ex, "Failed to enumerate positions for owner {Owner}", ownerAddress);
                 return Enumerable.Empty<BigInteger>();
             }
         }
@@ -710,13 +710,13 @@ namespace MyWebWallet.API.Services
                     return PositionDataResult.CreateFailure(tokenId, "Position not found or inaccessible");
                 }
 
-                // Validação extra de campos obrigatórios
+                // Validaï¿½ï¿½o extra de campos obrigatï¿½rios
                 if (string.IsNullOrEmpty(position.Token0) || string.IsNullOrEmpty(position.Token1))
                 {
                     return PositionDataResult.CreateFailure(tokenId, "Position has invalid token addresses");
                 }
 
-                // Tenta resolver o endereço do pool
+                // Tenta resolver o endereï¿½o do pool
                 string? poolAddress = null;
                 try
                 {
@@ -724,7 +724,7 @@ namespace MyWebWallet.API.Services
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"WARNING: Failed to resolve pool address for tokenId {tokenId}: {ex.Message}");
+                    _logger.LogWarning(ex, "Failed to resolve pool address for tokenId {TokenId}", tokenId);
                 }
 
                 return PositionDataResult.CreateSuccess(tokenId, position, poolAddress);
@@ -817,7 +817,7 @@ namespace MyWebWallet.API.Services
                 var ctx = GetContext(chain);
                 var (symbol, name, decimals) = await GetErc20MetadataAsync(ctx, tokenAddress);
                 
-                // Considera sucesso mesmo se alguns campos estão vazios
+                // Considera sucesso mesmo se alguns campos estï¿½o vazios
                 return TokenMetadataResult.CreateSuccess(tokenAddress, symbol, name, decimals);
             }
             catch (Exception ex)

@@ -9,14 +9,16 @@ public class RedisCacheService : ICacheService
 {
     private readonly IDatabase _database;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<RedisCacheService> _logger;
     private readonly TimeSpan _defaultExpiration;
     private readonly string _walletCacheKeyPrefix;
     private readonly string _rebalanceKeyPrefix;
 
-    public RedisCacheService(IConnectionMultiplexer redis, IConfiguration configuration)
+    public RedisCacheService(IConnectionMultiplexer redis, IConfiguration configuration, ILogger<RedisCacheService> logger)
     {
         _database = redis.GetDatabase();
         _configuration = configuration;
+        _logger = logger;
         
         // Get default expiration from configuration or default to 30 minutes
         var expirationConfig = configuration["Redis:DefaultExpiration"];
@@ -36,7 +38,7 @@ public class RedisCacheService : ICacheService
             
             if (!value.HasValue)
             {
-                Console.WriteLine($"DEBUG: RedisCacheService: Cache miss for key: {key}");
+                _logger.LogDebug("Cache miss for key: {Key}", key);
                 return null;
             }
 
@@ -44,7 +46,7 @@ public class RedisCacheService : ICacheService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: RedisCacheService: Failed to get cache for key {key}: {ex.Message}");
+            _logger.LogError(ex, "Failed to get cache for key {Key}", key);
             return null;
         }
     }
@@ -60,7 +62,7 @@ public class RedisCacheService : ICacheService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: RedisCacheService: Failed to set cache for key {key}: {ex.Message}");
+            _logger.LogError(ex, "Failed to set cache for key {Key}", key);
             // Don't throw - caching should be non-blocking
         }
     }
@@ -75,7 +77,7 @@ public class RedisCacheService : ICacheService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: RedisCacheService: Failed to set persistent value for key {key}: {ex.Message}");
+            _logger.LogError(ex, "Failed to set persistent value for key {Key}", key);
         }
     }
 
@@ -87,7 +89,7 @@ public class RedisCacheService : ICacheService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: RedisCacheService: Failed to remove cache for key {key}: {ex.Message}");
+            _logger.LogError(ex, "Failed to remove cache for key {Key}", key);
         }
     }
 

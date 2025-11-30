@@ -4,20 +4,21 @@
  */
 
 import React from 'react';
+
 import { useMaskValues } from '../../context/MaskValuesContext';
 import { useTheme } from '../../context/ThemeProvider';
-import { 
-  formatPrice, 
-  formatTokenAmount, 
-  calculatePercentage, 
-  getTotalPortfolioValue 
+import { getWalletTokenItems } from '../../types/filters';
+import type { WalletItem } from '../../types/wallet';
+import {
+  formatPrice,
+  formatTokenAmount,
+  calculatePercentage,
+  getTotalPortfolioValue,
 } from '../../utils/walletUtils';
-import TokenDisplay from '../TokenDisplay';
+import MiniMetric from '../MiniMetric';
 import StandardHeader from '../table/StandardHeader';
 import TableFooter from '../table/TableFooter';
-import MiniMetric from '../MiniMetric';
-import type { WalletItem } from '../../types/wallet';
-import { getWalletTokenItems } from '../../types/filters';
+import TokenDisplay from '../TokenDisplay';
 // Pronto para usar funções TypeScript quando migrar para WalletItem[]
 
 // Interface CORRETA - APENAS WalletItem[]
@@ -26,7 +27,7 @@ interface WalletTokensTableProps {
   showBalanceColumn?: boolean;
   showUnitPriceColumn?: boolean;
   showMetrics?: boolean;
-  
+
   // DEPRECATED - apenas para compatibilidade temporária
   tokens?: TokenData[];
 }
@@ -67,12 +68,12 @@ interface ColumnDef {
 }
 
 /**
- * Gera uma chave única e estável para uma linha de token, 
+ * Gera uma chave única e estável para uma linha de token,
  * combinando address + chain quando disponível.
  */
 function deriveTokenKey(token: WalletToken | null, index: number): string {
   if (!token) return `tok-${index}`;
-  
+
   const addr = (token.contractAddress || token.tokenAddress || token.address || '').toLowerCase();
   const chain = (
     token.chainId ||
@@ -85,10 +86,10 @@ function deriveTokenKey(token: WalletToken | null, index: number): string {
   )
     .toString()
     .toLowerCase();
-    
+
   if (addr) return `${addr}${chain ? `-${chain}` : ''}`;
-  
-  // Alguns tokens nativos podem compartilhar o placeholder (ex: 0xeeee...) 
+
+  // Alguns tokens nativos podem compartilhar o placeholder (ex: 0xeeee...)
   // então desambiguar por symbol+index
   const symbol = (token.symbol || '').toLowerCase();
   const name = (token.name || '').toLowerCase();
@@ -106,7 +107,7 @@ const WalletTokensTable: React.FC<WalletTokensTableProps> = ({
 }) => {
   const { theme } = useTheme();
   const { maskValue } = useMaskValues();
-  
+
   if (!tokens || tokens.length === 0) return null;
 
   const totalValue = tokens.reduce((sum, tokenData) => {
@@ -117,7 +118,8 @@ const WalletTokensTable: React.FC<WalletTokensTableProps> = ({
 
   const count = tokens.length;
   const portfolioTotal = getTotalPortfolioValue ? getTotalPortfolioValue() : 0;
-  const portfolioPercent = portfolioTotal > 0 ? calculatePercentage(totalValue, portfolioTotal) : '0%';
+  const portfolioPercent =
+    portfolioTotal > 0 ? calculatePercentage(totalValue, portfolioTotal) : '0%';
 
   const columnDefs: ColumnDef[] = [
     { key: 'price', label: 'Price', align: 'right' },
@@ -129,29 +131,19 @@ const WalletTokensTable: React.FC<WalletTokensTableProps> = ({
     <div className="wallet-tokens-table-wrapper flex-col gap-12">
       {showMetrics && (
         <div className="mini-metrics">
-          <MiniMetric 
-            label="Positions" 
-            value={count}
-          />
-          <MiniMetric 
-            label="Portfolio %" 
-            value={portfolioPercent}
-          />
+          <MiniMetric label="Positions" value={count} />
+          <MiniMetric label="Portfolio %" value={portfolioPercent} />
         </div>
       )}
-      
+
       <table className="table-unified text-primary">
-        <StandardHeader 
-          columns={['token', 'price', 'amount', 'value']}
-          columnDefs={columnDefs} 
-        />
+        <StandardHeader columns={['token', 'price', 'amount', 'value']} columnDefs={columnDefs} />
         <tbody>
           {tokens.map((tokenData, index) => {
             const token = tokenData.token || tokenData;
             const key = deriveTokenKey(token, index);
-            const unitPrice = parseFloat(String(
-              token.priceUsd || token.price || token.priceUSD || 0
-            )) || 0;
+            const unitPrice =
+              parseFloat(String(token.priceUsd || token.price || token.priceUSD || 0)) || 0;
 
             return (
               <tr
@@ -161,21 +153,17 @@ const WalletTokensTable: React.FC<WalletTokensTableProps> = ({
                 }`}
               >
                 <td className="td text-primary col-name">
-                  <TokenDisplay 
-                    tokens={[token] as never[]} 
-                    size={22} 
-                    showChain={true} 
-                  />
+                  <TokenDisplay tokens={[token] as never[]} size={22} showChain={true} />
                 </td>
-                
+
                 <td className="td td-right td-mono tabular-nums text-primary col-price">
                   {maskValue(formatPrice(unitPrice))}
                 </td>
-                
+
                 <td className="td td-right td-mono tabular-nums text-primary col-amount">
                   {maskValue(formatTokenAmount(token, 4))}
                 </td>
-                
+
                 <td className="td td-right td-mono tabular-nums td-mono-strong text-primary col-value">
                   {maskValue(formatPrice(parseFloat(String(token.totalPrice)) || 0))}
                 </td>
@@ -183,11 +171,7 @@ const WalletTokensTable: React.FC<WalletTokensTableProps> = ({
             );
           })}
         </tbody>
-        <TableFooter 
-          totalValue={totalValue}
-          itemsCount={count}
-          columnDefs={columnDefs}
-        />
+        <TableFooter totalValue={totalValue} itemsCount={count} columnDefs={columnDefs} />
       </table>
     </div>
   );

@@ -1,10 +1,10 @@
 // Utility functions for wallet data processing and formatting
-import { 
-  filterSuppliedTokens, 
-  filterBorrowedTokens, 
+import {
+  filterSuppliedTokens,
+  filterBorrowedTokens,
   filterRewardTokens,
   isRewardToken,
-  normalizeTokenPrice
+  normalizeTokenPrice,
 } from './tokenFilters';
 
 // Normalize financials block into flat token fields (mutates the object for convenience)
@@ -26,10 +26,12 @@ export function normalizeFinancials(token) {
 
 // Constants for item types
 export const ITEM_TYPES = {
-  WALLET: "Wallet",
-  LIQUIDITY_POOL: "LiquidityPool", 
-  LENDING_AND_BORROWING: "LendingAndBorrowing",
-  STAKING: "Staking",
+  WALLET: 'Wallet',
+  LIQUIDITY_POOL: 'LiquidityPool',
+  LENDING_AND_BORROWING: 'LendingAndBorrowing',
+  STAKING: 'Staking',
+  DEPOSITING: 'Depositing',
+  LOCKING: 'Locking',
   GROUP: 98, // virtual grouping type (frontend only)
 };
 
@@ -63,21 +65,27 @@ export function getWalletTokens(data) {
 // DEPRECATED: Use getLiquidityPoolItems from types/filters.ts instead
 // Get liquidity pools from unified data
 export function getLiquidityPools(data) {
-  console.warn('DEPRECATED: getLiquidityPools from walletUtils.js is deprecated. Use getLiquidityPoolItems from types/filters.ts');
+  console.warn(
+    'DEPRECATED: getLiquidityPools from walletUtils.js is deprecated. Use getLiquidityPoolItems from types/filters.ts'
+  );
   return filterItemsByType(data, ITEM_TYPES.LIQUIDITY_POOL);
 }
 
 // DEPRECATED: Use getLendingItems from types/filters.ts instead
 // Get lending and borrowing positions from unified data
 export function getLendingAndBorrowingPositions(data) {
-  console.warn('DEPRECATED: getLendingAndBorrowingPositions from walletUtils.js is deprecated. Use getLendingItems from types/filters.ts');
+  console.warn(
+    'DEPRECATED: getLendingAndBorrowingPositions from walletUtils.js is deprecated. Use getLendingItems from types/filters.ts'
+  );
   return filterItemsByType(data, ITEM_TYPES.LENDING_AND_BORROWING);
 }
 
 // DEPRECATED: Use getStakingItems from types/filters.ts instead
 // Get staking positions from unified data
 export function getStakingPositions(data) {
-  console.warn('DEPRECATED: getStakingPositions from walletUtils.js is deprecated. Use getStakingItems from types/filters.ts');
+  console.warn(
+    'DEPRECATED: getStakingPositions from walletUtils.js is deprecated. Use getStakingItems from types/filters.ts'
+  );
   return filterItemsByType(data, ITEM_TYPES.STAKING);
 }
 
@@ -265,11 +273,11 @@ export function groupDefiByProtocol(defiData) {
 
   defiData.forEach((defi) => {
     console.log('groupDefiByProtocol processing item:', defi);
-    
+
     // Handle both WalletItem format (direct protocol/position) and legacy format (defi.protocol/defi.position)
     const protocol = defi.protocol;
     const position = defi.position;
-    
+
     if (!defi || !protocol || !position) {
       console.log('Skipping item - missing protocol or position:', defi);
       return;
@@ -297,13 +305,13 @@ export function groupDefiByProtocol(defiData) {
         effectiveProtocolId = `${baseProtocolId}-${chainClean}`.toLowerCase();
         // Pretty chain name capitalized
         const prettyChain = chainClean.charAt(0).toUpperCase() + chainClean.slice(1);
-        
+
         if (isUniswapV3) {
           effectiveProtocolName = `Uniswap V3 (${prettyChain})`;
         } else if (isPendleV2) {
           effectiveProtocolName = `Pendle V2`;
         }
-        
+
         // Attach explicit chain so existing icon overlay logic can pick it up
         protocolObj = {
           ...protocolObj,
@@ -584,7 +592,7 @@ export function groupTokensByPool(positions) {
     // Use unified filtering utilities
     const suppliedTokens = filterSuppliedTokens(tokensArray);
     const rewardTokensFromTokens = filterRewardTokens(tokensArray);
-    
+
     const rewardsArray =
       rewardTokensFromTokens.length > 0
         ? rewardTokensFromTokens
@@ -726,30 +734,53 @@ export function computePortfolioBreakdown({
  * de um objeto de posição heterogêneo (evita duplicar lógica em múltiplas views como PoolsView).
  * Retorna array (não deduplica) mantendo referência original dos objetos.
  */
-export function extractRewards(positionLike){
+export function extractRewards(positionLike) {
   const pos = positionLike?.position || positionLike;
-  if(!pos || typeof pos !== 'object') return [];
+  if (!pos || typeof pos !== 'object') return [];
   const rewards = [];
   const candidateArrays = [
-    pos.rewards, pos.position?.rewards,
-    pos.incentives, pos.position?.incentives,
-    pos.rewardTokens, pos.position?.rewardTokens,
-    pos.distributions, pos.emissions,
-    pos.farmingRewards, pos.gaugeRewards,
-    pos.bribes, pos.bribeRewards,
-    pos.stakingRewards, pos.uncollectedRewards,
+    pos.rewards,
+    pos.position?.rewards,
+    pos.incentives,
+    pos.position?.incentives,
+    pos.rewardTokens,
+    pos.position?.rewardTokens,
+    pos.distributions,
+    pos.emissions,
+    pos.farmingRewards,
+    pos.gaugeRewards,
+    pos.bribes,
+    pos.bribeRewards,
+    pos.stakingRewards,
+    pos.uncollectedRewards,
     pos.unclaimedRewards,
   ];
-  candidateArrays.forEach(arr => {
-    if(Array.isArray(arr)) arr.forEach(r=> { if(r) rewards.push(r?.token || r); });
+  candidateArrays.forEach((arr) => {
+    if (Array.isArray(arr))
+      arr.forEach((r) => {
+        if (r) rewards.push(r?.token || r);
+      });
   });
   const nested = [pos.meta, pos.extra, pos.additionalData, pos.additionalInfo];
-  const keys = ['rewards','incentives','rewardTokens','distributions','emissions','farmingRewards','gaugeRewards','bribeRewards','unclaimedRewards'];
-  nested.forEach(container => {
-    if(!container || typeof container !== 'object') return;
-    keys.forEach(k => {
+  const keys = [
+    'rewards',
+    'incentives',
+    'rewardTokens',
+    'distributions',
+    'emissions',
+    'farmingRewards',
+    'gaugeRewards',
+    'bribeRewards',
+    'unclaimedRewards',
+  ];
+  nested.forEach((container) => {
+    if (!container || typeof container !== 'object') return;
+    keys.forEach((k) => {
       const arr = container[k];
-      if(Array.isArray(arr)) arr.forEach(r=> { if(r) rewards.push(r?.token || r); });
+      if (Array.isArray(arr))
+        arr.forEach((r) => {
+          if (r) rewards.push(r?.token || r);
+        });
     });
   });
   return rewards.filter(Boolean);
@@ -769,9 +800,9 @@ let __portfolioTotalValue = 0; // module-scoped cached total (net) in USD
  * current total net portfolio value so that leaf components which only import
  * utils (and not the full breakdown object) can derive percentages.
  */
-export function setTotalPortfolioValue(value){
+export function setTotalPortfolioValue(value) {
   const num = Number(value);
-  if(!isNaN(num) && isFinite(num)) {
+  if (!isNaN(num) && isFinite(num)) {
     __portfolioTotalValue = num;
   }
 }
@@ -780,7 +811,7 @@ export function setTotalPortfolioValue(value){
  * getTotalPortfolioValue
  * Returns the last registered portfolio total. If never set, returns 0.
  */
-export function getTotalPortfolioValue(){
+export function getTotalPortfolioValue() {
   return __portfolioTotalValue;
 }
 
@@ -791,13 +822,13 @@ export function getTotalPortfolioValue(){
  * options.decimals: number of fraction digits (default 2)
  * options.minDisplay: minimal non-zero shown threshold (default 0.01 => '<0.01%')
  */
-export function calculatePercentage(value, total, options = {}){
+export function calculatePercentage(value, total, options = {}) {
   const { decimals = 2, minDisplay = 0.01 } = options;
   const v = Number(value);
   const t = Number(total);
-  if(!t || isNaN(v) || !isFinite(v) || v <= 0) return '0%';
+  if (!t || isNaN(v) || !isFinite(v) || v <= 0) return '0%';
   const pct = (v / t) * 100;
-  if(pct > 0 && pct < minDisplay) return `<${minDisplay.toFixed(decimals)}%`;
+  if (pct > 0 && pct < minDisplay) return `<${minDisplay.toFixed(decimals)}%`;
   return `${pct.toFixed(decimals)}%`;
 }
 
@@ -809,19 +840,19 @@ export function calculatePercentage(value, total, options = {}){
 export function extractPoolRange(positionLike) {
   console.warn('⚠️ DEPRECATED: Use extractPoolRange from types/wallet.ts instead');
   if (!positionLike?.additionalData?.range) return null;
-  
+
   const range = positionLike.additionalData.range;
-  
+
   // Valida se tem as propriedades necessárias
   if (range.lower != null && range.upper != null && range.current != null) {
     return {
       lower: parseFloat(range.lower),
-      upper: parseFloat(range.upper), 
+      upper: parseFloat(range.upper),
       current: parseFloat(range.current),
-      inRange: range.inRange
+      inRange: range.inRange,
     };
   }
-  
+
   return null;
 }
 
@@ -831,7 +862,7 @@ export function extractPoolRange(positionLike) {
  */
 export function extractPoolFees24h(positionLike) {
   if (!positionLike?.additionalData?.fees24h) return null;
-  
+
   const fees = parseFloat(positionLike.additionalData.fees24h);
   return isFinite(fees) ? fees : null;
 }
@@ -878,7 +909,7 @@ export function derivePositionKey(p, index) {
 export function extractHealthFactor(positionLike) {
   console.warn('⚠️ DEPRECATED: Use extractHealthFactor from types/wallet.ts instead');
   if (!positionLike?.additionalData?.healthFactor) return null;
-  
+
   const healthFactor = parseFloat(positionLike.additionalData.healthFactor);
   return isFinite(healthFactor) ? healthFactor : null;
 }

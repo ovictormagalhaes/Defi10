@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
+
 import { useAggregationJob } from '../hooks/useAggregationJob';
+
 import ValueWithTooltip from './ValueWithTooltip';
 
 // Deriva net lending (supplies - borrows) se ambos presentes
@@ -53,16 +55,28 @@ export default function AggregationPanel({ account, chain = 'Base', auto = true 
   return (
     <div className="panel pad-16" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div className="flex justify-between items-center">
-        <h3 className="panel-title" style={{ margin: 0 }}>Aggregation</h3>
+        <h3 className="panel-title" style={{ margin: 0 }}>
+          Aggregation
+        </h3>
         <div className="flex gap-8">
           {!jobId && (
-            <button className="btn btn--primary" disabled={!account} onClick={() => start(account, chain)}>Start</button>
+            <button
+              className="btn btn--primary"
+              disabled={!account}
+              onClick={() => start(account, chain)}
+            >
+              Start
+            </button>
           )}
           {jobId && !isCompleted && (
-            <button className="btn btn--outline" onClick={reset}>Reset</button>
+            <button className="btn btn--outline" onClick={reset}>
+              Reset
+            </button>
           )}
           {jobId && (isCompleted || expired) && (
-            <button className="btn btn--primary" onClick={() => ensure(account, chain)}>Restart</button>
+            <button className="btn btn--primary" onClick={() => ensure(account, chain)}>
+              Restart
+            </button>
           )}
         </div>
       </div>
@@ -86,7 +100,8 @@ export default function AggregationPanel({ account, chain = 'Base', auto = true 
       )}
       {showTimeout && (
         <div className="badge" style={{ alignSelf: 'flex-start' }}>
-          Timed out - retrying {pollingAttempt}/{maxPollingAttempts} (next in {Math.round(nextPollInterval/1000)}s)
+          Timed out - retrying {pollingAttempt}/{maxPollingAttempts} (next in{' '}
+          {Math.round(nextPollInterval / 1000)}s)
         </div>
       )}
 
@@ -97,12 +112,29 @@ export default function AggregationPanel({ account, chain = 'Base', auto = true 
             <span>Progress</span>
             <span>{pct.toFixed(0)}%</span>
           </div>
-          <div style={{ height: 6, background: 'var(--mw-bg-interactive, #1f2733)', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ width: pct + '%', height: '100%', background: 'var(--mw-accent-bg,#2563eb)', transition: 'width .4s' }} />
+          <div
+            style={{
+              height: 6,
+              background: 'var(--mw-bg-interactive, #1f2733)',
+              borderRadius: 4,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                width: pct + '%',
+                height: '100%',
+                background: 'var(--mw-accent-bg,#2563eb)',
+                transition: 'width .4s',
+              }}
+            />
           </div>
           {/* Polling indicator */}
           {!isCompleted && pollingAttempt > 0 && (
-            <div className="text-xs" style={{ fontSize: 10, color: 'var(--mw-text-secondary)', textAlign: 'center' }}>
+            <div
+              className="text-xs"
+              style={{ fontSize: 10, color: 'var(--mw-text-secondary)', textAlign: 'center' }}
+            >
               Polling attempt {pollingAttempt}/{maxPollingAttempts}
             </div>
           )}
@@ -119,7 +151,13 @@ export default function AggregationPanel({ account, chain = 'Base', auto = true 
             <span className="badge">Uniswap V3 {summary.TotalUniswapPositions}</span>
           )}
           {net != null && (
-            <span className="badge badge-secondary">Net Lending <ValueWithTooltip value={net.toFixed(2)} tooltip={`Supplies - Borrows (${summary.TotalAaveSupplies || 0} - ${summary.TotalAaveBorrows || 0})`} /></span>
+            <span className="badge badge-secondary">
+              Net Lending{' '}
+              <ValueWithTooltip
+                value={net.toFixed(2)}
+                tooltip={`Supplies - Borrows (${summary.TotalAaveSupplies || 0} - ${summary.TotalAaveBorrows || 0})`}
+              />
+            </span>
           )}
         </div>
       )}
@@ -127,7 +165,9 @@ export default function AggregationPanel({ account, chain = 'Base', auto = true 
       {/* Providers */}
       {jobId && (
         <div style={{ marginTop: 8 }}>
-          <div className="text-xs" style={{ fontWeight: 600, marginBottom: 6 }}>Providers</div>
+          <div className="text-xs" style={{ fontWeight: 600, marginBottom: 6 }}>
+            Providers
+          </div>
           <div className="flex gap-8 flex-wrap" style={{ marginBottom: 8 }}>
             <span className="badge badge-secondary">Expected {snapshot?.expected ?? '-'}</span>
             <span className="badge badge-success">Succeeded {snapshot?.succeeded ?? 0}</span>
@@ -136,16 +176,29 @@ export default function AggregationPanel({ account, chain = 'Base', auto = true 
             <span className="badge badge-secondary">Pending {pending.length}</span>
           </div>
           <div className="flex column gap-4" style={{ fontSize: 12 }}>
-            {processed.map(p => (
+            {processed.map((p) => (
               <div key={p.provider} className="flex justify-between" style={{ gap: 12 }}>
                 <span style={{ fontWeight: 500 }}>{p.provider}</span>
-                <span className={p.status === 'Success' ? 'text-success' : p.status === 'Failed' ? 'text-danger' : ''}>
-                  {p.status}{p.error ? ' • err' : ''}
+                <span
+                  className={
+                    p.status === 'Success'
+                      ? 'text-success'
+                      : p.status === 'Failed'
+                        ? 'text-danger'
+                        : ''
+                  }
+                >
+                  {p.status}
+                  {p.error ? ' • err' : ''}
                 </span>
               </div>
             ))}
-            {pending.map(name => (
-              <div key={'pend-' + name} className="flex justify-between text-secondary" style={{ gap: 12 }}>
+            {pending.map((name) => (
+              <div
+                key={'pend-' + name}
+                className="flex justify-between text-secondary"
+                style={{ gap: 12 }}
+              >
                 <span>{name}</span>
                 <span>...</span>
               </div>

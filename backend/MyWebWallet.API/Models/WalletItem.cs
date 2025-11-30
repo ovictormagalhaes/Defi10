@@ -18,12 +18,21 @@ public class Protocol {
     public string Id { get; set; }
     public string Url { get; set; }
     public string Logo { get; set; }
+    
+    // Protocol.Key = {protocol.name}-{protocol.chain}-{protocol.id}
+    public string Key => $"{Name?.ToLowerInvariant()}-{Chain?.ToLowerInvariant()}-{Id?.ToLowerInvariant()}";
 }
 
 public class Position
 {
     public string Label { get; set; }
     public List<Token> Tokens { get; set; }
+    
+    // Position.Key = {protocol.key}-{position.label}
+    // Note: ProtocolKey must be set externally since Position doesn't have direct Protocol reference
+    [JsonIgnore]
+    public string? ProtocolKey { get; set; }
+    public string Key => !string.IsNullOrEmpty(ProtocolKey) ? $"{ProtocolKey}-{Label?.ToLowerInvariant()}" : Label?.ToLowerInvariant() ?? "";
 }
 
 public class TokenFinancials
@@ -82,6 +91,14 @@ public class Token
     public TokenFinancials Financials { get; set; } = new();
     public bool? Native { get; set; }
     public bool? PossibleSpam { get; set; }
+    
+    // Token.Key = {position.key}-{type}-{symbol}-{name}-{chain}
+    // Note: PositionKey must be set externally since Token doesn't have direct Position reference
+    [JsonIgnore]
+    public string? PositionKey { get; set; }
+    public string Key => !string.IsNullOrEmpty(PositionKey) 
+        ? $"{PositionKey}-{Type?.ToString().ToLowerInvariant()}-{Symbol?.ToLowerInvariant()}-{Name?.ToLowerInvariant()}-{Chain?.ToLowerInvariant()}"
+        : $"{Type?.ToString().ToLowerInvariant()}-{Symbol?.ToLowerInvariant()}-{Name?.ToLowerInvariant()}-{Chain?.ToLowerInvariant()}";
 }
 
 public class AdditionalData

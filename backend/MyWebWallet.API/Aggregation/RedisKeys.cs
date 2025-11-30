@@ -6,6 +6,7 @@ public static class RedisKeys
 {
     public static string ActiveSingle(string accountLower, ChainEnum chain) => $"wallet:agg:active:{accountLower}:{chain}";
     public static string ActiveMulti(string accountLower, IEnumerable<ChainEnum> chains) => $"wallet:agg:active:{accountLower}:{string.Join('+', chains.OrderBy(c => c.ToString()))}";
+    public static string ActiveWalletGroup(Guid walletGroupId, IEnumerable<ChainEnum> chains) => $"wallet:agg:active:group:{walletGroupId}:{string.Join('+', chains.OrderBy(c => c.ToString()))}";
     public static string Meta(Guid jobId) => $"wallet:agg:{jobId}:meta";
     public static string Pending(Guid jobId) => $"wallet:agg:{jobId}:pending";
     public static string ResultPrefix(Guid jobId) => $"wallet:agg:{jobId}:result:"; // each provider result appended

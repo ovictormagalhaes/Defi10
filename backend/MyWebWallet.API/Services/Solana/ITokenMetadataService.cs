@@ -11,6 +11,11 @@ public interface ITokenMetadataService
     Task<TokenMetadata?> GetTokenMetadataAsync(string mintAddress);
     
     /// <summary>
+    /// Gets token metadata by symbol and name (cross-chain fallback)
+    /// </summary>
+    Task<TokenMetadata?> GetTokenMetadataBySymbolAndNameAsync(string symbol, string name);
+    
+    /// <summary>
     /// Gets token price in USD by mint address, symbol, or name
     /// </summary>
     Task<decimal?> GetTokenPriceAsync(string identifier);
