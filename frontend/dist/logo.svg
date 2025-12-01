@@ -12,9 +12,9 @@
   
   <!-- D shape (hollow/outline only) -->
   <path d="M 45 35 L 45 165 L 110 165 Q 160 165 160 100 Q 160 35 110 35 Z" 
-        fill="none" stroke="url(#logoGradient)" stroke-width="10"/>
-  
-  <!-- Number 10 -->
+        fill="none" stroke="url(#logoGradient)" stroke-width="12"/>
+    <!-- Number 10 -->
   <text x="100" y="128" font-family="Arial, sans-serif" font-weight="bold" 
-        font-size="64" fill="url(#logoGradient)" text-anchor="middle">10</text>
+        font-size="70" fill="url(#logoGradient)" text-anchor="middle">10</text>
+
 </svg> 
