@@ -9,6 +9,7 @@ using MyWebWallet.API.Services.Models.Aave.Supplies;
 using MyWebWallet.API.Services.Models.Solana.Common;
 using MyWebWallet.API.Services.Models.Solana.Kamino;
 using MyWebWallet.API.Services.Models.Solana.Raydium;
+using Chain = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services;
 
@@ -91,12 +92,12 @@ public class ProtocolStatusService : IProtocolStatusService
         var protocolDef = _moralisTokenMapper.GetProtocolDefinition(Chain.Base);
         var chainSupport = new Dictionary<string, bool>();
         
-        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id)
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(ProtocolNames.Moralis)
             .Where(c => c != Chain.Solana); // EVM only
         
         foreach (var chain in configuredChains)
         {
-            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            var chainConfig = _protocolConfig.GetProtocolOnChain(ProtocolNames.Moralis, chain);
             chainSupport[chain.ToString()] = _moralisOptions.Enabled && chainConfig?.Enabled == true;
         }
 
@@ -115,12 +116,12 @@ public class ProtocolStatusService : IProtocolStatusService
         var protocolDef = _solanaTokenMapper.GetProtocolDefinition(Chain.Solana);
         var chainSupport = new Dictionary<string, bool>();
         
-        var configuredChains = _protocolConfig.GetAllConfiguredChains("moralis")
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(ProtocolNames.Moralis)
             .Where(c => c == Chain.Solana); // Solana only
         
         foreach (var chain in configuredChains)
         {
-            var chainConfig = _protocolConfig.GetProtocolOnChain("moralis", chain);
+            var chainConfig = _protocolConfig.GetProtocolOnChain(ProtocolNames.Moralis, chain);
             chainSupport[chain.ToString()] = _moralisOptions.Enabled && chainConfig?.Enabled == true;
         }
 
@@ -139,10 +140,10 @@ public class ProtocolStatusService : IProtocolStatusService
         var protocolDef = _aaveSuppliesMapper.GetProtocolDefinition(Chain.Base);
         var chainSupport = new Dictionary<string, bool>();
         
-        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id);
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(ProtocolNames.AaveV3);
         foreach (var chain in configuredChains)
         {
-            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            var chainConfig = _protocolConfig.GetProtocolOnChain(ProtocolNames.AaveV3, chain);
             chainSupport[chain.ToString()] = chainConfig?.Enabled == true;
         }
 
@@ -161,10 +162,10 @@ public class ProtocolStatusService : IProtocolStatusService
         var protocolDef = _uniswapV3Mapper.GetProtocolDefinition(Chain.Base);
         var chainSupport = new Dictionary<string, bool>();
         
-        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id);
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(ProtocolNames.UniswapV3);
         foreach (var chain in configuredChains)
         {
-            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            var chainConfig = _protocolConfig.GetProtocolOnChain(ProtocolNames.UniswapV3, chain);
             chainSupport[chain.ToString()] = chainConfig?.Enabled == true;
         }
 
@@ -183,10 +184,10 @@ public class ProtocolStatusService : IProtocolStatusService
         var protocolDef = _pendleVeMapper.GetProtocolDefinition(Chain.Ethereum);
         var chainSupport = new Dictionary<string, bool>();
         
-        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id);
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(ProtocolNames.PendleV2);
         foreach (var chain in configuredChains)
         {
-            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            var chainConfig = _protocolConfig.GetProtocolOnChain(ProtocolNames.PendleV2, chain);
             chainSupport[chain.ToString()] = chainConfig?.Enabled == true;
         }
 
@@ -205,10 +206,10 @@ public class ProtocolStatusService : IProtocolStatusService
         var protocolDef = _raydiumMapper.GetProtocolDefinition(Chain.Solana);
         var chainSupport = new Dictionary<string, bool>();
         
-        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id);
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(ProtocolNames.Raydium);
         foreach (var chain in configuredChains)
         {
-            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            var chainConfig = _protocolConfig.GetProtocolOnChain(ProtocolNames.Raydium, chain);
             chainSupport[chain.ToString()] = chainConfig?.Enabled == true;
         }
         
@@ -227,10 +228,10 @@ public class ProtocolStatusService : IProtocolStatusService
         var protocolDef = _kaminoMapper.GetProtocolDefinition(Chain.Solana);
         var chainSupport = new Dictionary<string, bool>();
         
-        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id);
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(ProtocolNames.Kamino);
         foreach (var chain in configuredChains)
         {
-            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            var chainConfig = _protocolConfig.GetProtocolOnChain(ProtocolNames.Kamino, chain);
             chainSupport[chain.ToString()] = chainConfig?.Enabled == true;
         }
         
