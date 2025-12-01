@@ -666,25 +666,11 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     _logger.LogInformation("[FINAL HYDRATION] Starting metadata hydration for {Count} items, jobId={JobId}", 
                                         consolidatedWallet.Items.Count, jobId);
                                     
-                                    // Processar por chain para otimizar
-                                    var itemsByChain = consolidatedWallet.Items.GroupBy(w => w.Position?.Tokens?.FirstOrDefault()?.Chain ?? "unknown");
+                                    var logos = await hydrationHelper.HydrateTokenLogosAsync(consolidatedWallet.Items, ChainEnum.Base);
+                                    await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(consolidatedWallet.Items, logos);
                                     
-                                    foreach (var chainGroup in itemsByChain)
-                                    {
-                                        if (string.IsNullOrEmpty(chainGroup.Key) || chainGroup.Key == "unknown") continue;
-                                        
-                                        if (!Enum.TryParse<ChainEnum>(chainGroup.Key, true, out var parsedChain))
-                                            continue;
-                                        
-                                        var itemsForChain = chainGroup.ToList();
-                                        _logger.LogInformation("[FINAL HYDRATION] Processing {Count} items for chain {Chain}", 
-                                            itemsForChain.Count, chainGroup.Key);
-                                        
-                                        var logos = await hydrationHelper.HydrateTokenLogosAsync(itemsForChain, parsedChain);
-                                        await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(itemsForChain, logos);
-                                    }
-                                    
-                                    _logger.LogInformation("[FINAL HYDRATION] Completed metadata hydration jobId={JobId}", jobId);
+                                    _logger.LogInformation("[FINAL HYDRATION] Completed metadata hydration for {TotalItems} items, jobId={JobId}", 
+                                        consolidatedWallet.Items.Count, jobId);
                                 }
                                 catch (Exception metadataEx)
                                 {
