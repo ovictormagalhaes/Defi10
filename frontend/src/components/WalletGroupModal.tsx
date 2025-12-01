@@ -14,6 +14,8 @@ interface WalletGroupModalProps {
   onClose: () => void;
   onGroupCreated?: (groupId: string) => void;
   onGroupSelected?: (groupId: string) => void;
+  currentWalletAddress?: string | null; // Current connected wallet to add to group
+  onConnectToGroup?: (groupId: string) => void; // Callback when wallet is connected to group
 }
 
 const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
@@ -21,12 +23,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   onClose,
   onGroupCreated,
   onGroupSelected,
+  currentWalletAddress,
+  onConnectToGroup,
 }) => {
   const { theme } = useTheme();
   const { groups, loading, error, createGroup, updateGroup, deleteGroup, clearError } = useWalletGroups();
 
-  const [mode, setMode] = useState<'list' | 'create' | 'edit'>('list');
+  const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'addWallet' | 'connect'>('list');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
+  const [connectGroupId, setConnectGroupId] = useState<string>('');
   const [displayName, setDisplayName] = useState('');
   const [walletInputs, setWalletInputs] = useState(['', '', '']);
   const [validationErrors, setValidationErrors] = useState<(string | null)[]>([null, null, null]);
@@ -37,6 +43,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
     if (!isOpen) {
       setMode('list');
       setEditingGroupId(null);
+      setAddingToGroupId(null);
+      setConnectGroupId('');
       setDisplayName('');
       setWalletInputs(['', '', '']);
       setValidationErrors([null, null, null]);
@@ -131,12 +139,52 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
     setMode('edit');
   };
 
+  const handleAddWalletToGroup = (groupId: string) => {
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) return;
+
+    setAddingToGroupId(groupId);
+    setDisplayName(group.displayName || '');
+    setWalletInputs(['', '', '']); // Empty inputs for new wallets
+    setValidationErrors([null, null, null]);
+    setGroupError(null);
+    setMode('addWallet');
+  };
+
+  const handleAddWalletSubmit = async () => {
+    if (!addingToGroupId) return;
+
+    const group = groups.find((g) => g.id === addingToGroupId);
+    if (!group) return;
+
+    const newWallets = walletInputs.filter((w) => w.length > 0);
+    if (newWallets.length === 0) {
+      setGroupError('Please add at least one wallet address');
+      return;
+    }
+
+    // Merge existing wallets with new ones
+    const allWallets = [...group.wallets, ...newWallets];
+
+    const result = await updateGroup(addingToGroupId, {
+      wallets: allWallets,
+      displayName: group.displayName || undefined,
+    });
+
+    if (result) {
+      resetForm();
+      setMode('list');
+    }
+  };
+
   const resetForm = () => {
     setDisplayName('');
     setWalletInputs(['', '', '']);
     setValidationErrors([null, null, null]);
     setGroupError(null);
     setEditingGroupId(null);
+    setAddingToGroupId(null);
+    setConnectGroupId('');
   };
 
   const cancelForm = () => {
@@ -149,6 +197,84 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       return;
     }
     await deleteGroup(id);
+  };
+
+  const handleConnectCurrentWallet = async (groupId: string) => {
+    if (!currentWalletAddress) return;
+
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) return;
+
+    // Check if wallet is already in the group
+    if (group.wallets.includes(currentWalletAddress)) {
+      alert('This wallet is already connected to this group');
+      return;
+    }
+
+    // Add current wallet to the group
+    const result = await updateGroup(groupId, {
+      wallets: [...group.wallets, currentWalletAddress],
+      displayName: group.displayName || undefined,
+    });
+
+    if (result && onConnectToGroup) {
+      onConnectToGroup(groupId);
+      onClose();
+    }
+  };
+
+  const handleConnectToExistingGroup = async () => {
+    const trimmedId = connectGroupId.trim();
+    
+    if (!trimmedId) {
+      setGroupError('Please enter a Group ID');
+      return;
+    }
+
+    setLoading(true);
+    setGroupError(null);
+
+    try {
+      // Try to fetch the group from the backend
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000'}/api/v1/wallet-groups/${encodeURIComponent(trimmedId)}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          setGroupError('Group not found. Please check the ID and try again.');
+        } else {
+          setGroupError('Failed to connect to group. Please try again.');
+        }
+        setLoading(false);
+        return;
+      }
+
+      const group = await response.json();
+      
+      // Check if group already exists locally
+      const existingGroup = groups.find(g => g.id === group.id);
+      if (existingGroup) {
+        setGroupError('This group is already in your list');
+        setLoading(false);
+        return;
+      }
+
+      // Add group to local storage (the hook will handle persistence)
+      const updatedGroups = [...groups, group];
+      localStorage.setItem('defi10_wallet_groups', JSON.stringify(updatedGroups));
+      
+      // Trigger selection if callback provided
+      if (onGroupSelected) {
+        onGroupSelected(group.id);
+      }
+      
+      setLoading(false);
+      onClose();
+      
+    } catch (err) {
+      console.error('Error connecting to group:', err);
+      setGroupError('Failed to connect to group. Please check your connection and try again.');
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -221,7 +347,11 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 ? 'Manage your wallet collections'
                 : mode === 'create'
                   ? 'Create a new wallet group'
-                  : 'Edit wallet group'}
+                  : mode === 'addWallet'
+                    ? 'Add wallet to group'
+                    : mode === 'connect'
+                      ? 'Connect to existing group'
+                      : 'Edit wallet group'}
             </p>
           </div>
           <button
@@ -275,52 +405,99 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
         >
           {mode === 'list' ? (
             <>
-              {/* Action Button */}
-              <button
-                onClick={() => {
-                  resetForm();
-                  setMode('create');
-                }}
-                style={{
-                  width: '100%',
-                  padding: '14px 20px',
-                  background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`,
-                  border: 'none',
-                  borderRadius: 12,
-                  color: '#fff',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  marginBottom: 24,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  transition: 'transform 0.15s, box-shadow 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.3)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+                <button
+                  onClick={() => {
+                    resetForm();
+                    setMode('create');
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '14px 20px',
+                    background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`,
+                    border: 'none',
+                    borderRadius: 12,
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    transition: 'transform 0.15s, box-shadow 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                 >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                Create New Group
-              </button>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  Create New Group
+                </button>
+                
+                <button
+                  onClick={() => {
+                    resetForm();
+                    setMode('connect');
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '14px 20px',
+                    background: 'transparent',
+                    border: `2px solid ${theme.border}`,
+                    borderRadius: 12,
+                    color: theme.textPrimary,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = theme.bgPanelHover;
+                    e.currentTarget.style.borderColor = theme.primary;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.borderColor = theme.border;
+                  }}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                  Connect to Group
+                </button>
+              </div>
 
               {/* Groups List */}
               {groups.length === 0 ? (
@@ -432,6 +609,45 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                               Select
                             </button>
                           )}
+                          <button
+                            onClick={() => handleAddWalletToGroup(group.id)}
+                            disabled={loading}
+                            style={{
+                              padding: '6px 14px',
+                              background: 'transparent',
+                              border: `1px solid ${theme.border}`,
+                              borderRadius: 8,
+                              color: theme.accent || theme.primary,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: loading ? 'not-allowed' : 'pointer',
+                              opacity: loading ? 0.5 : 1,
+                              transition: 'all 0.15s',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!loading) e.currentTarget.style.background = theme.bgPanelHover;
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!loading) e.currentTarget.style.background = 'transparent';
+                            }}
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M12 5v14M5 12h14" />
+                            </svg>
+                            Add
+                          </button>
                           <button
                             onClick={() => handleEditGroup(group.id)}
                             disabled={loading}
@@ -553,14 +769,13 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 </div>
               )}
             </>
-          ) : (
+          ) : mode === 'connect' ? (
             <>
-              {/* Form: Create or Edit */}
+              {/* Connect to Existing Group Form */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {/* Group Name */}
                 <div>
                   <label
-                    htmlFor="group-name"
+                    htmlFor="group-id"
                     style={{
                       display: 'block',
                       fontSize: 13,
@@ -569,31 +784,161 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       marginBottom: 8,
                     }}
                   >
-                    Group Name <span style={{ opacity: 0.5 }}>(optional)</span>
+                    Group ID
                   </label>
                   <input
-                    id="group-name"
+                    id="group-id"
                     type="text"
-                    placeholder="e.g., Main Portfolio"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    maxLength={50}
+                    placeholder="Enter the wallet group ID"
+                    value={connectGroupId}
+                    onChange={(e) => {
+                      setConnectGroupId(e.target.value);
+                      setGroupError(null);
+                    }}
                     style={{
                       width: '100%',
                       padding: '12px 14px',
                       borderRadius: 10,
-                      border: `1px solid ${theme.border}`,
+                      border: `1px solid ${groupError ? theme.danger || '#ef4444' : theme.border}`,
                       background: theme.bgApp,
                       color: theme.textPrimary,
                       fontSize: 14,
+                      fontFamily: 'monospace',
                       outline: 'none',
                       transition: 'border-color 0.15s',
                       boxSizing: 'border-box',
                     }}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = theme.primary)}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = theme.border)}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = groupError ? theme.danger || '#ef4444' : theme.primary)}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = groupError ? theme.danger || '#ef4444' : theme.border)}
                   />
+                  {groupError && (
+                    <p
+                      style={{
+                        margin: '8px 0 0 0',
+                        fontSize: 12,
+                        color: theme.danger || '#ef4444',
+                      }}
+                    >
+                      {groupError}
+                    </p>
+                  )}
                 </div>
+
+                <div
+                  style={{
+                    padding: '16px',
+                    background: theme.bgPanel,
+                    borderRadius: 10,
+                    border: `1px solid ${theme.border}`,
+                  }}
+                >
+                  <p style={{ margin: 0, fontSize: 13, color: theme.textSecondary, lineHeight: 1.6 }}>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ verticalAlign: 'text-bottom', marginRight: 6 }}
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 16v-4M12 8h.01" />
+                    </svg>
+                    Enter the Group ID from another device to sync your wallet collections across devices.
+                  </p>
+                </div>
+
+                {error && (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: `1px solid ${theme.danger || '#ef4444'}`,
+                      borderRadius: 10,
+                      color: theme.danger || '#ef4444',
+                      fontSize: 13,
+                    }}
+                  >
+                    {error}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Form: Create, Edit, or Add Wallet */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Group Name - only show in create/edit mode, not in addWallet */}
+                {mode !== 'addWallet' && (
+                  <div>
+                    <label
+                      htmlFor="group-name"
+                      style={{
+                        display: 'block',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: theme.textPrimary,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Group Name <span style={{ opacity: 0.5 }}>(optional)</span>
+                    </label>
+                    <input
+                      id="group-name"
+                      type="text"
+                      placeholder="e.g., Main Portfolio"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      maxLength={50}
+                      style={{
+                        width: '100%',
+                        padding: '12px 14px',
+                        borderRadius: 10,
+                        border: `1px solid ${theme.border}`,
+                        background: theme.bgApp,
+                        color: theme.textPrimary,
+                        fontSize: 14,
+                        outline: 'none',
+                        transition: 'border-color 0.15s',
+                        boxSizing: 'border-box',
+                      }}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = theme.primary)}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = theme.border)}
+                    />
+                  </div>
+                )}
+
+                {/* Show group name as readonly in addWallet mode */}
+                {mode === 'addWallet' && (
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: theme.textPrimary,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Adding to Group
+                    </label>
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 10,
+                        background: theme.bgPanel,
+                        color: theme.textPrimary,
+                        fontSize: 14,
+                        border: `1px solid ${theme.border}`,
+                      }}
+                    >
+                      {displayName || 'Unnamed Group'}
+                    </div>
+                  </div>
+                )}
 
                 {/* Wallets */}
                 <div>
@@ -749,12 +1094,20 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
               Cancel
             </button>
             <button
-              onClick={mode === 'edit' ? handleUpdateGroup : handleCreateGroup}
-              disabled={loading || !canSubmit}
+              onClick={
+                mode === 'edit'
+                  ? handleUpdateGroup
+                  : mode === 'addWallet'
+                    ? handleAddWalletSubmit
+                    : mode === 'connect'
+                      ? handleConnectToExistingGroup
+                      : handleCreateGroup
+              }
+              disabled={loading || (mode === 'connect' ? !connectGroupId.trim() : !canSubmit)}
               style={{
                 padding: '10px 24px',
                 background:
-                  loading || !canSubmit
+                  loading || (mode === 'connect' ? !connectGroupId.trim() : !canSubmit)
                     ? theme.textMuted
                     : `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`,
                 border: 'none',
@@ -762,24 +1115,32 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 color: '#fff',
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: loading || !canSubmit ? 'not-allowed' : 'pointer',
-                opacity: loading || !canSubmit ? 0.5 : 1,
+                cursor: loading || (mode === 'connect' ? !connectGroupId.trim() : !canSubmit) ? 'not-allowed' : 'pointer',
+                opacity: loading || (mode === 'connect' ? !connectGroupId.trim() : !canSubmit) ? 0.5 : 1,
                 transition: 'all 0.15s',
               }}
               onMouseEnter={(e) => {
-                if (!loading && canSubmit) {
+                if (!loading && (mode === 'connect' ? connectGroupId.trim() : canSubmit)) {
                   e.currentTarget.style.transform = 'translateY(-1px)';
                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
                 }
               }}
               onMouseLeave={(e) => {
-                if (!loading && canSubmit) {
+                if (!loading && (mode === 'connect' ? connectGroupId.trim() : canSubmit)) {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = 'none';
                 }
               }}
             >
-              {loading ? 'Saving...' : mode === 'edit' ? 'Update Group' : 'Create Group'}
+              {loading
+                ? 'Connecting...'
+                : mode === 'edit'
+                  ? 'Update Group'
+                  : mode === 'addWallet'
+                    ? 'Add Wallets'
+                    : mode === 'connect'
+                      ? 'Connect to Group'
+                      : 'Create Group'}
             </button>
           </div>
         )}

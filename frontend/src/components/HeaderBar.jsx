@@ -73,20 +73,24 @@ export default function HeaderBar({
       {/* Left Brand (Area 1) */}
       <div className="flex items-center gap-12 min-w-0">
         <div
-          className="flex-center font-bold"
+          className="flex-center"
           style={{
             width: 40,
             height: 40,
             borderRadius: 12,
-            background: brandGradient,
-            fontSize: 16,
-            color: '#fff',
-            letterSpacing: 0.5,
-            boxShadow: theme.shadowLight,
-            border: `1px solid ${theme.border}`,
+            overflow: 'hidden',
+            padding: 4,
           }}
         >
-          DF
+          <img 
+            src="/logo.svg" 
+            alt="Defi10" 
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+            }}
+          />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span style={{ fontSize: 18, fontWeight: 600, color: theme.textPrimary }}>DeFi 10</span>
