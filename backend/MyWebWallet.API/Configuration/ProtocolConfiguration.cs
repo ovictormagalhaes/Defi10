@@ -10,6 +10,9 @@ public class ProtocolConfigurationOptions
     public ProtocolDefinition? Moralis { get; set; }
     public ProtocolDefinition? UniswapV3 { get; set; }
     public ProtocolDefinition? PendleV2 { get; set; }
+    public ProtocolDefinition? SolanaWallet { get; set; }
+    public ProtocolDefinition? Raydium { get; set; }
+    public ProtocolDefinition? Kamino { get; set; }
 
     public Dictionary<string, ProtocolDefinition> Extra { get; set; } = new();
 
@@ -56,6 +59,9 @@ public class ProtocolConfigurationOptions
             Add(nameof(Moralis), Moralis);
             Add(nameof(UniswapV3), UniswapV3);
             Add(nameof(PendleV2), PendleV2);
+            Add(nameof(SolanaWallet), SolanaWallet);
+            Add(nameof(Raydium), Raydium);
+            Add(nameof(Kamino), Kamino);
             foreach (var kv in Extra)
             {
                 if (kv.Value != null && string.IsNullOrWhiteSpace(kv.Value.Key)) kv.Value.Key = ToKebab(kv.Key);

@@ -7,7 +7,7 @@ using MyWebWallet.API.Services.Models.Solana.Kamino;
 using MyWebWallet.API.Services.Models.Solana.Common;
 using MyWebWallet.API.Services.Models.Solana.Raydium;
 using System.Text.Json.Serialization;
-using Chain = MyWebWallet.API.Models.Chain;
+using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services.Solana
 {
@@ -15,6 +15,7 @@ namespace MyWebWallet.API.Services.Solana
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<KaminoService> _logger;
+        private readonly IProtocolConfigurationService _protocolConfig;
         private readonly int _rateLimitDelayMs;
         private readonly string _kaminoApiUrl;
         private const string MainMarketPubkey = "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF";
@@ -35,12 +36,18 @@ namespace MyWebWallet.API.Services.Solana
             HttpClient httpClient,
             IOptions<SolanaOptions> solanaOptions,
             IOptions<KaminoOptions> kaminoOptions,
+            IProtocolConfigurationService protocolConfig,
             ILogger<KaminoService> logger)
         {
             _httpClient = httpClient;
             _logger = logger;
+            _protocolConfig = protocolConfig;
             
-            _kaminoApiUrl = kaminoOptions.Value.ApiUrl;
+            var protocolChain = _protocolConfig.GetProtocolOnChain("kamino", ChainEnum.Solana);
+            _kaminoApiUrl = protocolChain?.Options?.TryGetValue("ApiUrl", out var apiUrl) == true 
+                ? apiUrl?.ToString() ?? "https://api.hubbleprotocol.io"
+                : "https://api.hubbleprotocol.io";
+            
             _httpClient.BaseAddress = new System.Uri(_kaminoApiUrl);
             _httpClient.Timeout = System.TimeSpan.FromSeconds(30);
             

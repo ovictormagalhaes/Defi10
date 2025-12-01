@@ -1,6 +1,7 @@
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Interfaces;
+using MyWebWallet.API.Configuration;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services.Mappers;
@@ -9,26 +10,25 @@ public class MoralisDeFiMapper : IWalletItemMapper<IEnumerable<GetDeFiPositionsM
 {
     private readonly IChainConfigurationService _chainConfig;
     private readonly IProtocolConfigurationService _protocolConfig;
-    private const string PROTOCOL_ID = "moralis";
 
     public MoralisDeFiMapper(IChainConfigurationService chainConfig, IProtocolConfigurationService protocolConfig)
     { _chainConfig = chainConfig; _protocolConfig = protocolConfig; }
 
     public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
-    public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Base, ChainEnum.BNB };
+    
+    public IEnumerable<ChainEnum> GetSupportedChains() => 
+        _protocolConfig.GetEnabledChainEnums(ProtocolNames.Moralis, "Solana");
 
     public Protocol GetProtocolDefinition(ChainEnum chain)
     {
-        var protoDef = _protocolConfig.GetProtocol(PROTOCOL_ID) ?? throw new InvalidOperationException($"Protocol configuration missing for {PROTOCOL_ID}");
-        if (string.IsNullOrWhiteSpace(protoDef.Key) || string.IsNullOrWhiteSpace(protoDef.DisplayName))
-            throw new InvalidOperationException($"Protocol {PROTOCOL_ID} missing mandatory metadata (Key/DisplayName)");
-        var chainSlug = _chainConfig.GetChainConfig(chain)?.Slug ?? throw new InvalidOperationException($"Chain slug missing for {chain}");
-        return new Protocol { Name = protoDef.DisplayName!, Chain = chainSlug, Id = protoDef.Key!, Url = protoDef.Website ?? string.Empty, Logo = protoDef.Icon ?? string.Empty };
+        var def = _protocolConfig.GetProtocol(ProtocolNames.Moralis) 
+            ?? throw new InvalidOperationException($"Protocol configuration missing for {ProtocolNames.Moralis}");
+        return def.ToProtocol(chain, _chainConfig);
     }
 
     public async Task<List<WalletItem>> MapAsync(IEnumerable<GetDeFiPositionsMoralisInfo> items, ChainEnum chain)
     {
-        if (!SupportsChain(chain)) throw new NotSupportedException($"Chain {chain} is not supported by {PROTOCOL_ID}");
+        if (!SupportsChain(chain)) throw new NotSupportedException($"Chain {chain} is not supported by {ProtocolNames.Moralis}");
         var protocol = GetProtocolDefinition(chain);
         return await Task.FromResult(items?.Select(d =>
         {

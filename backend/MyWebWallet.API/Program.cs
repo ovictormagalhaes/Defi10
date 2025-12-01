@@ -33,29 +33,21 @@ builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("Ra
 builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection("RateLimiting"));
 builder.Services.Configure<MoralisOptions>(builder.Configuration.GetSection("Moralis"));
 builder.Services.Configure<AaveOptions>(builder.Configuration.GetSection("Aave"));
-builder.Services.Configure<UniswapV3Options>(builder.Configuration.GetSection("UniswapV3"));
-builder.Services.Configure<SolanaOptions>(builder.Configuration.GetSection("Solana"));
-builder.Services.Configure<RaydiumOptions>(builder.Configuration.GetSection("Raydium"));
-builder.Services.Configure<AlchemyOptions>(builder.Configuration.GetSection("Alchemy"));
 builder.Services.Configure<PendleOptions>(builder.Configuration.GetSection("Pendle"));
 builder.Services.Configure<KaminoOptions>(builder.Configuration.GetSection("Kamino"));
+builder.Services.Configure<SolanaOptions>(builder.Configuration.GetSection("Solana"));
+builder.Services.Configure<AlchemyOptions>(builder.Configuration.GetSection("Alchemy"));
 
 builder.Services.AddSingleton<IValidateOptions<MoralisOptions>, MoralisOptions>();
 builder.Services.AddSingleton<IValidateOptions<RedisOptions>, RedisOptions>();
 builder.Services.AddSingleton<IValidateOptions<AggregationOptions>, AggregationOptions>();
 builder.Services.AddSingleton<IValidateOptions<AaveOptions>, AaveOptions>();
-builder.Services.AddSingleton<IValidateOptions<UniswapV3Options>, UniswapV3Options>();
 builder.Services.AddSingleton<IValidateOptions<SolanaOptions>, SolanaOptions>();
-builder.Services.AddSingleton<IValidateOptions<RaydiumOptions>, RaydiumOptions>();
 builder.Services.AddSingleton<IValidateOptions<AlchemyOptions>, AlchemyOptions>();
-builder.Services.AddSingleton<IValidateOptions<PendleOptions>, PendleOptions>();
-builder.Services.AddSingleton<IValidateOptions<KaminoOptions>, KaminoOptions>();
 
 builder.Services.AddSingleton<IChainConfigurationService, ChainConfigurationService>();
 
 builder.Services.AddSingleton<IProtocolConfigurationService, ProtocolConfigurationService>();
-
-builder.Services.AddSingleton<IProtocolPluginRegistry, ProtocolPluginRegistry>();
 
 builder.Services.AddSingleton<ISystemClock, SystemClock>();
 builder.Services.AddSingleton<IRedisDatabase, RedisDatabaseWrapper>();
@@ -189,34 +181,6 @@ try
 catch (Exception ex)
 {
     logger.LogWarning(ex, "Redis connection failed");
-}
-
-
-try
-{
-    var pluginRegistry = app.Services.GetRequiredService<IProtocolPluginRegistry>();
-    var pluginCount = await pluginRegistry.DiscoverAndRegisterPluginsAsync();
-    logger.LogInformation("Protocol plugin system initialized - Discovered {Count} plugins", pluginCount);
-
-    var healthResults = await pluginRegistry.CheckPluginHealthAsync();
-    var healthyPlugins = healthResults.Count(kvp => kvp.Value.IsHealthy);
-    logger.LogInformation("Plugin health check - {Healthy}/{Total} plugins are healthy", healthyPlugins, healthResults.Count);
-
-    foreach (var (pluginId, health) in healthResults)
-    {
-        if (health.IsHealthy)
-        {
-            logger.LogDebug("Plugin {PluginId} is healthy - Status: {Status}, Response time: {ResponseTime}ms", pluginId, health.Status, health.ResponseTime.TotalMilliseconds);
-        }
-        else
-        {
-            logger.LogWarning("Plugin {PluginId} is unhealthy - Status: {Status}, Errors: {Errors}", pluginId, health.Status, string.Join(", ", health.Errors));
-        }
-    }
-}
-catch (Exception ex)
-{
-    logger.LogError(ex, "Failed to initialize protocol plugin system");
 }
 
 try

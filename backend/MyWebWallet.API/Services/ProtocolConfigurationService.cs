@@ -21,10 +21,13 @@ public class ProtocolConfigurationService : IProtocolConfigurationService
     private static Dictionary<string, ProtocolDefinition> BuildMap(ProtocolConfigurationOptions opts)
     {
         var dict = new Dictionary<string, ProtocolDefinition>(StringComparer.OrdinalIgnoreCase);
-        if (opts.AaveV3 != null) dict["aave-v3"] = opts.AaveV3;
-        if (opts.Moralis != null) dict["moralis"] = opts.Moralis;
-        if (opts.UniswapV3 != null) dict["uniswap-v3"] = opts.UniswapV3;
-        if (opts.PendleV2 != null) dict["pendle-v2"] = opts.PendleV2;
+        if (opts.AaveV3 != null) dict[nameof(opts.AaveV3)] = opts.AaveV3;
+        if (opts.Moralis != null) dict[nameof(opts.Moralis)] = opts.Moralis;
+        if (opts.UniswapV3 != null) dict[nameof(opts.UniswapV3)] = opts.UniswapV3;
+        if (opts.PendleV2 != null) dict[nameof(opts.PendleV2)] = opts.PendleV2;
+        if (opts.SolanaWallet != null) dict[nameof(opts.SolanaWallet)] = opts.SolanaWallet;
+        if (opts.Raydium != null) dict[nameof(opts.Raydium)] = opts.Raydium;
+        if (opts.Kamino != null) dict[nameof(opts.Kamino)] = opts.Kamino;
 
         foreach (var kv in opts.Extra)
         {
@@ -48,7 +51,20 @@ public class ProtocolConfigurationService : IProtocolConfigurationService
         foreach (var support in def.ChainSupports)
         {
             if (!Enum.TryParse<ChainEnum>(support.Chain, true, out var chainEnum)) continue;
-            yield return new ProtocolChainResolved(protocolId, chainEnum, support.Enabled, support.Settings);
+            yield return new ProtocolChainResolved(protocolId, chainEnum, support.Options);
+        }
+    }
+
+    public IEnumerable<ChainEnum> GetAllConfiguredChains(string protocolId)
+    {
+        var def = GetProtocol(protocolId);
+        if (def == null) yield break;
+        foreach (var support in def.ChainSupports)
+        {
+            if (Enum.TryParse<ChainEnum>(support.Chain, true, out var chainEnum))
+            {
+                yield return chainEnum;
+            }
         }
     }
 
@@ -58,7 +74,7 @@ public class ProtocolConfigurationService : IProtocolConfigurationService
         if (def == null) return null;
         var entry = def.ChainSupports.FirstOrDefault(c => string.Equals(c.Chain, chain.ToString(), StringComparison.OrdinalIgnoreCase));
         if (entry == null) return null;
-        return new ProtocolChainResolved(protocolId, chain, entry.Enabled, entry.Settings);
+        return new ProtocolChainResolved(protocolId, chain, entry.Options);
     }
 
     public bool IsProtocolEnabledOnChain(string protocolId, ChainEnum chain)

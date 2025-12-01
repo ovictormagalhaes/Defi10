@@ -39,11 +39,11 @@ public class MoralisEVMService : BaseHttpService, IMoralisService, IChainSupport
 
     private string ResolveApiChain(ChainEnum chain)
     {
-        var moralis = _protocolConfig.GetProtocol("moralis");
+        var moralis = _protocolConfig.GetProtocol(ProtocolNames.Moralis);
         if (moralis != null)
         {
             var entry = moralis.ChainSupports.FirstOrDefault(c => string.Equals(c.Chain, chain.ToString(), StringComparison.OrdinalIgnoreCase));
-            if (entry != null && entry.Settings.TryGetValue("chainId", out var cid) && !string.IsNullOrWhiteSpace(cid))
+            if (entry != null && entry.Options.TryGetValue("chainId", out var cid) && !string.IsNullOrWhiteSpace(cid))
                 return cid;
         }
         return chain.ToString().ToLowerInvariant();

@@ -3,40 +3,50 @@ using MyWebWallet.API.Configuration;
 using MyWebWallet.API.DTOs;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
+using MyWebWallet.API.Services.Mappers;
+using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Models.Aave.Supplies;
+using MyWebWallet.API.Services.Models.Solana.Common;
+using MyWebWallet.API.Services.Models.Solana.Kamino;
+using MyWebWallet.API.Services.Models.Solana.Raydium;
 
 namespace MyWebWallet.API.Services;
-
-public interface IProtocolStatusService
-{
-    ProtocolStatusListResponse GetProtocolStatus();
-}
 
 public class ProtocolStatusService : IProtocolStatusService
 {
     private readonly MoralisOptions _moralisOptions;
-    private readonly AaveOptions _aaveOptions;
-    private readonly UniswapV3Options _uniswapV3Options;
-    private readonly RaydiumOptions _raydiumOptions;
-    private readonly PendleOptions _pendleOptions;
-    private readonly KaminoOptions _kaminoOptions;
     private readonly IProtocolConfigurationService _protocolConfig;
+    
+    // Mappers
+    private readonly IWalletItemMapper<IEnumerable<TokenDetail>> _moralisTokenMapper;
+    private readonly IWalletItemMapper<AaveGetUserSuppliesResponse> _aaveSuppliesMapper;
+    private readonly IWalletItemMapper<UniswapV3GetActivePoolsResponse> _uniswapV3Mapper;
+    private readonly IWalletItemMapper<PendleVePositionsResponse> _pendleVeMapper;
+    private readonly IWalletItemMapper<IEnumerable<KaminoPosition>> _kaminoMapper;
+    private readonly IWalletItemMapper<IEnumerable<RaydiumPosition>> _raydiumMapper;
+    private readonly IWalletItemMapper<SolanaTokenResponse> _solanaTokenMapper;
 
     public ProtocolStatusService(
         IOptions<MoralisOptions> moralisOptions,
-        IOptions<AaveOptions> aaveOptions,
-        IOptions<UniswapV3Options> uniswapV3Options,
-        IOptions<RaydiumOptions> raydiumOptions,
-        IOptions<PendleOptions> pendleOptions,
-        IOptions<KaminoOptions> kaminoOptions,
-        IProtocolConfigurationService protocolConfig)
+        IProtocolConfigurationService protocolConfig,
+        IWalletItemMapper<IEnumerable<TokenDetail>> moralisTokenMapper,
+        IWalletItemMapper<AaveGetUserSuppliesResponse> aaveSuppliesMapper,
+        IWalletItemMapper<UniswapV3GetActivePoolsResponse> uniswapV3Mapper,
+        IWalletItemMapper<PendleVePositionsResponse> pendleVeMapper,
+        IWalletItemMapper<IEnumerable<KaminoPosition>> kaminoMapper,
+        IWalletItemMapper<IEnumerable<RaydiumPosition>> raydiumMapper,
+        IWalletItemMapper<SolanaTokenResponse> solanaTokenMapper)
     {
         _moralisOptions = moralisOptions.Value;
-        _aaveOptions = aaveOptions.Value;
-        _uniswapV3Options = uniswapV3Options.Value;
-        _raydiumOptions = raydiumOptions.Value;
-        _pendleOptions = pendleOptions.Value;
-        _kaminoOptions = kaminoOptions.Value;
         _protocolConfig = protocolConfig;
+        
+        _moralisTokenMapper = moralisTokenMapper;
+        _aaveSuppliesMapper = aaveSuppliesMapper;
+        _uniswapV3Mapper = uniswapV3Mapper;
+        _pendleVeMapper = pendleVeMapper;
+        _kaminoMapper = kaminoMapper;
+        _raydiumMapper = raydiumMapper;
+        _solanaTokenMapper = solanaTokenMapper;
     }
 
     public ProtocolStatusListResponse GetProtocolStatus()
@@ -78,23 +88,23 @@ public class ProtocolStatusService : IProtocolStatusService
 
     private ProtocolStatusResponse? BuildMoralisEvmStatus()
     {
-        var config = _protocolConfig.GetProtocol("moralis");
-        if (config == null) return null;
-
+        var protocolDef = _moralisTokenMapper.GetProtocolDefinition(Chain.Base);
         var chainSupport = new Dictionary<string, bool>();
         
-        var evmChains = new[] { Chain.Base, Chain.Arbitrum, Chain.Ethereum, Chain.BNB };
-        foreach (var chain in evmChains)
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id)
+            .Where(c => c != Chain.Solana); // EVM only
+        
+        foreach (var chain in configuredChains)
         {
-            var chainConfig = _protocolConfig.GetProtocolOnChain("moralis", chain);
+            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
             chainSupport[chain.ToString()] = _moralisOptions.Enabled && chainConfig?.Enabled == true;
         }
 
         return new ProtocolStatusResponse(
             ProtocolId: "moralis-evm",
-            ProtocolName: "Moralis (EVM Wallet)",
-            IconUrl: config.Icon,
-            Website: config.Website,
+            ProtocolName: $"{protocolDef.Name} (EVM Wallet)",
+            IconUrl: protocolDef.Logo,
+            Website: protocolDef.Url,
             BlockchainGroup: BlockchainGroup.EVM,
             ChainSupport: chainSupport
         );
@@ -102,20 +112,23 @@ public class ProtocolStatusService : IProtocolStatusService
 
     private ProtocolStatusResponse? BuildMoralisSolanaStatus()
     {
-        var config = _protocolConfig.GetProtocol("moralis");
-        if (config == null) return null;
-
-        var chainConfig = _protocolConfig.GetProtocolOnChain("moralis", Chain.Solana);
-        var chainSupport = new Dictionary<string, bool>
+        var protocolDef = _solanaTokenMapper.GetProtocolDefinition(Chain.Solana);
+        var chainSupport = new Dictionary<string, bool>();
+        
+        var configuredChains = _protocolConfig.GetAllConfiguredChains("moralis")
+            .Where(c => c == Chain.Solana); // Solana only
+        
+        foreach (var chain in configuredChains)
         {
-            [Chain.Solana.ToString()] = _moralisOptions.Enabled && chainConfig?.Enabled == true
-        };
+            var chainConfig = _protocolConfig.GetProtocolOnChain("moralis", chain);
+            chainSupport[chain.ToString()] = _moralisOptions.Enabled && chainConfig?.Enabled == true;
+        }
 
         return new ProtocolStatusResponse(
             ProtocolId: "moralis-solana",
-            ProtocolName: "Moralis (Solana Wallet)",
-            IconUrl: config.Icon,
-            Website: config.Website,
+            ProtocolName: $"{protocolDef.Name} (Solana Wallet)",
+            IconUrl: protocolDef.Logo,
+            Website: protocolDef.Url,
             BlockchainGroup: BlockchainGroup.Solana,
             ChainSupport: chainSupport
         );
@@ -123,23 +136,21 @@ public class ProtocolStatusService : IProtocolStatusService
 
     private ProtocolStatusResponse? BuildAaveStatus()
     {
-        var config = _protocolConfig.GetProtocol("aave-v3");
-        if (config == null) return null;
-
+        var protocolDef = _aaveSuppliesMapper.GetProtocolDefinition(Chain.Base);
         var chainSupport = new Dictionary<string, bool>();
         
-        var supportedChains = new[] { Chain.Base, Chain.Arbitrum, Chain.Ethereum };
-        foreach (var chain in supportedChains)
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id);
+        foreach (var chain in configuredChains)
         {
-            var chainConfig = _protocolConfig.GetProtocolOnChain("aave-v3", chain);
-            chainSupport[chain.ToString()] = _aaveOptions.Enabled && chainConfig?.Enabled == true;
+            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            chainSupport[chain.ToString()] = chainConfig?.Enabled == true;
         }
 
         return new ProtocolStatusResponse(
-            ProtocolId: "aave-v3",
-            ProtocolName: config.DisplayName ?? "Aave V3",
-            IconUrl: config.Icon,
-            Website: config.Website,
+            ProtocolId: protocolDef.Id,
+            ProtocolName: protocolDef.Name,
+            IconUrl: protocolDef.Logo,
+            Website: protocolDef.Url,
             BlockchainGroup: BlockchainGroup.EVM,
             ChainSupport: chainSupport
         );
@@ -147,23 +158,21 @@ public class ProtocolStatusService : IProtocolStatusService
 
     private ProtocolStatusResponse? BuildUniswapV3Status()
     {
-        var config = _protocolConfig.GetProtocol("uniswap-v3");
-        if (config == null) return null;
-
+        var protocolDef = _uniswapV3Mapper.GetProtocolDefinition(Chain.Base);
         var chainSupport = new Dictionary<string, bool>();
         
-        var supportedChains = new[] { Chain.Base, Chain.Arbitrum };
-        foreach (var chain in supportedChains)
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id);
+        foreach (var chain in configuredChains)
         {
-            var chainConfig = _protocolConfig.GetProtocolOnChain("uniswap-v3", chain);
-            chainSupport[chain.ToString()] = _uniswapV3Options.Enabled && chainConfig?.Enabled == true;
+            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            chainSupport[chain.ToString()] = chainConfig?.Enabled == true;
         }
 
         return new ProtocolStatusResponse(
-            ProtocolId: "uniswap-v3",
-            ProtocolName: config.DisplayName ?? "Uniswap V3",
-            IconUrl: config.Icon,
-            Website: config.Website,
+            ProtocolId: protocolDef.Id,
+            ProtocolName: protocolDef.Name,
+            IconUrl: protocolDef.Logo,
+            Website: protocolDef.Url,
             BlockchainGroup: BlockchainGroup.EVM,
             ChainSupport: chainSupport
         );
@@ -171,19 +180,21 @@ public class ProtocolStatusService : IProtocolStatusService
 
     private ProtocolStatusResponse? BuildPendleStatus()
     {
-        var config = _protocolConfig.GetProtocol("pendle-v2");
-        if (config == null) return null;
-
+        var protocolDef = _pendleVeMapper.GetProtocolDefinition(Chain.Ethereum);
         var chainSupport = new Dictionary<string, bool>();
         
-        var chainConfig = _protocolConfig.GetProtocolOnChain("pendle-v2", Chain.Ethereum);
-        chainSupport[Chain.Ethereum.ToString()] = _pendleOptions.Enabled && chainConfig?.Enabled == true;
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id);
+        foreach (var chain in configuredChains)
+        {
+            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            chainSupport[chain.ToString()] = chainConfig?.Enabled == true;
+        }
 
         return new ProtocolStatusResponse(
-            ProtocolId: "pendle-v2",
-            ProtocolName: config.DisplayName ?? "Pendle V2",
-            IconUrl: config.Icon,
-            Website: config.Website,
+            ProtocolId: protocolDef.Id,
+            ProtocolName: protocolDef.Name,
+            IconUrl: protocolDef.Logo,
+            Website: protocolDef.Url,
             BlockchainGroup: BlockchainGroup.EVM,
             ChainSupport: chainSupport
         );
@@ -191,31 +202,45 @@ public class ProtocolStatusService : IProtocolStatusService
 
     private ProtocolStatusResponse? BuildRaydiumStatus()
     {
+        var protocolDef = _raydiumMapper.GetProtocolDefinition(Chain.Solana);
+        var chainSupport = new Dictionary<string, bool>();
+        
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id);
+        foreach (var chain in configuredChains)
+        {
+            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            chainSupport[chain.ToString()] = chainConfig?.Enabled == true;
+        }
+        
         return new ProtocolStatusResponse(
-            ProtocolId: "raydium",
-            ProtocolName: "Raydium",
-            IconUrl: "https://raydium.io/logo.svg",
-            Website: "https://raydium.io",
+            ProtocolId: protocolDef.Id,
+            ProtocolName: protocolDef.Name,
+            IconUrl: protocolDef.Logo,
+            Website: protocolDef.Url,
             BlockchainGroup: BlockchainGroup.Solana,
-            ChainSupport: new Dictionary<string, bool>
-            {
-                [Chain.Solana.ToString()] = _raydiumOptions.Enabled
-            }
+            ChainSupport: chainSupport
         );
     }
 
     private ProtocolStatusResponse? BuildKaminoStatus()
     {
+        var protocolDef = _kaminoMapper.GetProtocolDefinition(Chain.Solana);
+        var chainSupport = new Dictionary<string, bool>();
+        
+        var configuredChains = _protocolConfig.GetAllConfiguredChains(protocolDef.Id);
+        foreach (var chain in configuredChains)
+        {
+            var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Id, chain);
+            chainSupport[chain.ToString()] = chainConfig?.Enabled == true;
+        }
+        
         return new ProtocolStatusResponse(
-            ProtocolId: "kamino",
-            ProtocolName: "Kamino Finance",
-            IconUrl: "https://app.kamino.finance/favicon.ico",
-            Website: "https://app.kamino.finance",
+            ProtocolId: protocolDef.Id,
+            ProtocolName: protocolDef.Name,
+            IconUrl: protocolDef.Logo,
+            Website: protocolDef.Url,
             BlockchainGroup: BlockchainGroup.Solana,
-            ChainSupport: new Dictionary<string, bool>
-            {
-                [Chain.Solana.ToString()] = _kaminoOptions.Enabled
-            }
+            ChainSupport: chainSupport
         );
     }
 

@@ -25,7 +25,6 @@ public class PendleService : IPendleService
 
     private const string FALLBACK_VE_CONTRACT = "0x4f30A9D41B80ecC5B94306AB4364951AE3170210";
     private const int PENDLE_DECIMALS = 18;
-    private const string PROTOCOL_ID = "pendle-v2";
     private const string PENDLE_API_BASE = "https://api-v2.pendle.finance/core";
     
     private static List<PendlePTToken>? _cachedPTTokens = null;
@@ -49,6 +48,8 @@ public class PendleService : IPendleService
 
     public async Task<PendleVePositionsResponse?> GetVePositionsAsync(string account, ChainEnum chain)
     {
+        var protocolDef = _protocolConfig.GetProtocol(ProtocolNames.PendleV2) ?? throw new InvalidOperationException($"Protocol definition not found: {ProtocolNames.PendleV2}");
+        var chainConfig = _protocolConfig.GetProtocolOnChain(protocolDef.Key!, ChainEnum.Ethereum);
         var resp = new PendleVePositionsResponse();
         if (chain != ChainEnum.Ethereum || string.IsNullOrWhiteSpace(account)) return resp;
         var addr = account.Trim();
@@ -58,8 +59,8 @@ public class PendleService : IPendleService
         var contract = _pendleOptions.VeContract;
         if (string.IsNullOrWhiteSpace(contract))
         {
-            var proto = _protocolConfig.GetProtocolOnChain(PROTOCOL_ID, chain);
-            if (proto?.Settings != null && proto.Settings.TryGetValue("veContract", out var cfgVe) && !string.IsNullOrWhiteSpace(cfgVe))
+            var proto = _protocolConfig.GetProtocolOnChain(protocolDef.Key!, chain);
+            if (proto?.Options != null && proto.Options.TryGetValue("veContract", out var cfgVe) && !string.IsNullOrWhiteSpace(cfgVe))
                 contract = cfgVe.Trim();
         }
         if (string.IsNullOrWhiteSpace(contract)) contract = FALLBACK_VE_CONTRACT;

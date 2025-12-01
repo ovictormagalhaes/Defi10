@@ -119,11 +119,34 @@ function App() {
   const [isWalletGroupModalOpen, setIsWalletGroupModalOpen] = useState(false);
   const [selectedWalletGroupId, setSelectedWalletGroupId] = useState(null);
 
+  // Status dialog state
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
+  const [statusData, setStatusData] = useState(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+
   // Handle disconnect - clears both wallet and group
   const handleDisconnect = () => {
     disconnect();
     setSelectedWalletGroupId(null);
     window.history.pushState({}, '', '/');
+  };
+
+  // Fetch protocols status
+  const fetchProtocolsStatus = async () => {
+    setLoadingStatus(true);
+    try {
+      const response = await fetch(api.getProtocolsStatus());
+      if (response.ok) {
+        const data = await response.json();
+        setStatusData(data);
+      } else {
+        setStatusData({ error: 'Failed to load status' });
+      }
+    } catch (error) {
+      setStatusData({ error: error.message });
+    } finally {
+      setLoadingStatus(false);
+    }
   };
 
   // Detect wallet group from URL on mount
@@ -1930,6 +1953,289 @@ function App() {
           onSelectWallet={connectToWallet}
           availableWallets={availableWallets}
         />
+
+        {/* Status Dialog */}
+        {showStatusDialog && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              backgroundColor: 'rgba(0, 0, 0, 0.85)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 2000,
+              padding: 20,
+            }}
+            onClick={() => setShowStatusDialog(false)}
+          >
+            <div
+              style={{
+                backgroundColor: theme.bgPanel,
+                padding: 32,
+                borderRadius: 16,
+                width: '90%',
+                height: '90%',
+                overflow: 'hidden',
+                border: `1px solid ${theme.border}`,
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 24,
+                }}
+              >
+                <h2 style={{ margin: 0, color: theme.textPrimary, fontSize: 28, fontWeight: 600 }}>
+                  Protocol Status
+                </h2>
+                <button
+                  onClick={() => setShowStatusDialog(false)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: 'none',
+                    color: theme.textPrimary,
+                    cursor: 'pointer',
+                    fontSize: 24,
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+                >
+                  ×
+                </button>
+              </div>
+              {loadingStatus ? (
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: 40, 
+                  color: theme.textSecondary,
+                  fontSize: 16,
+                }}>
+                  Loading protocol status...
+                </div>
+              ) : statusData && statusData.protocols ? (
+                <div style={{ flex: 1, overflow: 'auto' }}>
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    backgroundColor: theme.bgCard,
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                  }}>
+                    <thead>
+                      <tr style={{
+                        backgroundColor: theme.bgPanel,
+                        borderBottom: `2px solid ${theme.border}`,
+                      }}>
+                        <th style={{
+                          padding: '16px 20px',
+                          textAlign: 'left',
+                          color: theme.textPrimary,
+                          fontWeight: 600,
+                          fontSize: 14,
+                          letterSpacing: '0.5px',
+                          position: 'sticky',
+                          top: 0,
+                          backgroundColor: theme.bgPanel,
+                          zIndex: 10,
+                        }}>
+                          Protocol
+                        </th>
+                        {statusData.availableChains && statusData.availableChains.map(chain => {
+                          // Find chain icon from supportedChains
+                          let chainIcon = null;
+                          if (supportedChains && supportedChains.length > 0) {
+                            const chainData = supportedChains.find(sc => 
+                              sc.name === chain || 
+                              sc.displayName === chain || 
+                              sc.shortName === chain ||
+                              String(sc.name || '').toLowerCase() === String(chain).toLowerCase()
+                            );
+                            if (chainData) {
+                              chainIcon = chainData.iconUrl || chainData.icon || chainData.logo || chainData.image;
+                            }
+                          }
+                          
+                          return (
+                            <th key={chain} style={{
+                              padding: '16px 12px',
+                              textAlign: 'center',
+                              color: theme.textPrimary,
+                              fontWeight: 600,
+                              fontSize: 14,
+                              letterSpacing: '0.5px',
+                              position: 'sticky',
+                              top: 0,
+                              backgroundColor: theme.bgPanel,
+                              zIndex: 10,
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                                {chainIcon && (
+                                  <img 
+                                    src={chainIcon} 
+                                    alt={chain}
+                                    style={{
+                                      width: 20,
+                                      height: 20,
+                                      borderRadius: '50%',
+                                    }}
+                                    onError={(e) => e.target.style.display = 'none'}
+                                  />
+                                )}
+                                <span>{chain}</span>
+                              </div>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {statusData.protocols
+                        .sort((a, b) => (a.blockchainGroup || 0) - (b.blockchainGroup || 0))
+                        .map((protocol, index) => (
+                        <tr key={protocol.protocolId} style={{
+                          backgroundColor: index % 2 === 0 ? theme.bgCard : theme.bgPanel,
+                          borderBottom: `1px solid ${theme.border}`,
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.bgHover}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? theme.bgCard : theme.bgPanel}
+                        >
+                          <td style={{
+                            padding: '16px 20px',
+                            color: theme.textSecondary,
+                            fontSize: 14,
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <img 
+                                src={protocol.iconUrl} 
+                                alt={protocol.protocolName}
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: 6,
+                                  flexShrink: 0,
+                                }}
+                                onError={(e) => e.target.style.display = 'none'}
+                              />
+                              <div>
+                                <div style={{ fontWeight: 500, color: theme.textPrimary, marginBottom: 4 }}>
+                                  {protocol.protocolName}
+                                </div>
+                                {protocol.website && (
+                                  <a 
+                                    href={protocol.website}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      fontSize: 12,
+                                      color: theme.textSecondary,
+                                      textDecoration: 'none',
+                                      opacity: 0.7,
+                                      transition: 'opacity 0.2s',
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = 0.7}
+                                  >
+                                    {protocol.website.replace(/^https?:\/\//, '')}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          {statusData.availableChains && statusData.availableChains.map(chain => {
+                            const chainSupport = protocol.chainSupport && protocol.chainSupport[chain];
+                            const hasChain = chainSupport !== undefined && chainSupport !== null;
+                            const isActive = chainSupport === true;
+                            
+                            return (
+                              <td key={chain} style={{
+                                padding: '16px 12px',
+                                textAlign: 'center',
+                              }}>
+                                {hasChain && (
+                                  <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: '50%',
+                                    backgroundColor: isActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                    border: `2px solid ${isActive ? '#22c55e' : '#ef4444'}`,
+                                  }}>
+                                    <div style={{
+                                      width: 10,
+                                      height: 10,
+                                      borderRadius: '50%',
+                                      backgroundColor: isActive ? '#22c55e' : '#ef4444',
+                                    }}></div>
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: 40, 
+                  color: theme.textSecondary,
+                  fontSize: 16,
+                }}>
+                  No data available
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Footer Status Button */}
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 8,
+            right: 8,
+            zIndex: 100,
+          }}
+        >
+          <button
+            onClick={() => {
+              setShowStatusDialog(true);
+              fetchProtocolsStatus();
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: theme.textSecondary,
+              cursor: 'pointer',
+              fontSize: 11,
+              padding: '4px 8px',
+              opacity: 0.3,
+              transition: 'opacity 0.2s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.3')}
+          >
+            Status
+          </button>
+        </div>
       </ChainIconsProvider>
     </MaskValuesProvider>
   );

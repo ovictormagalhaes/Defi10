@@ -223,14 +223,8 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
                         if (newlyMapped.Count > 0)
                         {
-
+                            // Apenas popular keys, a hidratação de metadados será feita na consolidação final
                             newlyMapped.PopulateKeys();
-
-                            var metadataService = scope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
-                            var hydrationLogger = scope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
-                            var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
-                            var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
-                            await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(newlyMapped, logos);
 
                             try
                             {
@@ -395,14 +389,8 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
                         if (newlyMapped.Count > 0)
                         {
-
+                            // Apenas popular keys, a hidratação de metadados será feita na consolidação final
                             newlyMapped.PopulateKeys();
-
-                            var metadataService = scope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
-                            var hydrationLogger = scope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
-                            var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
-                            var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
-                            await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(newlyMapped, logos);
 
                             try
                             {
@@ -666,6 +654,44 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
                             if (consolidatedWallet.Items.Count > 0)
                             {
+                                // PASSO 1: HIDRATAÇÃO DE METADADOS - DEVE VIR ANTES DOS PREÇOS
+                                // Preenche name, symbol, logo usando cross-chain sharing
+                                try
+                                {
+                                    using var metadataScope = _rootProvider.CreateScope();
+                                    var metadataService = metadataScope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
+                                    var hydrationLogger = metadataScope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
+                                    var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
+                                    
+                                    _logger.LogInformation("[FINAL HYDRATION] Starting metadata hydration for {Count} items, jobId={JobId}", 
+                                        consolidatedWallet.Items.Count, jobId);
+                                    
+                                    // Processar por chain para otimizar
+                                    var itemsByChain = consolidatedWallet.Items.GroupBy(w => w.Position?.Tokens?.FirstOrDefault()?.Chain ?? "unknown");
+                                    
+                                    foreach (var chainGroup in itemsByChain)
+                                    {
+                                        if (string.IsNullOrEmpty(chainGroup.Key) || chainGroup.Key == "unknown") continue;
+                                        
+                                        if (!Enum.TryParse<ChainEnum>(chainGroup.Key, true, out var parsedChain))
+                                            continue;
+                                        
+                                        var itemsForChain = chainGroup.ToList();
+                                        _logger.LogInformation("[FINAL HYDRATION] Processing {Count} items for chain {Chain}", 
+                                            itemsForChain.Count, chainGroup.Key);
+                                        
+                                        var logos = await hydrationHelper.HydrateTokenLogosAsync(itemsForChain, parsedChain);
+                                        await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(itemsForChain, logos);
+                                    }
+                                    
+                                    _logger.LogInformation("[FINAL HYDRATION] Completed metadata hydration jobId={JobId}", jobId);
+                                }
+                                catch (Exception metadataEx)
+                                {
+                                    _logger.LogError(metadataEx, "[FINAL HYDRATION] Failed metadata hydration jobId={JobId}", jobId);
+                                }
+
+                                // PASSO 2: HIDRATAÇÃO DE PREÇOS - DEPENDE DO SYMBOL ESTAR PREENCHIDO
                                 try
                                 {
                                     using var scope = _rootProvider.CreateScope();

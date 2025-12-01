@@ -1,4 +1,5 @@
 ﻿using MyWebWallet.API.Aggregation;
+using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models.Solana.Common;
@@ -13,27 +14,25 @@ namespace MyWebWallet.API.Services.Mappers
     {
         private readonly ITokenFactory _tokenFactory;
         private readonly IProtocolConfigurationService _protocolConfig;
+        private readonly IChainConfigurationService _chainConfig;
 
-        public SolanaTokenMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig)
+        public SolanaTokenMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
         {
             _tokenFactory = tokenFactory;
             _protocolConfig = protocolConfig;
+            _chainConfig = chainConfig;
         }
 
-        public bool SupportsChain(ChainEnum chain) => chain == ChainEnum.Solana;
-        public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Solana };
+        public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
+        
+        public IEnumerable<ChainEnum> GetSupportedChains() => 
+            _protocolConfig.GetEnabledChainEnums(ProtocolNames.SolanaWallet);
 
         public Protocol GetProtocolDefinition(ChainEnum chain)
         {
-            var p = _protocolConfig.GetProtocol("solana-wallet");
-            return new Protocol
-            {
-                Name = p?.DisplayName ?? "Wallet",
-                Chain = chain.ToString().ToLower(),
-                Id = p?.Key ?? "solana-wallet",
-                Url = p?.Website ?? "https://solscan.io",
-                Logo = p?.Icon ?? "https://cryptologos.cc/logos/solana-sol-logo.png"
-            };
+            var def = _protocolConfig.GetProtocol(ProtocolNames.SolanaWallet) 
+                ?? throw new InvalidOperationException($"Protocol definition not found: {ProtocolNames.SolanaWallet}");
+            return def.ToProtocol(chain, _chainConfig);
         }
 
         public Task<List<WalletItem>> MapAsync(SolanaTokenResponse source, ChainEnum chain)
@@ -83,26 +82,27 @@ namespace MyWebWallet.API.Services.Mappers
     {
         private readonly ITokenFactory _tokenFactory;
         private readonly ILogger<SolanaKaminoMapper> _logger;
+        private readonly IProtocolConfigurationService _protocolConfig;
+        private readonly IChainConfigurationService _chainConfig;
 
-        public SolanaKaminoMapper(ITokenFactory tokenFactory, ILogger<SolanaKaminoMapper> logger)
+        public SolanaKaminoMapper(ITokenFactory tokenFactory, ILogger<SolanaKaminoMapper> logger, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
         {
             _tokenFactory = tokenFactory;
             _logger = logger;
+            _protocolConfig = protocolConfig;
+            _chainConfig = chainConfig;
         }
 
-        public bool SupportsChain(ChainEnum chain) => chain == ChainEnum.Solana;
-        public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Solana };
+        public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
+        
+        public IEnumerable<ChainEnum> GetSupportedChains() => 
+            _protocolConfig.GetEnabledChainEnums(ProtocolNames.Kamino);
 
         public Protocol GetProtocolDefinition(ChainEnum chain)
         {
-            return new Protocol
-            {
-                Id = "kamino",
-                Name = "Kamino",
-                Chain = chain.ToString().ToLower(),
-                Url = "https://app.kamino.finance",
-                Logo = "https://app.kamino.finance/favicon.ico"
-            };
+            var def = _protocolConfig.GetProtocol(ProtocolNames.Kamino) 
+                ?? throw new InvalidOperationException($"Protocol definition not found: {ProtocolNames.Kamino}");
+            return def.ToProtocol(chain, _chainConfig);
         }
 
         public Task<List<WalletItem>> MapAsync(IEnumerable<KaminoPosition> input, ChainEnum chain)
@@ -243,32 +243,35 @@ namespace MyWebWallet.API.Services.Mappers
         private readonly ILogger<SolanaRaydiumMapper> _logger;
         private readonly ITokenMetadataService _metadataService;
         private readonly WalletItemLabelEnricher _labelEnricher;
+        private readonly IProtocolConfigurationService _protocolConfig;
+        private readonly IChainConfigurationService _chainConfig;
 
         public SolanaRaydiumMapper(
             ITokenFactory tokenFactory, 
             ILogger<SolanaRaydiumMapper> logger,
             ITokenMetadataService metadataService,
-            WalletItemLabelEnricher labelEnricher)
+            WalletItemLabelEnricher labelEnricher,
+            IProtocolConfigurationService protocolConfig,
+            IChainConfigurationService chainConfig)
         {
             _tokenFactory = tokenFactory;
             _logger = logger;
             _metadataService = metadataService;
             _labelEnricher = labelEnricher;
+            _protocolConfig = protocolConfig;
+            _chainConfig = chainConfig;
         }
 
-        public bool SupportsChain(ChainEnum chain) => chain == ChainEnum.Solana;
-        public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Solana };
+        public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
+        
+        public IEnumerable<ChainEnum> GetSupportedChains() => 
+            _protocolConfig.GetEnabledChainEnums(ProtocolNames.Raydium);
 
         public Protocol GetProtocolDefinition(ChainEnum chain)
         {
-            return new Protocol
-            {
-                Id = "raydium",
-                Name = "Raydium",
-                Chain = chain.ToString().ToLower(),
-                Url = "https://raydium.io",
-                Logo = "https://s2.coinmarketcap.com/static/img/coins/64x64/8526.png"
-            };
+            var def = _protocolConfig.GetProtocol(ProtocolNames.Raydium) 
+                ?? throw new InvalidOperationException($"Protocol definition not found: {ProtocolNames.Raydium}");
+            return def.ToProtocol(chain, _chainConfig);
         }
 
         public async Task<List<WalletItem>> MapAsync(IEnumerable<RaydiumPosition> input, ChainEnum chain)

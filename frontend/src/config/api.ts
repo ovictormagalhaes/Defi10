@@ -113,6 +113,7 @@ export const config = {
     REBALANCES: '/api/v1/rebalances',
     AGGREGATIONS: '/api/v1/aggregations',
     WALLET_GROUPS: '/api/v1/wallet-groups',
+    PROTOCOLS_STATUS: '/api/v1/protocols/status',
   },
 
   // Default configuration
@@ -235,6 +236,9 @@ export const api = {
   },
   getAggregation: (jobId: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.AGGREGATIONS}/${encodeURIComponent(jobId)}`,
+
+  // Protocols status
+  getProtocolsStatus: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.PROTOCOLS_STATUS}`,
 };
 
 export default config;

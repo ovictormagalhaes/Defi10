@@ -13,43 +13,42 @@ public class PendleVeMapper : IWalletItemMapper<PendleVePositionsResponse>
     private readonly ITokenFactory _tokenFactory;
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
-    private readonly string _protocolKey;
 
     public PendleVeMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
     {
         _tokenFactory = tokenFactory;
         _protocolConfig = protocolConfig;
         _chainConfig = chainConfig;
-        _protocolKey = _protocolConfig.GetRegisteredProtocolIds()
-            .Select(id => _protocolConfig.GetProtocol(id))
-            .Where(def => def != null && !string.IsNullOrWhiteSpace(def.Key))
-            .FirstOrDefault(def => def!.ChainSupports.Any(cs => cs.Settings != null && cs.Settings.ContainsKey("pendleToken")))?.Key
-            ?? throw new InvalidOperationException("Pendle protocol not configured (no protocol definition exposes 'pendleToken' setting).");
     }
 
-    public bool SupportsChain(ChainEnum chain) => chain == ChainEnum.Ethereum;
-    public IEnumerable<ChainEnum> GetSupportedChains() => new [] { ChainEnum.Ethereum };
+    public bool SupportsChain(ChainEnum chain) => 
+        _protocolConfig.IsChainEnabledForProtocol(ProtocolNames.PendleV2, chain);
+    
+    public IEnumerable<ChainEnum> GetSupportedChains() => 
+        _protocolConfig.GetEnabledChainEnums(ProtocolNames.PendleV2);
 
     public Protocol GetProtocolDefinition(ChainEnum chain)
     {
-        var def = _protocolConfig.GetProtocol(_protocolKey!) ?? throw new InvalidOperationException($"Protocol configuration missing for {_protocolKey}");
+        var def = _protocolConfig.GetProtocol(ProtocolNames.PendleV2) 
+            ?? throw new InvalidOperationException($"Protocol configuration missing for {ProtocolNames.PendleV2}");
 
-        var protocol = def.ToProtocol(chain, _chainConfig);
-
-        var chainResolved = _protocolConfig.GetProtocolOnChain(_protocolKey, chain) ?? throw new InvalidOperationException($"Protocol {_protocolKey} not enabled on chain {chain}");
-        if (!chainResolved.Settings.ContainsKey("pendleToken")) throw new InvalidOperationException($"pendleToken setting missing for protocol {_protocolKey} chain {chain}");
-        return protocol;
+        return def.ToProtocol(chain, _chainConfig);
     }
 
     public async Task<List<WalletItem>> MapAsync(PendleVePositionsResponse input, ChainEnum chain)
     {
         var list = new List<WalletItem>();
-        if (!SupportsChain(chain)) throw new NotSupportedException($"Chain {chain} not supported by {_protocolKey}");
+        if (!SupportsChain(chain)) throw new NotSupportedException($"Chain {chain} not supported by {ProtocolNames.PendleV2}");
         if (input?.Data?.Locks == null) return list;
 
         var protocol = GetProtocolDefinition(chain);
-        var chainResolved = _protocolConfig.GetProtocolOnChain(_protocolKey, chain)!;
-        var pendleTokenAddr = chainResolved.Settings["pendleToken"];
+        var chainResolved = _protocolConfig.GetProtocolOnChain(ProtocolNames.PendleV2, chain) 
+            ?? throw new InvalidOperationException($"Protocol {ProtocolNames.PendleV2} not enabled on chain {chain}");
+        
+        if (!chainResolved.Options.TryGetValue("pendleToken", out var pendleTokenAddr) || string.IsNullOrWhiteSpace(pendleTokenAddr))
+            throw new InvalidOperationException($"pendleToken setting missing for protocol {ProtocolNames.PendleV2} chain {chain}");
+        
+        pendleTokenAddr = pendleTokenAddr.Trim();
 
         foreach (var lockPos in input.Data.Locks)
         {

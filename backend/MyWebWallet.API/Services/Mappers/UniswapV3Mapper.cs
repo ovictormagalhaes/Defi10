@@ -16,29 +16,24 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
 
-    private static readonly HashSet<ChainEnum> Supported = new() { ChainEnum.Base };
-    private const string PROTOCOL_ID = "uniswap-v3";
-
     public UniswapV3Mapper(IUniswapV3OnChainService uniswapV3OnChainService, ILogger<UniswapV3Mapper> logger, ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
     { _uniswapV3OnChainService = uniswapV3OnChainService; _logger = logger; _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; }
 
-    public bool SupportsChain(ChainEnum chain) => Supported.Contains(chain);
-    public IEnumerable<ChainEnum> GetSupportedChains() => Supported;
+    public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
+    
+    public IEnumerable<ChainEnum> GetSupportedChains() => 
+        _protocolConfig.GetEnabledChainEnums(ProtocolNames.UniswapV3);
 
     public Protocol GetProtocolDefinition(ChainEnum chain)
     {
-        var def = _protocolConfig.GetProtocol(PROTOCOL_ID);
-        if (def != null)
-        {
-            try { return def.ToProtocol(chain, _chainConfig); } catch { /* fallback below */ }
-        }
-        var chainSlug = _chainConfig.GetChainConfig(chain)?.Slug ?? chain.ToString().ToLowerInvariant();
-        return new Protocol { Name = "Uniswap V3", Chain = chainSlug, Id = PROTOCOL_ID, Url = "https://app.uniswap.org", Logo = "https://cdn.moralis.io/defi/uniswap.png" };
+        var def = _protocolConfig.GetProtocol(ProtocolNames.UniswapV3) 
+            ?? throw new InvalidOperationException($"Protocol definition not found: {ProtocolNames.UniswapV3}");
+        return def.ToProtocol(chain, _chainConfig);
     }
 
     public async Task<List<WalletItem>> MapAsync(UniswapV3GetActivePoolsResponse response, ChainEnum chain)
     {
-        if (!SupportsChain(chain)) throw new NotSupportedException($"Chain {chain} is not supported by {PROTOCOL_ID}");
+        if (!SupportsChain(chain)) throw new NotSupportedException($"Chain {chain} is not supported by {ProtocolNames.UniswapV3}");
         if (response?.Data?.Positions == null) return new List<WalletItem>();
 
         var nativePriceUSD = TryParseInvariant(response.Data.Bundles?.FirstOrDefault()?.NativePriceUSD) ?? 0m;

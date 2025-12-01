@@ -23,7 +23,9 @@ public static class ProtocolDefinitionExtensions
         {
             var support = def.ChainSupports.FirstOrDefault(c => string.Equals(c.Chain, chain.ToString(), StringComparison.OrdinalIgnoreCase));
             if (support == null) throw new InvalidOperationException($"Protocol {def.Key} has no chain support entry for {chain}");
-            if (!support.Enabled) throw new InvalidOperationException($"Protocol {def.Key} disabled on chain {chain}");
+            
+            var enabled = support.Options?.TryGetValue("Enabled", out var enabledStr) == true && enabledStr.Equals("true", StringComparison.OrdinalIgnoreCase);
+            if (!enabled) throw new InvalidOperationException($"Protocol {def.Key} disabled on chain {chain}");
         }
 
         return new Protocol

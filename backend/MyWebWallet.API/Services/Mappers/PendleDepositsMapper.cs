@@ -1,6 +1,7 @@
 ﻿using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Interfaces;
+using MyWebWallet.API.Configuration;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 using MyWebWallet.API.Aggregation;
 
@@ -13,30 +14,19 @@ public class PendleDepositsMapper : IWalletItemMapper<PendleDepositsResponse>
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
 
-    private const string PROTOCOL_ID = "pendle-v2-deposits";
-
     public PendleDepositsMapper(ILogger<PendleDepositsMapper> logger, ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
     { _logger = logger; _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; }
 
-    public bool SupportsChain(ChainEnum chain)
-    {
-        return chain == ChainEnum.Base;
-    }
+    public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
 
-    public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Base };
+    public IEnumerable<ChainEnum> GetSupportedChains() => 
+        _protocolConfig.GetEnabledChainEnums(ProtocolNames.PendleV2);
 
     public Protocol GetProtocolDefinition(ChainEnum chain)
     {
-        var def = _protocolConfig.GetProtocol("pendle-v2");
-        var chainSlug = _chainConfig.GetChainConfig(chain)?.Slug ?? chain.ToString().ToLowerInvariant();
-        return new Protocol
-        {
-            Name = "Pendle V2",
-            Chain = chainSlug,
-            Id = PROTOCOL_ID,
-            Url = "https://app.pendle.finance",
-            Logo = "https://logo.moralis.io/0xa4b1_0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8_0270cab3e068234013aa17f290e4b6cb.png"
-        };
+        var def = _protocolConfig.GetProtocol(ProtocolNames.PendleV2) 
+            ?? throw new InvalidOperationException($"Protocol definition not found: {ProtocolNames.PendleV2}");
+        return def.ToProtocol(chain, _chainConfig);
     }
 
     public async Task<List<WalletItem>> MapAsync(PendleDepositsResponse response, ChainEnum chain)

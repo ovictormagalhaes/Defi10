@@ -18,20 +18,6 @@ public sealed class TokenMetadataService : ITokenMetadataService
     private static readonly TimeSpan METADATA_TTL = TimeSpan.FromDays(7);
     private static readonly TimeSpan PRICE_TTL = TimeSpan.FromMinutes(5);
 
-    private static readonly Dictionary<string, string> WellKnownTokens = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["So11111111111111111111111111111111111111112"] = "SOL",
-        ["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"] = "USDC",
-        ["Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"] = "USDT",
-        ["4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"] = "RAY",
-        ["mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So"] = "MSOL",
-        ["7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj"] = "STSOL",
-        ["JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"] = "JUP",
-        ["DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"] = "BONK",
-        ["7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"] = "POPCAT",
-        ["WENWENvqqNya429ubCdR81ZmD69brwQaaBYY6p3LCpk"] = "WEN"
-    };
-
     public TokenMetadataService(
         ICacheService cache,
         ICoinMarketCapService cmcService,
@@ -49,8 +35,8 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-
-            string key = $"{METADATA_PREFIX}{mintAddress}";
+            // 1. Verificar cache Redis (in-memory tokens)
+            string key = $"{METADATA_PREFIX}{mintAddress.ToLowerInvariant()}";
             string? cached = await _cache.GetAsync<string>(key);
             
             if (cached != null)
@@ -59,19 +45,22 @@ public sealed class TokenMetadataService : ITokenMetadataService
                 return JsonSerializer.Deserialize<TokenMetadata>(cached);
             }
             
-            _logger.LogDebug("[TokenMetadata] Cache MISS for mint={Mint}, fetching from CMC...", mintAddress);
+            _logger.LogDebug("[TokenMetadata] Cache MISS for mint={Mint}, fetching from CMC by address...", mintAddress);
 
-            var metadata = await FetchMetadataFromCMCAsync(mintAddress);
+            // 2. Buscar na API do CMC usando o mint address diretamente
+            var metadata = await FetchMetadataFromCMCByAddressAsync(mintAddress);
             
             if (metadata != null)
             {
-
+                // Salvar no cache para próximas consultas
                 await SetTokenMetadataAsync(mintAddress, metadata);
-                _logger.LogInformation("[TokenMetadata] Fetched and cached metadata for mint={Mint}, symbol={Symbol}", 
+                _logger.LogInformation("[TokenMetadata] Fetched and cached metadata from CMC for mint={Mint}, symbol={Symbol}", 
                     mintAddress, metadata.Symbol);
+                return metadata;
             }
             
-            return metadata;
+            _logger.LogDebug("[TokenMetadata] No metadata found for mint={Mint}", mintAddress);
+            return null;
         }
         catch (Exception ex)
         {
@@ -87,7 +76,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-
+            // 1. Verificar cache Redis por symbol+name
             string compositeKey = $"{METADATA_BY_SYMBOL_PREFIX}{symbol.ToUpperInvariant()}:{name}";
             string? cached = await _cache.GetAsync<string>(compositeKey);
             
@@ -98,8 +87,31 @@ public sealed class TokenMetadataService : ITokenMetadataService
                 return JsonSerializer.Deserialize<TokenMetadata>(cached);
             }
             
-            _logger.LogDebug("[TokenMetadata] Cross-chain lookup MISS for symbol={Symbol}, name={Name}", 
+            _logger.LogDebug("[TokenMetadata] Cross-chain lookup MISS for symbol={Symbol}, name={Name}, fetching from CMC...", 
                 symbol, name);
+            
+            // 2. Buscar na API do CMC por symbol
+            var metadata = await FetchMetadataFromCMCBySymbolAsync(symbol);
+            
+            if (metadata != null)
+            {
+                // Verificar se o name bate (case-insensitive)
+                if (metadata.Name?.Equals(name, StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    // Salvar no cache com chave composite
+                    string json = JsonSerializer.Serialize(metadata);
+                    await _cache.SetAsync(compositeKey, json, METADATA_TTL);
+                    
+                    _logger.LogInformation("[TokenMetadata] Fetched and cached metadata from CMC by symbol+name: {Symbol}/{Name}", 
+                        symbol, name);
+                    return metadata;
+                }
+                
+                _logger.LogDebug("[TokenMetadata] Symbol found but name mismatch: expected={ExpectedName}, got={ActualName}", 
+                    name, metadata.Name);
+            }
+            
+            _logger.LogDebug("[TokenMetadata] No metadata found for symbol={Symbol}, name={Name}", symbol, name);
             return null;
         }
         catch (Exception ex)
@@ -110,43 +122,62 @@ public sealed class TokenMetadataService : ITokenMetadataService
         }
     }
     
-    private async Task<TokenMetadata?> FetchMetadataFromCMCAsync(string mintAddress)
+    /// <summary>
+    /// Busca metadata na API do CMC usando mint address
+    /// </summary>
+    private async Task<TokenMetadata?> FetchMetadataFromCMCByAddressAsync(string mintAddress)
     {
         try
         {
-
-            if (WellKnownTokens.TryGetValue(mintAddress, out var symbol))
-            {
-                _logger.LogDebug("[TokenMetadata] Found well-known token: {Mint} → {Symbol}", mintAddress, symbol);
-
-                var cmcResponse = await _cmcService.GetQuotesLatestV2Async(new[] { symbol });
-                
-                if (cmcResponse?.Data != null && cmcResponse.Data.TryGetValue(symbol.ToUpperInvariant(), out var quote))
-                {
-                    var metadata = new TokenMetadata
-                    {
-                        Symbol = quote.Symbol,
-                        Name = quote.Name,
-                        LogoUrl = null
-                    };
-
-                    if (quote.Quote.TryGetValue("USD", out var usdQuote) && usdQuote.Price.HasValue)
-                    {
-                        await SetTokenPriceAsync(mintAddress, usdQuote.Price.Value);
-                        await SetTokenPriceAsync(symbol, usdQuote.Price.Value);
-                    }
-                    
-                    return metadata;
-                }
-            }
-
-
-            _logger.LogDebug("[TokenMetadata] Could not fetch metadata from CMC for mint={Mint}", mintAddress);
+            // CMC API não suporta busca direta por address de mint Solana
+            // Retornar null para tentar outras estratégias
+            _logger.LogDebug("[TokenMetadata] CMC does not support Solana mint address lookup: {Mint}", mintAddress);
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[TokenMetadata] Error fetching from CMC for mint={Mint}", mintAddress);
+            _logger.LogError(ex, "[TokenMetadata] Error in CMC address lookup for mint={Mint}", mintAddress);
+            return null;
+        }
+    }
+    
+    /// <summary>
+    /// Busca metadata na API do CMC usando symbol
+    /// </summary>
+    private async Task<TokenMetadata?> FetchMetadataFromCMCBySymbolAsync(string symbol)
+    {
+        try
+        {
+            _logger.LogDebug("[TokenMetadata] Fetching from CMC by symbol: {Symbol}", symbol);
+
+            var cmcResponse = await _cmcService.GetQuotesLatestV2Async(new[] { symbol });
+            
+            if (cmcResponse?.Data != null && cmcResponse.Data.TryGetValue(symbol.ToUpperInvariant(), out var quote))
+            {
+                var metadata = new TokenMetadata
+                {
+                    Symbol = quote.Symbol,
+                    Name = quote.Name,
+                    LogoUrl = null // CMC API não retorna logo na resposta de quotes
+                };
+
+                // Salvar preço se disponível
+                if (quote.Quote.TryGetValue("USD", out var usdQuote) && usdQuote.Price.HasValue)
+                {
+                    await SetTokenPriceAsync(symbol, usdQuote.Price.Value);
+                    _logger.LogDebug("[TokenMetadata] Cached price for symbol={Symbol}: ${Price}", 
+                        symbol, usdQuote.Price.Value);
+                }
+                
+                return metadata;
+            }
+
+            _logger.LogDebug("[TokenMetadata] No CMC data found for symbol={Symbol}", symbol);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[TokenMetadata] Error fetching from CMC for symbol={Symbol}", symbol);
             return null;
         }
     }
@@ -186,14 +217,15 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-
-            string key = $"{METADATA_PREFIX}{mintAddress}";
+            // Salvar com mint address (normalizado para lowercase)
+            string key = $"{METADATA_PREFIX}{mintAddress.ToLowerInvariant()}";
             string json = JsonSerializer.Serialize(metadata);
             await _cache.SetAsync(key, json, METADATA_TTL);
             
             _logger.LogInformation("[TokenMetadata] Cached metadata for mint={Mint}, symbol={Symbol}, name={Name}", 
                 mintAddress, metadata.Symbol, metadata.Name);
 
+            // Salvar também com chave composite symbol+name para cross-chain lookup
             if (!string.IsNullOrWhiteSpace(metadata.Symbol) && !string.IsNullOrWhiteSpace(metadata.Name))
             {
                 string compositeKey = $"{METADATA_BY_SYMBOL_PREFIX}{metadata.Symbol.ToUpperInvariant()}:{metadata.Name}";

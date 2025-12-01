@@ -10,23 +10,24 @@ public class MoralisTokenMapper : IWalletItemMapper<IEnumerable<TokenDetail>>
 {
     private readonly IChainConfigurationService _chainConfig;
     private readonly IProtocolConfigurationService _protocolConfig;
-    private const string PROTOCOL_ID = "moralis";
 
     public MoralisTokenMapper(IChainConfigurationService chainConfigurationService, IProtocolConfigurationService protocolConfigurationService)
     { _chainConfig = chainConfigurationService; _protocolConfig = protocolConfigurationService; }
 
     public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
-    public IEnumerable<ChainEnum> GetSupportedChains() => new [] { ChainEnum.Base, ChainEnum.BNB, ChainEnum.Arbitrum, ChainEnum.Ethereum };
+    
+    public IEnumerable<ChainEnum> GetSupportedChains() => 
+        _protocolConfig.GetEnabledChainEnums(ProtocolNames.Moralis, "Solana");
 
     public Protocol GetProtocolDefinition(ChainEnum chain)
     {
-        var def = _protocolConfig.GetProtocol(PROTOCOL_ID) ?? throw new InvalidOperationException($"Protocol definition not found: {PROTOCOL_ID}");
+        var def = _protocolConfig.GetProtocol(ProtocolNames.Moralis) ?? throw new InvalidOperationException($"Protocol definition not found: {ProtocolNames.Moralis}");
         return def.ToProtocol(chain, _chainConfig);
     }
 
     public async Task<List<WalletItem>> MapAsync(IEnumerable<TokenDetail> tokens, ChainEnum chain)
     {
-        if (!SupportsChain(chain)) throw new NotSupportedException($"Chain {chain} is not supported by {PROTOCOL_ID}");
+        if (!SupportsChain(chain)) throw new NotSupportedException($"Chain {chain} is not supported by Moralis");
         var protocol = GetProtocolDefinition(chain);
         return await Task.FromResult(tokens?.Select(token =>
         {

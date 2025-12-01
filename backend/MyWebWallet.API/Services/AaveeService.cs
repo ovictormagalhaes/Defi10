@@ -26,9 +26,6 @@ public class AaveeService : IAaveeService
         _graphqlEndpoint = options.Value.GraphQLEndpoint;
     }
 
-    public string NetworkName => "Aavee";
-
-    public bool IsValidAddress(string account) => !string.IsNullOrEmpty(account) && account.StartsWith("0x") && account.Length == 42;
 
     public async Task<AaveGetUserSuppliesResponse> GetUserSupplies(string address, string chain)
     {

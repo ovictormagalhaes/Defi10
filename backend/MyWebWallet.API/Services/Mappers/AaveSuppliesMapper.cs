@@ -14,25 +14,20 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
     private readonly ITokenFactory _tokenFactory;
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
-    private const string PROTOCOL_ID = "aave-v3";
 
     public AaveSuppliesMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
     { _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; }
 
-    public bool SupportsChain(ChainEnum chain) => IsProtocolEnabled(chain);
-    public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Base };
-
-    private bool IsProtocolEnabled(ChainEnum chain)
-    {
-        var def = _protocolConfig.GetProtocol(PROTOCOL_ID);
-        if (def?.ChainSupports == null) return false;
-        return def.ChainSupports.Any(c => c.Enabled && string.Equals(c.Chain, chain.ToString(), StringComparison.OrdinalIgnoreCase));
-    }
+    public bool SupportsChain(ChainEnum chain) => 
+        _protocolConfig.IsChainEnabledForProtocol(ProtocolNames.AaveV3, chain);
+    
+    public IEnumerable<ChainEnum> GetSupportedChains() => 
+        _protocolConfig.GetEnabledChainEnums(ProtocolNames.AaveV3);
 
     public Protocol GetProtocolDefinition(ChainEnum chain)
     {
-        if (!IsProtocolEnabled(chain)) throw new InvalidOperationException($"Protocol {PROTOCOL_ID} disabled on chain {chain}");
-        var def = _protocolConfig.GetProtocol(PROTOCOL_ID) ?? throw new InvalidOperationException($"Protocol definition not found: {PROTOCOL_ID}");
+        if (!SupportsChain(chain)) throw new InvalidOperationException($"Protocol {ProtocolNames.AaveV3} disabled on chain {chain}");
+        var def = _protocolConfig.GetProtocol(ProtocolNames.AaveV3) ?? throw new InvalidOperationException($"Protocol definition not found: {ProtocolNames.AaveV3}");
         return def.ToProtocol(chain, _chainConfig);
     }
 

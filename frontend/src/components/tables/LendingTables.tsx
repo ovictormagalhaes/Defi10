@@ -397,7 +397,6 @@ export default function LendingTables({
               <MiniMetric
                 label="Health Factor"
                 value={healthFactor.toFixed(2)}
-                accent={healthFactor < 1.5}
               />
             )}
           </div>
@@ -463,7 +462,6 @@ export default function LendingTables({
             <MiniMetric
               label="Health Factor"
               value={healthFactor.toFixed(2)}
-              accent={healthFactor < 1.5}
               tooltip="Liquidation risk indicator"
             />
           )}
