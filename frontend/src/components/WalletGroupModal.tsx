@@ -10,6 +10,17 @@ import {
 } from '../types/wallet-groups';
 import * as apiClient from '../services/apiClient';
 import { solveChallenge, estimateSolveTime } from '../services/proofOfWork';
+import { detectAvailableWallets, getWalletById } from '../constants/wallets';
+import WalletSelectorDialog from './WalletSelectorDialog';
+
+// Extend Window interface for wallet providers
+declare global {
+  interface Window {
+    ethereum?: any;
+    rabby?: any;
+    solana?: any;
+  }
+}
 
 interface WalletGroupModalProps {
   isOpen: boolean;
@@ -46,6 +57,9 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   const [groupError, setGroupError] = useState<string | null>(null);
   const [powStatus, setPowStatus] = useState<'idle' | 'solving' | 'solved' | 'error'>('idle');
   const [powProgress, setPowProgress] = useState<string>('');
+  const [showWalletSelector, setShowWalletSelector] = useState(false);
+  const [walletSelectorIndex, setWalletSelectorIndex] = useState<number | null>(null);
+  const [connectedWallets, setConnectedWallets] = useState<boolean[]>([false, false, false]);
 
   // Reset form when modal closes
   useEffect(() => {
@@ -63,6 +77,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       setGroupError(null);
       setPowStatus('idle');
       setPowProgress('');
+      setConnectedWallets([false, false, false]);
       clearError();
     }
   }, [isOpen, clearError]);
@@ -98,6 +113,58 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       setGroupError(groupValidation.valid ? null : groupValidation.error || null);
     } else {
       setGroupError(null);
+    }
+  };
+
+  const handleDisconnectWallet = (index: number) => {
+    const updatedInputs = [...walletInputs];
+    updatedInputs[index] = '';
+    setWalletInputs(updatedInputs);
+
+    const updatedConnected = [...connectedWallets];
+    updatedConnected[index] = false;
+    setConnectedWallets(updatedConnected);
+
+    const errors = [...validationErrors];
+    errors[index] = null;
+    setValidationErrors(errors);
+
+    setGroupError(null);
+  };
+
+  const handleWalletSelection = async (walletType: string) => {
+    if (walletSelectorIndex === null) return;
+
+    setShowWalletSelector(false);
+
+    const wallet = getWalletById(walletType);
+    if (!wallet) return;
+
+    try {
+      let address = null;
+
+      if (wallet.type === 'solana') {
+        const response = await window.solana.connect({ onlyIfTrusted: false });
+        address = response.publicKey.toString();
+      } else if (wallet.type === 'evm') {
+        const provider = walletType === 'rabby' && window.rabby ? window.rabby : window.ethereum;
+        const accounts = await provider.request({ method: 'eth_requestAccounts' });
+        address = accounts[0];
+      }
+
+      if (address) {
+        handleWalletInput(walletSelectorIndex, address);
+        const updated = [...connectedWallets];
+        updated[walletSelectorIndex] = true;
+        setConnectedWallets(updated);
+      }
+    } catch (error: any) {
+      if (error.code !== 4001 && !error.message?.includes('User rejected')) {
+        console.error('Error connecting wallet:', error);
+        alert(`Failed to connect ${wallet.name}. Please try again.`);
+      }
+    } finally {
+      setWalletSelectorIndex(null);
     }
   };
 
@@ -1315,7 +1382,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {walletInputs.map((wallet, idx) => (
                       <div key={idx}>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                           <span
                             style={{
                               width: 24,
@@ -1329,76 +1396,228 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                               alignItems: 'center',
                               justifyContent: 'center',
                               flexShrink: 0,
+                              marginTop: 8,
                             }}
                           >
                             {idx + 1}
                           </span>
-                          <div style={{ flex: 1, position: 'relative' }}>
-                            <input
-                              id={`wallet-${idx}`}
-                              type="text"
-                              placeholder={`0x... or Solana address ${idx === 0 ? '(required)' : ''}`}
-                              value={wallet}
-                              onChange={(e) => handleWalletInput(idx, e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: wallet && !validationErrors[idx] ? '12px 70px 12px 14px' : '12px 14px',
-                                borderRadius: 10,
-                                border: `1px solid ${validationErrors[idx] ? theme.danger || '#ef4444' : theme.border}`,
-                                background: theme.bgApp,
-                                color: theme.textPrimary,
-                                fontSize: 13,
-                                fontFamily: 'monospace',
-                                outline: 'none',
-                                transition: 'border-color 0.15s, padding 0.15s',
-                                boxSizing: 'border-box',
-                              }}
-                              onFocus={(e) =>
-                                (e.currentTarget.style.borderColor = validationErrors[idx]
-                                  ? theme.danger || '#ef4444'
-                                  : theme.primary)
-                              }
-                              onBlur={(e) =>
-                                (e.currentTarget.style.borderColor = validationErrors[idx]
-                                  ? theme.danger || '#ef4444'
-                                  : theme.border)
-                              }
-                            />
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <div style={{ position: 'relative', flex: 1 }}>
+                                <input
+                                id={`wallet-${idx}`}
+                                type="text"
+                                placeholder={`0x... or Solana address ${idx === 0 ? '(required)' : ''}`}
+                                value={wallet}
+                                onChange={(e) => handleWalletInput(idx, e.target.value)}
+                                readOnly={connectedWallets[idx]}
+                                style={{
+                                  width: '100%',
+                                  padding: wallet && !validationErrors[idx] ? '12px 70px 12px 14px' : '12px 14px',
+                                  borderRadius: 10,
+                                  border: `1px solid ${validationErrors[idx] ? theme.danger || '#ef4444' : theme.border}`,
+                                  background: connectedWallets[idx] ? theme.primarySubtle : theme.bgApp,
+                                  color: theme.textPrimary,
+                                  fontSize: 13,
+                                  fontFamily: 'monospace',
+                                  outline: 'none',
+                                  transition: 'border-color 0.15s, padding 0.15s, background 0.15s',
+                                  boxSizing: 'border-box',
+                                  cursor: connectedWallets[idx] ? 'not-allowed' : 'text',
+                                }}
+                                onFocus={(e) => {
+                                  if (!connectedWallets[idx]) {
+                                    e.currentTarget.style.borderColor = validationErrors[idx]
+                                      ? theme.danger || '#ef4444'
+                                      : theme.primary;
+                                  }
+                                }}
+                                onBlur={(e) =>
+                                  (e.currentTarget.style.borderColor = validationErrors[idx]
+                                    ? theme.danger || '#ef4444'
+                                    : theme.border)
+                                }
+                              />
                             {wallet && !validationErrors[idx] && (
-                              <span
+                              <div
                                 style={{
                                   position: 'absolute',
                                   right: 12,
                                   top: '50%',
                                   transform: 'translateY(-50%)',
-                                  padding: '4px 8px',
-                                  background: theme.success + '20' || '#10b98120',
-                                  color: theme.success || '#10b981',
-                                  borderRadius: 6,
-                                  fontSize: 10,
-                                  fontWeight: 600,
-                                  textTransform: 'uppercase',
-                                  letterSpacing: 0.5,
-                                  pointerEvents: 'none',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
                                 }}
                               >
-                                {getAddressType(wallet)}
-                              </span>
+                                <span
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: theme.success + '20' || '#10b98120',
+                                    color: theme.success || '#10b981',
+                                    borderRadius: 6,
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.5,
+                                  }}
+                                >
+                                  {getAddressType(wallet)}
+                                </span>
+                                {connectedWallets[idx] ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDisconnectWallet(idx)}
+                                    title="Disconnect wallet"
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 6,
+                                      border: 'none',
+                                      background: theme.danger + '20' || '#ef444420',
+                                      color: theme.danger || '#ef4444',
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = theme.danger || '#ef4444';
+                                      e.currentTarget.style.color = '#fff';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = theme.danger + '20' || '#ef444420';
+                                      e.currentTarget.style.color = theme.danger || '#ef4444';
+                                    }}
+                                  >
+                                    <svg
+                                      width="10"
+                                      height="10"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setWalletSelectorIndex(idx);
+                                      setShowWalletSelector(true);
+                                    }}
+                                    title="Connect wallet"
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 6,
+                                      border: 'none',
+                                      background: theme.primary + '20',
+                                      color: theme.primary,
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = theme.primary;
+                                      e.currentTarget.style.color = '#fff';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = theme.primary + '20';
+                                      e.currentTarget.style.color = theme.primary;
+                                    }}
+                                  >
+                                    <svg
+                                      width="10"
+                                      height="10"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+                                      <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+                                    </svg>
+                                    Connect
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setWalletSelectorIndex(idx);
+                                  setShowWalletSelector(true);
+                                }}
+                                title="Connect wallet"
+                                style={{
+                                  padding: '8px 12px',
+                                  borderRadius: 8,
+                                  border: `1px solid ${theme.border}`,
+                                  background: theme.bgApp,
+                                  color: theme.textPrimary,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  flexShrink: 0,
+                                  whiteSpace: 'nowrap',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = theme.primarySubtle;
+                                  e.currentTarget.style.borderColor = theme.primary;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = theme.bgApp;
+                                  e.currentTarget.style.borderColor = theme.border;
+                                }}
+                              >
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+                                  <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+                                </svg>
+                                Connect
+                              </button>
+                            </div>
+                            {validationErrors[idx] && (
+                              <div
+                                style={{
+                                  marginLeft: 32,
+                                  fontSize: 12,
+                                  color: theme.danger || '#ef4444',
+                                }}
+                              >
+                                {validationErrors[idx]}
+                              </div>
                             )}
                           </div>
                         </div>
-                        {validationErrors[idx] && (
-                          <div
-                            style={{
-                              marginTop: 6,
-                              marginLeft: 32,
-                              fontSize: 12,
-                              color: theme.danger || '#ef4444',
-                            }}
-                          >
-                            {validationErrors[idx]}
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -1582,6 +1801,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
           </div>
         )}
       </div>
+
+      <WalletSelectorDialog
+        isOpen={showWalletSelector}
+        onClose={() => {
+          setShowWalletSelector(false);
+          setWalletSelectorIndex(null);
+        }}
+        onSelectWallet={handleWalletSelection}
+        availableWallets={detectAvailableWallets()}
+      />
     </div>
   );
 };
