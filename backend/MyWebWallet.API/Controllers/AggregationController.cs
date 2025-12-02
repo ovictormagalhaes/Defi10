@@ -10,6 +10,9 @@ using ChainEnum = MyWebWallet.API.Models.Chain;
 using MyWebWallet.API.Aggregation; 
 using System.Text.RegularExpressions;
 using MyWebWallet.API.Controllers.Requests;
+using Microsoft.AspNetCore.Authorization;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace MyWebWallet.API.Controllers;
 
@@ -82,6 +85,18 @@ public class AggregationController : ControllerBase
         {
 
             walletGroupId = request.WalletGroupId.Value;
+
+            var walletGroupIdFromToken = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(walletGroupIdFromToken) || !Guid.TryParse(walletGroupIdFromToken, out var tokenWalletGroupId))
+            {
+                return Unauthorized(new { error = "Invalid or missing authentication token" });
+            }
+
+            if (tokenWalletGroupId != walletGroupId)
+            {
+                _logger.LogWarning("Wallet group ID mismatch: token={TokenId}, requested={RequestedId}", tokenWalletGroupId, walletGroupId);
+                return Forbid();
+            }
 
             var walletGroupService = HttpContext.RequestServices.GetRequiredService<IWalletGroupService>();
             var walletGroup = await walletGroupService.GetAsync(walletGroupId.Value);
@@ -274,7 +289,29 @@ public class AggregationController : ControllerBase
     }
 
     [HttpGet("{jobId:guid}")]
-    public async Task<IActionResult> GetAggregation(Guid jobId) => await BuildSnapshotAsync(jobId);
+    public async Task<IActionResult> GetAggregation(Guid jobId)
+    {
+        var db = _redis.GetDatabase();
+        var metaKey = RedisKeys.Meta(jobId);
+        var walletGroupIdField = await db.HashGetAsync(metaKey, "wallet_group_id");
+        
+        if (walletGroupIdField.HasValue && Guid.TryParse(walletGroupIdField.ToString(), out var jobWalletGroupId))
+        {
+            var walletGroupIdFromToken = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(walletGroupIdFromToken) || !Guid.TryParse(walletGroupIdFromToken, out var tokenWalletGroupId))
+            {
+                return Unauthorized(new { error = "This aggregation belongs to a wallet group and requires authentication" });
+            }
+
+            if (tokenWalletGroupId != jobWalletGroupId)
+            {
+                _logger.LogWarning("Wallet group ID mismatch for job {JobId}: token={TokenId}, job={JobGroupId}", jobId, tokenWalletGroupId, jobWalletGroupId);
+                return Forbid();
+            }
+        }
+        
+        return await BuildSnapshotAsync(jobId);
+    }
 
     [HttpGet]
     public async Task<IActionResult> ListByAccount([FromQuery] string? account, [FromQuery] int limit = 20)
@@ -346,6 +383,10 @@ public class AggregationController : ControllerBase
         meta.TryGetValue("chains", out var chainsStr);
         meta.TryGetValue("created_at", out var createdStr);
         meta.TryGetValue("processed_count", out var processedCountStr);
+        meta.TryGetValue("wallet_group_id", out var walletGroupIdStr);
+        Guid? walletGroupId = null;
+        if (!string.IsNullOrEmpty(walletGroupIdStr) && Guid.TryParse(walletGroupIdStr, out var parsedWalletGroupId))
+            walletGroupId = parsedWalletGroupId;
 
         DateTime? createdAt = null;
         if (!string.IsNullOrEmpty(createdStr) && DateTime.TryParse(createdStr, out var parsedCreated)) createdAt = parsedCreated;
@@ -442,6 +483,7 @@ public class AggregationController : ControllerBase
         {
             jobId,
             account = accountStr,
+            walletGroupId,
             chains = chainsStr,
             status = statusStr ?? AggregationStatus.Running.ToString(),
             expected,

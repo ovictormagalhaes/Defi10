@@ -20,6 +20,9 @@ public sealed class WalletGroup
     public string? DisplayName { get; set; }
 
 
+    public string? PasswordHash { get; set; }
+
+
     public DateTime CreatedAt { get; set; }
 
 

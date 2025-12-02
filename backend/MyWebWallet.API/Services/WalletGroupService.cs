@@ -37,7 +37,7 @@ public sealed class WalletGroupService : IWalletGroupService
         _logger = logger;
     }
 
-    public async Task<WalletGroup> CreateAsync(List<string> wallets, string? displayName = null)
+    public async Task<WalletGroup> CreateAsync(List<string> wallets, string? displayName = null, string? password = null)
     {
         var validationError = ValidateWallets(wallets);
         if (validationError != null)
@@ -50,6 +50,7 @@ public sealed class WalletGroupService : IWalletGroupService
             Id = Guid.NewGuid(),
             Wallets = wallets.Select(w => w.Trim()).ToList(),
             DisplayName = displayName?.Trim(),
+            PasswordHash = password != null ? BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12) : null,
             CreatedAt = _clock.UtcNow,
             UpdatedAt = _clock.UtcNow
         };
@@ -60,7 +61,8 @@ public sealed class WalletGroupService : IWalletGroupService
         
         await db.StringSetAsync(key, json);
         
-        _logger.LogInformation("Created wallet group {GroupId} with {Count} wallets", group.Id, group.Wallets.Count);
+        _logger.LogInformation("Created wallet group {GroupId} with {Count} wallets, hasPassword={HasPassword}", 
+            group.Id, group.Wallets.Count, password != null);
         
         return group;
     }
@@ -173,6 +175,26 @@ public sealed class WalletGroupService : IWalletGroupService
         }
 
         return null;
+    }
+
+    public async Task<bool> ValidatePasswordAsync(Guid id, string password)
+    {
+        if (string.IsNullOrWhiteSpace(password))
+            return false;
+
+        var group = await GetAsync(id);
+        if (group == null || string.IsNullOrWhiteSpace(group.PasswordHash))
+            return false;
+
+        try
+        {
+            return BCrypt.Net.BCrypt.Verify(password, group.PasswordHash);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to verify password for wallet group {GroupId}", id);
+            return false;
+        }
     }
 
     private static string GetKey(Guid id) => $"{KeyPrefix}{id}";

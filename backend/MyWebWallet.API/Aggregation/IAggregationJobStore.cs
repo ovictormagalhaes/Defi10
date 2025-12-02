@@ -14,9 +14,9 @@ namespace MyWebWallet.API.Aggregation;
 
 public interface IAggregationJobStore
 {
-    Task<Guid> CreateOrReuseSingleAsync(string accountLower, ChainEnum chain, IEnumerable<IntegrationProvider> providers, TimeSpan ttl, CancellationToken ct = default);
-    Task<Guid> CreateOrReuseMultiAsync(string accountLower, IReadOnlyList<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, CancellationToken ct = default);
-    Task RecordPublicationAsync(Guid jobId, string accountLower, IEnumerable<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, CancellationToken ct = default);
+    Task<Guid> CreateOrReuseSingleAsync(string accountLower, ChainEnum chain, IEnumerable<IntegrationProvider> providers, TimeSpan ttl, Guid? walletGroupId = null, CancellationToken ct = default);
+    Task<Guid> CreateOrReuseMultiAsync(string accountLower, IReadOnlyList<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, Guid? walletGroupId = null, CancellationToken ct = default);
+    Task RecordPublicationAsync(Guid jobId, string accountLower, IEnumerable<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, Guid? walletGroupId = null, CancellationToken ct = default);
     Task<AggregationJobMeta?> GetMetaAsync(Guid jobId, CancellationToken ct = default);
     Task AddResultAsync(Guid jobId, string providerKey, string json, TimeSpan ttl, CancellationToken ct = default);
     IAsyncEnumerable<Guid> ListRecentJobsAsync(string accountLower, int limit, CancellationToken ct = default);
@@ -33,7 +33,7 @@ public sealed class AggregationJobStore : IAggregationJobStore
         _redis = redis; _logger = logger; _clock = clock;
     }
 
-    public async Task<Guid> CreateOrReuseSingleAsync(string accountLower, ChainEnum chain, IEnumerable<IntegrationProvider> providers, TimeSpan ttl, CancellationToken ct = default)
+    public async Task<Guid> CreateOrReuseSingleAsync(string accountLower, ChainEnum chain, IEnumerable<IntegrationProvider> providers, TimeSpan ttl, Guid? walletGroupId = null, CancellationToken ct = default)
     {
         var db = _redis.GetDatabase();
         var activeKey = RedisKeys.ActiveSingle(accountLower, chain);
@@ -44,14 +44,14 @@ public sealed class AggregationJobStore : IAggregationJobStore
             return jobId;
         }
         var newJob = Guid.NewGuid();
-        await InitializeMetaAsync(newJob, accountLower, new []{ chain }, providers.Select(p => (p, chain)), ttl, db);
+        await InitializeMetaAsync(newJob, accountLower, new []{ chain }, providers.Select(p => (p, chain)), ttl, db, walletGroupId);
         await db.StringSetAsync(activeKey, newJob.ToString(), ttl);
         await IndexJobAsync(accountLower, newJob, ttl, db);
         _logger.LogInformation("Created new single aggregation job {Job} chain={Chain}", newJob, chain);
         return newJob;
     }
 
-    public async Task<Guid> CreateOrReuseMultiAsync(string accountLower, IReadOnlyList<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, CancellationToken ct = default)
+    public async Task<Guid> CreateOrReuseMultiAsync(string accountLower, IReadOnlyList<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, Guid? walletGroupId = null, CancellationToken ct = default)
     {
         var db = _redis.GetDatabase();
         var activeKey = RedisKeys.ActiveMulti(accountLower, chains);
@@ -62,18 +62,18 @@ public sealed class AggregationJobStore : IAggregationJobStore
             return jobId;
         }
         var newJob = Guid.NewGuid();
-        await InitializeMetaAsync(newJob, accountLower, chains, combos, ttl, db);
+        await InitializeMetaAsync(newJob, accountLower, chains, combos, ttl, db, walletGroupId);
         await db.StringSetAsync(activeKey, newJob.ToString(), ttl);
         await IndexJobAsync(accountLower, newJob, ttl, db);
         _logger.LogInformation("Created new multi aggregation job {Job} chains={Chains}", newJob, string.Join(',', chains));
         return newJob;
     }
 
-    public async Task RecordPublicationAsync(Guid jobId, string accountLower, IEnumerable<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, CancellationToken ct = default)
+    public async Task RecordPublicationAsync(Guid jobId, string accountLower, IEnumerable<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, Guid? walletGroupId = null, CancellationToken ct = default)
     {
 
         var db = _redis.GetDatabase();
-        await InitializeMetaAsync(jobId, accountLower, chains.ToList(), combos, ttl, db, onlyIfMissing: true);
+        await InitializeMetaAsync(jobId, accountLower, chains.ToList(), combos, ttl, db, walletGroupId, onlyIfMissing: true);
     }
 
     public async Task<AggregationJobMeta?> GetMetaAsync(Guid jobId, CancellationToken ct = default)
@@ -119,14 +119,14 @@ public sealed class AggregationJobStore : IAggregationJobStore
         }
     }
 
-    private async Task InitializeMetaAsync(Guid jobId, string accountLower, IReadOnlyList<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, IDatabase db, bool onlyIfMissing = false)
+    private async Task InitializeMetaAsync(Guid jobId, string accountLower, IReadOnlyList<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, IDatabase db, Guid? walletGroupId = null, bool onlyIfMissing = false)
     {
         var metaKey = RedisKeys.Meta(jobId);
         if (onlyIfMissing && await db.KeyExistsAsync(metaKey)) return;
         var now = _clock.UtcNow;
         var comboList = combos.ToList();
         var providersCount = comboList.Count;
-        var hash = new HashEntry[]
+        var hashEntries = new List<HashEntry>
         {
             new("account", accountLower),
             new("chains", string.Join(',', chains)),
@@ -139,7 +139,11 @@ public sealed class AggregationJobStore : IAggregationJobStore
             new("final_emitted", 0),
             new("processed_count", 0)
         };
-        await db.HashSetAsync(metaKey, hash);
+        if (walletGroupId.HasValue)
+        {
+            hashEntries.Add(new("wallet_group_id", walletGroupId.Value.ToString()));
+        }
+        await db.HashSetAsync(metaKey, hashEntries.ToArray());
         var pendingKey = RedisKeys.Pending(jobId);
         foreach (var c in comboList)
             await db.SetAddAsync(pendingKey, $"{c.provider.ToString().ToLowerInvariant()}:{c.chain.ToString().ToLowerInvariant()}");

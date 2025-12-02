@@ -191,7 +191,10 @@ export const api = {
     `${config.API_BASE_URL}${config.API_ENDPOINTS.REBALANCES}/group/${walletGroupId}`,
 
   // Wallet Groups CRUD
+  getChallenge: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/challenge`,
   createWalletGroup: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}`,
+  connectWalletGroup: (id: string) =>
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}/connect`,
   getWalletGroup: (id: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}`,
   updateWalletGroup: (id: string) =>

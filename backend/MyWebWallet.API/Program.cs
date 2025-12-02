@@ -15,9 +15,13 @@ using MyWebWallet.API.Services.Models.Solana.Kamino;
 using MyWebWallet.API.Services.Models.Solana.Raydium;
 using MyWebWallet.API.Services.Solana;
 using MyWebWallet.API.Services.Solana.Raydium;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using Solnet.Rpc;
+using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
@@ -37,6 +41,8 @@ builder.Services.Configure<PendleOptions>(builder.Configuration.GetSection("Pend
 builder.Services.Configure<KaminoOptions>(builder.Configuration.GetSection("Kamino"));
 builder.Services.Configure<SolanaOptions>(builder.Configuration.GetSection("Solana"));
 builder.Services.Configure<AlchemyOptions>(builder.Configuration.GetSection("Alchemy"));
+builder.Services.Configure<ProofOfWorkOptions>(builder.Configuration.GetSection("ProofOfWork"));
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 
 builder.Services.AddSingleton<IValidateOptions<MoralisOptions>, MoralisOptions>();
 builder.Services.AddSingleton<IValidateOptions<RedisOptions>, RedisOptions>();
@@ -44,6 +50,8 @@ builder.Services.AddSingleton<IValidateOptions<AggregationOptions>, AggregationO
 builder.Services.AddSingleton<IValidateOptions<AaveOptions>, AaveOptions>();
 builder.Services.AddSingleton<IValidateOptions<SolanaOptions>, SolanaOptions>();
 builder.Services.AddSingleton<IValidateOptions<AlchemyOptions>, AlchemyOptions>();
+builder.Services.AddSingleton<IValidateOptions<ProofOfWorkOptions>, ProofOfWorkOptions>();
+builder.Services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptions>();
 
 builder.Services.AddSingleton<IChainConfigurationService, ChainConfigurationService>();
 
@@ -52,6 +60,8 @@ builder.Services.AddSingleton<IProtocolConfigurationService, ProtocolConfigurati
 builder.Services.AddSingleton<ISystemClock, SystemClock>();
 builder.Services.AddSingleton<IRedisDatabase, RedisDatabaseWrapper>();
 builder.Services.AddScoped<IWalletGroupService, WalletGroupService>();
+builder.Services.AddSingleton<IProofOfWorkService, ProofOfWorkService>();
+builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 
@@ -65,6 +75,53 @@ if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new() { Title = "MyWebWallet API", Version = "v1" }));
 }
+
+var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
+if (jwtOptions == null)
+{
+    throw new InvalidOperationException("JWT configuration is required");
+}
+
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtOptions.Issuer,
+        ValidAudience = jwtOptions.Audience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret)),
+        ClockSkew = TimeSpan.Zero
+    };
+
+    // Adiciona eventos para debug
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("JWT Authentication failed: {Exception}", context.Exception.Message);
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("JWT Token validated successfully for user {User}", context.Principal?.Identity?.Name);
+            return Task.CompletedTask;
+        }
+    };
+});
+
+builder.Services.AddAuthorization();
 
 builder.Services.AddCors(options =>
 {
@@ -215,6 +272,8 @@ if (uniV3Options != null)
 
 app.MapHealthChecks("/health");
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 logger.LogInformation("MyWebWallet API starting env={Env} port={Port} cors={Cors}", app.Environment.EnvironmentName, port, allowedOrigins.Length > 0 ? string.Join(',', allowedOrigins) : "(fallback localhost)");

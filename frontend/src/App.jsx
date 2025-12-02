@@ -118,6 +118,7 @@ function App() {
   // Wallet Groups modal state
   const [isWalletGroupModalOpen, setIsWalletGroupModalOpen] = useState(false);
   const [selectedWalletGroupId, setSelectedWalletGroupId] = useState(null);
+  const [pendingWalletGroupId, setPendingWalletGroupId] = useState(null); // For auto-connect flow
 
   // Status dialog state
   const [showStatusDialog, setShowStatusDialog] = useState(false);
@@ -157,8 +158,26 @@ function App() {
     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
     if (path && guidRegex.test(path)) {
-      // It's a wallet group GUID
-      setSelectedWalletGroupId(path);
+      // It's a wallet group GUID - check if we have it locally
+      try {
+        const storedGroups = localStorage.getItem('defi10_wallet_groups');
+        const groups = storedGroups ? JSON.parse(storedGroups) : [];
+        const existingGroup = groups.find(g => g.id === path);
+        
+        if (existingGroup) {
+          // Group exists locally, use it
+          setSelectedWalletGroupId(path);
+        } else {
+          // Group doesn't exist locally, open connect modal with ID pre-filled
+          console.log('[App] Wallet group not found locally, opening connect modal for:', path);
+          setPendingWalletGroupId(path);
+          setIsWalletGroupModalOpen(true);
+        }
+      } catch (err) {
+        console.error('[App] Error checking local wallet groups:', err);
+        // On error, try to set it anyway
+        setSelectedWalletGroupId(path);
+      }
     }
   }, []);
 
@@ -1911,18 +1930,24 @@ function App() {
             {/* Wallet Group Modal */}
             <WalletGroupModal
               isOpen={isWalletGroupModalOpen}
-              onClose={() => setIsWalletGroupModalOpen(false)}
+              onClose={() => {
+                setIsWalletGroupModalOpen(false);
+                setPendingWalletGroupId(null);
+              }}
+              initialGroupId={pendingWalletGroupId}
               onGroupCreated={(groupId) => {
                 // Auto-select the created group
                 setSelectedWalletGroupId(groupId);
                 window.history.pushState({}, '', `/${groupId}`);
                 setIsWalletGroupModalOpen(false);
+                setPendingWalletGroupId(null);
               }}
               onGroupSelected={(groupId) => {
                 // Select existing group
                 setSelectedWalletGroupId(groupId);
                 window.history.pushState({}, '', `/${groupId}`);
                 setIsWalletGroupModalOpen(false);
+                setPendingWalletGroupId(null);
               }}
             />
           </>
@@ -1931,18 +1956,24 @@ function App() {
         {/* Wallet Group Modal - Available in all states */}
         <WalletGroupModal
           isOpen={isWalletGroupModalOpen}
-          onClose={() => setIsWalletGroupModalOpen(false)}
+          onClose={() => {
+            setIsWalletGroupModalOpen(false);
+            setPendingWalletGroupId(null);
+          }}
+          initialGroupId={pendingWalletGroupId}
           onGroupCreated={(groupId) => {
             // Auto-select the created group
             setSelectedWalletGroupId(groupId);
             window.history.pushState({}, '', `/${groupId}`);
             setIsWalletGroupModalOpen(false);
+            setPendingWalletGroupId(null);
           }}
           onGroupSelected={(groupId) => {
             // Select existing group
             setSelectedWalletGroupId(groupId);
             window.history.pushState({}, '', `/${groupId}`);
             setIsWalletGroupModalOpen(false);
+            setPendingWalletGroupId(null);
           }}
         />
 

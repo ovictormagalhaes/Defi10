@@ -11,4 +11,9 @@ public sealed class CreateWalletGroupRequest
 
     [MaxLength(100)]
     public string? DisplayName { get; set; }
+
+    // Campos para autenticação com PoW + senha
+    public string? Password { get; set; }
+    public string? Challenge { get; set; }
+    public string? Nonce { get; set; }
 }

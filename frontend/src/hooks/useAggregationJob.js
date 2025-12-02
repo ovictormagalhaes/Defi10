@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '../config/api';
+import { getToken } from '../services/apiClient';
 
 /**
  * Hook para gerenciar ciclo de vida de um job de agregação.
@@ -28,6 +29,8 @@ export function useAggregationJob() {
   const lastChainRef = useRef(null);
   const ensureInFlightRef = useRef(false);
   const lastEnsureTsRef = useRef(0);
+  // Rastreia se o job atual é de um wallet group e qual o ID
+  const currentGroupIdRef = useRef(null);
 
   const clearTimer = () => {
     if (pollTimer.current) {
@@ -49,6 +52,7 @@ export function useAggregationJob() {
     cancelled.current = false;
     maxAttempts.current = 20;
     currentInterval.current = 5000;
+    currentGroupIdRef.current = null;
   }, []);
 
   const start = useCallback(
@@ -65,9 +69,19 @@ export function useAggregationJob() {
           ? api.buildStartAggregationBodyV2({ walletGroupId: accountOrGroupId })
           : api.buildStartAggregationBody(accountOrGroupId, chains || undefined);
 
+        // Headers: adiciona Authorization se for um wallet group
+        const headers = { 'Content-Type': 'application/json' };
+        
+        if (isGroup) {
+          const token = getToken(accountOrGroupId);
+          if (token) {
+            headers.Authorization = `Bearer ${token}`;
+          }
+        }
+
         const res = await fetch(api.startAggregation(), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body,
         });
         if (!res.ok) throw new Error(`Start failed: ${res.status}`);
@@ -81,6 +95,7 @@ export function useAggregationJob() {
         setJobId(pickedJobId);
         lastAccountRef.current = isGroup ? null : accountOrGroupId;
         lastChainRef.current = null; // multi-chain ou indefinido
+        currentGroupIdRef.current = isGroup ? accountOrGroupId : null;
         attemptRef.current = 0;
         currentInterval.current = 5000; // Reset para intervalo inicial
         return pickedJobId;
@@ -121,9 +136,19 @@ export function useAggregationJob() {
           ? api.buildStartAggregationBodyV2({ walletGroupId: accountOrGroupId })
           : api.buildStartAggregationBody(accountOrGroupId);
 
+        // Headers: adiciona Authorization se for um wallet group
+        const headers = { 'Content-Type': 'application/json' };
+        
+        if (isGroup) {
+          const token = getToken(accountOrGroupId);
+          if (token) {
+            headers.Authorization = `Bearer ${token}`;
+          }
+        }
+
         const res = await fetch(api.startAggregation(), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body,
         });
         if (!res.ok) throw new Error(`Start failed: ${res.status}`);
@@ -136,6 +161,7 @@ export function useAggregationJob() {
         setJobId(pickedJobId);
         lastAccountRef.current = isGroup ? null : accountOrGroupId;
         lastChainRef.current = null;
+        currentGroupIdRef.current = isGroup ? accountOrGroupId : null;
         attemptRef.current = 0;
         currentInterval.current = 5000; // Reset para intervalo inicial
         return pickedJobId;
@@ -152,7 +178,16 @@ export function useAggregationJob() {
 
   const fetchSnapshot = useCallback(async (id) => {
     try {
-      const res = await fetch(api.getAggregation(id));
+      // Adiciona Authorization header se for um wallet group
+      const headers = {};
+      if (currentGroupIdRef.current) {
+        const token = getToken(currentGroupIdRef.current);
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+      }
+
+      const res = await fetch(api.getAggregation(id), { headers });
       if (res.status === 404) {
         setExpired(true);
         throw new Error('Job not found (expired or invalid id)');

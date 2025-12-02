@@ -789,52 +789,56 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                             }
                         }
                     }
+
+                    _logger.LogInformation("Consolidation data written to Redis for job {JobId}, now marking as completed", jobId);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "CONSOLIDATION_FINAL: failed jobId={JobId}", jobId);
                 }
+
+                if (!finalAlready)
+                {
+                    AggregationStatus aggStatus;
+                    if (succeeded == expectedTotal && failed == 0) aggStatus = AggregationStatus.Completed;
+                    else if (timedOut > 0 && succeeded == 0 && failed == 0) aggStatus = AggregationStatus.TimedOut;
+                    else if (failed == 0 && timedOut == 0) aggStatus = AggregationStatus.Completed;
+                    else if (timedOut > 0) aggStatus = AggregationStatus.TimedOut;
+                    else aggStatus = AggregationStatus.CompletedWithErrors;
+
+                    var tran2 = db.CreateTransaction();
+                    tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
+                    await tran2.ExecuteAsync();
+
+                    _logger.LogInformation("Job {JobId} marked as {Status}, final_emitted=1", jobId, aggStatus);
+
+                    var accountVal = await db.HashGetAsync(metaKey, "account");
+                    var chainsVal = await db.HashGetAsync(metaKey, "chains");
+                    var completedEvent = new WalletAggregationCompleted(jobId, accountVal, aggStatus, DateTime.UtcNow, expectedTotal, succeeded, failed, timedOut);
+                    await _publisher.PublishAsync("aggregation.completed", completedEvent, ct);
+                    var doneKey = $"wallet:agg:{jobId}:done"; await db.StringSetAsync(doneKey, "1", ttl);
+
+                    if (accountVal.HasValue && chainsVal.HasValue)
+                    {
+                        try
+                        {
+                            foreach (var activeChainStr in chainsVal.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                            {
+                                if (Enum.TryParse<ChainEnum>(activeChainStr, true, out var activeChain))
+                                {
+                                    var activeKey = $"wallet:agg:active:{accountVal.ToString().ToLowerInvariant()}:{activeChain}";
+                                    var activeVal = await db.StringGetAsync(activeKey);
+                                    if (activeVal.HasValue && activeVal.ToString() == jobId.ToString()) await db.KeyDeleteAsync(activeKey);
+                                }
+                            }
+                        }
+                        catch (Exception ex) { _logger.LogWarning(ex, "Failed clearing active job keys for jobId={JobId}", jobId); }
+                    }
+                }
             }
             else
             {
                 _logger.LogDebug("Skipping consolidation for job {JobId} - already done", jobId);
-            }
-
-            if (!finalAlready)
-            {
-                AggregationStatus aggStatus;
-                if (succeeded == expectedTotal && failed == 0) aggStatus = AggregationStatus.Completed;
-                else if (timedOut > 0 && succeeded == 0 && failed == 0) aggStatus = AggregationStatus.TimedOut;
-                else if (failed == 0 && timedOut == 0) aggStatus = AggregationStatus.Completed;
-                else if (timedOut > 0) aggStatus = AggregationStatus.TimedOut;
-                else aggStatus = AggregationStatus.CompletedWithErrors;
-
-                var tran2 = db.CreateTransaction();
-                tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
-                await tran2.ExecuteAsync();
-
-                var accountVal = await db.HashGetAsync(metaKey, "account");
-                var chainsVal = await db.HashGetAsync(metaKey, "chains");
-                var completedEvent = new WalletAggregationCompleted(jobId, accountVal, aggStatus, DateTime.UtcNow, expectedTotal, succeeded, failed, timedOut);
-                await _publisher.PublishAsync("aggregation.completed", completedEvent, ct);
-                var doneKey = $"wallet:agg:{jobId}:done"; await db.StringSetAsync(doneKey, "1", ttl);
-
-                if (accountVal.HasValue && chainsVal.HasValue)
-                {
-                    try
-                    {
-                        foreach (var activeChainStr in chainsVal.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                        {
-                            if (Enum.TryParse<ChainEnum>(activeChainStr, true, out var activeChain))
-                            {
-                                var activeKey = $"wallet:agg:active:{accountVal.ToString().ToLowerInvariant()}:{activeChain}";
-                                var activeVal = await db.StringGetAsync(activeKey);
-                                if (activeVal.HasValue && activeVal.ToString() == jobId.ToString()) await db.KeyDeleteAsync(activeKey);
-                            }
-                        }
-                    }
-                    catch (Exception ex) { _logger.LogWarning(ex, "Failed clearing active job keys for jobId={JobId}", jobId); }
-                }
             }
         }
     }

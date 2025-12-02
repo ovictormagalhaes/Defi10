@@ -13,6 +13,9 @@ export interface WalletGroup {
 export interface CreateWalletGroupRequest {
   wallets: string[];
   displayName?: string;
+  password?: string;
+  challenge?: string;
+  nonce?: string; // Backend expects string, not number
 }
 
 export interface UpdateWalletGroupRequest {
@@ -25,6 +28,21 @@ export interface WalletGroupResponse {
   wallets: string[];
   displayName?: string;
   createdAt: string;
+}
+
+export interface ConnectWalletGroupResponse {
+  token: string;
+  walletGroupId: string;
+  expiresAt: string;
+  wallets: string[];
+  displayName?: string;
+  hasPassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConnectWalletGroupRequest {
+  password?: string;
 }
 
 // Validation helpers

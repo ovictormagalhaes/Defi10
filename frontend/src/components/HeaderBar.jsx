@@ -384,10 +384,13 @@ export default function HeaderBar({
                 <>
                   <DropdownItem
                     onClick={() => {
-                      copyToClipboard(account);
-                      setWalletOpen(false);
+                      if (!selectedWalletGroupId) {
+                        copyToClipboard(account);
+                        setWalletOpen(false);
+                      }
                     }}
                     label="Copy address"
+                    disabled={!!selectedWalletGroupId}
                     icon={
                       <svg
                         width="16"
@@ -890,11 +893,12 @@ function IconButton({ icon, label, onClick }) {
   );
 }
 
-function DropdownItem({ label, onClick, danger, icon }) {
+function DropdownItem({ label, onClick, danger, icon, disabled }) {
   const { theme } = useTheme();
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       role="menuitem"
       style={{
         width: '100%',
@@ -903,16 +907,17 @@ function DropdownItem({ label, onClick, danger, icon }) {
         border: 'none',
         padding: '8px 10px',
         borderRadius: 10,
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
         fontSize: 13,
         display: 'flex',
         alignItems: 'center',
         gap: 10,
         color: danger ? theme.danger || '#dc2626' : theme.textPrimary,
-        transition: 'background-color 120ms, color 140ms',
+        opacity: disabled ? 0.4 : 1,
+        transition: 'background-color 120ms, color 140ms, opacity 120ms',
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = theme.bgPanelHover)}
-      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+      onMouseEnter={(e) => !disabled && (e.currentTarget.style.backgroundColor = theme.bgPanelHover)}
+      onMouseLeave={(e) => !disabled && (e.currentTarget.style.backgroundColor = 'transparent')}
     >
       <span
         style={{

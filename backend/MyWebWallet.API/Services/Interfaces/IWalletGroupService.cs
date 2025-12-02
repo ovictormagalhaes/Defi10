@@ -10,7 +10,7 @@ public interface IWalletGroupService
 {
 
 
-    Task<WalletGroup> CreateAsync(List<string> wallets, string? displayName = null);
+    Task<WalletGroup> CreateAsync(List<string> wallets, string? displayName = null, string? password = null);
 
 
     Task<WalletGroup?> UpdateAsync(Guid id, List<string> wallets, string? displayName = null);
@@ -23,4 +23,7 @@ public interface IWalletGroupService
 
 
     string? ValidateWallets(List<string> wallets);
+
+
+    Task<bool> ValidatePasswordAsync(Guid id, string password);
 }
