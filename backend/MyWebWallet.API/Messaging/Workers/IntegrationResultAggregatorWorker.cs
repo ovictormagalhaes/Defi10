@@ -22,6 +22,7 @@ using MyWebWallet.API.Services.Helpers;
 using MyWebWallet.API.Aggregation;
 using MyWebWallet.API.Services.Solana;
 using MyWebWallet.API.Services.Filters;
+using MyWebWallet.API.Configuration;
 
 namespace MyWebWallet.API.Messaging.Workers;
 
@@ -35,6 +36,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
     private readonly IConnectionMultiplexer _redis;
     private readonly IMessagePublisher _publisher;
     private readonly IServiceProvider _rootProvider;
+    private readonly TimeSpan _walletCacheTtl;
 
     protected override string QueueName => "integration.results";
 
@@ -44,13 +46,16 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         ILogger<IntegrationResultAggregatorWorker> logger,
         IConnectionMultiplexer redis,
         IMessagePublisher publisher,
-        IServiceProvider rootProvider)
+        IServiceProvider rootProvider,
+        IOptions<AggregationOptions> aggOptions)
         : base(connectionFactory, options, logger)
     {
         _logger = logger;
         _redis = redis;
         _publisher = publisher;
         _rootProvider = rootProvider;
+        _walletCacheTtl = TimeSpan.FromMinutes(Math.Clamp(aggOptions.Value.WalletCacheTtlMinutes, 1, 60));
+        _logger.LogInformation("IntegrationResultAggregatorWorker initialized with WalletCacheTTL={TTL}min", _walletCacheTtl.TotalMinutes);
     }
 
     protected override void DeclareQueues(IModel channel)
@@ -96,14 +101,48 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             chainEnum = ChainEnum.Base;
         }
 
-        _logger.LogInformation("Aggregating result JobId={JobId} Provider={Provider} Chain={Chain} Account={Account} Status={Status}", 
-            result.JobId, result.Provider, chainEnum, result.Account, result.Status);
-
         var db = _redis.GetDatabase();
         var jobId = result.JobId;
         var providerSlug = ProviderSlug(result.Provider);
-        var providerChainKey = string.IsNullOrWhiteSpace(chainStr) ? providerSlug : $"{providerSlug}:{chainStr.ToLowerInvariant()}";
         var account = result.Account;
+        var accountLower = account.ToLowerInvariant();
+
+        // 1. VERIFICAR CACHE COMPARTILHADO (cross-job)
+        var cacheKey = RedisKeys.WalletCache(accountLower, chainEnum, providerSlug);
+        var cachedResult = await db.StringGetAsync(cacheKey);
+        
+        if (cachedResult.HasValue)
+        {
+            _logger.LogInformation("CACHE HIT: Reusing cached result for {Account} {Provider} {Chain} in job {JobId}", 
+                account, result.Provider, chainEnum, jobId);
+            
+            try
+            {
+                var cachedIntegrationResult = JsonSerializer.Deserialize<IntegrationResult>(cachedResult!, _jsonOptions);
+                if (cachedIntegrationResult != null)
+                {
+                    // Atualizar JobId para o job atual
+                    cachedIntegrationResult = cachedIntegrationResult with { JobId = jobId };
+                    result = cachedIntegrationResult;
+                }
+            }
+            catch (Exception cacheEx)
+            {
+                _logger.LogWarning(cacheEx, "Failed to deserialize cached result, will process normally");
+            }
+        }
+        else if (result.Status == IntegrationStatus.Success)
+        {
+            // 2. SALVAR NO CACHE (TTL configurável para reutilização cross-job)
+            await db.StringSetAsync(cacheKey, JsonSerializer.Serialize(result, _jsonOptions), _walletCacheTtl);
+            _logger.LogInformation("CACHE SAVED: Cached result for {Account} {Provider} {Chain} (TTL={TTL}min)", 
+                account, result.Provider, chainEnum, _walletCacheTtl.TotalMinutes);
+        }
+
+        _logger.LogInformation("Aggregating result JobId={JobId} Provider={Provider} Chain={Chain} Account={Account} Status={Status}", 
+            result.JobId, result.Provider, chainEnum, result.Account, result.Status);
+
+        var providerChainKey = string.IsNullOrWhiteSpace(chainStr) ? providerSlug : $"{providerSlug}:{chainStr.ToLowerInvariant()}";
 
         var metaKey = $"wallet:agg:{jobId}:meta";
 
@@ -734,13 +773,36 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     }
                     else
                     {
-
+                        // SINGLE WALLET - precisa de hidratação de metadados também!
                         var consolidatedJson = await db.StringGetAsync(consolidatedKey);
                         if (consolidatedJson.HasValue)
                         {
                             var wallet = JsonSerializer.Deserialize<ConsolidatedWallet>(consolidatedJson!, _jsonOptions) ?? new ConsolidatedWallet();
                             if (wallet.Items.Count > 0)
                             {
+                                // PASSO 1: HIDRATAÇÃO DE METADADOS (logos, symbols, names)
+                                try
+                                {
+                                    using var metadataScope = _rootProvider.CreateScope();
+                                    var metadataService = metadataScope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
+                                    var hydrationLogger = metadataScope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
+                                    var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
+                                    
+                                    _logger.LogInformation("[FINAL HYDRATION] Starting metadata hydration for {Count} items (single wallet), jobId={JobId}", 
+                                        wallet.Items.Count, jobId);
+                                    
+                                    var logos = await hydrationHelper.HydrateTokenLogosAsync(wallet.Items, ChainEnum.Base);
+                                    await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(wallet.Items, logos);
+                                    
+                                    _logger.LogInformation("[FINAL HYDRATION] Completed metadata hydration for {TotalItems} items (single wallet), jobId={JobId}", 
+                                        wallet.Items.Count, jobId);
+                                }
+                                catch (Exception metadataEx)
+                                {
+                                    _logger.LogError(metadataEx, "[FINAL HYDRATION] Failed metadata hydration (single wallet) jobId={JobId}", jobId);
+                                }
+                                
+                                // PASSO 2: HIDRATAÇÃO DE PREÇOS
                                 try
                                 {
                                     using var scope = _rootProvider.CreateScope();
@@ -778,14 +840,16 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     }
                                     if (filled > 0)
                                     {
-                                        await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(wallet, _jsonOptions), ttl);
-                                        _logger.LogInformation("Final price hydration applied {Filled} prices jobId={JobId}", filled, jobId);
+                                        _logger.LogInformation("Final price hydration applied {Filled} prices (single wallet) jobId={JobId}", filled, jobId);
                                     }
                                 }
                                 catch (Exception finalPxEx)
                                 {
-                                    _logger.LogWarning(finalPxEx, "Final price hydration failed jobId={JobId}", jobId);
+                                    _logger.LogWarning(finalPxEx, "Final price hydration failed (single wallet) jobId={JobId}", jobId);
                                 }
+                                
+                                // Salvar wallet consolidado atualizado
+                                await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(wallet, _jsonOptions), ttl);
                             }
                         }
                     }

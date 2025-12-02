@@ -12,5 +12,8 @@ public static class RedisKeys
     public static string ResultPrefix(Guid jobId) => $"wallet:agg:{jobId}:result:"; 
     public static string Summary(Guid jobId) => $"wallet:agg:{jobId}:summary";
     public static string Wallet(Guid jobId) => $"wallet:agg:{jobId}:wallet";
-    public static string Index(string accountLower) => $"wallet:agg:index:{accountLower}"; 
+    public static string Index(string accountLower) => $"wallet:agg:index:{accountLower}";
+    
+    public static string WalletCache(string accountLower, ChainEnum chain, string provider) => $"wallet:cache:{accountLower}:{chain.ToString().ToLowerInvariant()}:{provider.ToLowerInvariant()}";
+    public static string WalletCachePattern(string accountLower) => $"wallet:cache:{accountLower}:*";
 }

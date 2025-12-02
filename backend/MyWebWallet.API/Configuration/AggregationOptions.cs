@@ -7,6 +7,7 @@ public sealed class AggregationOptions : IValidateOptions<AggregationOptions>
     public int JobTtlSeconds { get; set; } = 300;
     public int TimeoutScanSeconds { get; set; } = 60;
     public int JobTimeoutSeconds { get; set; } = 180;
+    public int WalletCacheTtlMinutes { get; set; } = 5;
 
     public ValidateOptionsResult Validate(string? name, AggregationOptions options)
     {
@@ -23,6 +24,11 @@ public sealed class AggregationOptions : IValidateOptions<AggregationOptions>
         if (options.JobTimeoutSeconds < 30 || options.JobTimeoutSeconds > 3600)
         {
             return ValidateOptionsResult.Fail("Aggregation:JobTimeoutSeconds must be between 30 and 3600");
+        }
+
+        if (options.WalletCacheTtlMinutes < 1 || options.WalletCacheTtlMinutes > 60)
+        {
+            return ValidateOptionsResult.Fail("Aggregation:WalletCacheTtlMinutes must be between 1 and 60");
         }
 
         return ValidateOptionsResult.Success;

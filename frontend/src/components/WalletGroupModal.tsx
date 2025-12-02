@@ -96,6 +96,13 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
     updated[index] = value.trim();
     setWalletInputs(updated);
 
+    // If manually editing, mark as not connected
+    if (!value.trim()) {
+      const updatedConnected = [...connectedWallets];
+      updatedConnected[index] = false;
+      setConnectedWallets(updatedConnected);
+    }
+
     // Validate individual address
     const errors = [...validationErrors];
     if (value.trim().length > 0) {
@@ -340,6 +347,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
     setAddingToGroupId(null);
     setConnectGroupId('');
     setConnectPassword('');
+    setConnectedWallets([false, false, false]);
   };
 
   const cancelForm = () => {
