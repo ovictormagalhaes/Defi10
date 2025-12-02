@@ -14,6 +14,7 @@ import SummaryView from './components/SummaryView';
 import { WalletTokensTable } from './components/tables';
 import WalletGroupModal from './components/WalletGroupModal';
 import WalletSelectorDialog from './components/WalletSelectorDialog';
+import WalletConnectionPending from './components/WalletConnectionPending';
 import { api } from './config/api';
 import {
   DEFAULT_COLUMN_VISIBILITY,
@@ -102,6 +103,8 @@ function App() {
     showWalletSelector,
     setShowWalletSelector,
     availableWallets,
+    pendingConnection,
+    setPendingConnection,
     copyAddress,
     disconnect,
     supportedChains,
@@ -1983,6 +1986,15 @@ function App() {
           onClose={() => setShowWalletSelector(false)}
           onSelectWallet={connectToWallet}
           availableWallets={availableWallets}
+        />
+
+        {/* Wallet Connection Pending */}
+        <WalletConnectionPending
+          isOpen={!!pendingConnection}
+          onClose={() => setPendingConnection(null)}
+          walletName={pendingConnection?.walletName}
+          walletIcon={pendingConnection?.walletIcon}
+          walletColor={pendingConnection?.walletColor}
         />
 
         {/* Status Dialog */}

@@ -1,26 +1,13 @@
 import React from 'react';
+import { WALLETS } from '../constants/wallets';
 
 const WalletSelectorDialog = ({ isOpen, onClose, onSelectWallet, availableWallets }) => {
   if (!isOpen) return null;
 
-  const wallets = [
-    {
-      id: 'metamask',
-      name: 'MetaMask',
-      description: 'Connect with MetaMask',
-      icon: '🦊',
-      color: '#F6851B',
-      available: availableWallets.metamask,
-    },
-    {
-      id: 'phantom',
-      name: 'Phantom',
-      description: 'Connect with Phantom',
-      icon: '👻',
-      color: '#AB9FF2',
-      available: availableWallets.phantom,
-    },
-  ];
+  const wallets = WALLETS.map((wallet) => ({
+    ...wallet,
+    available: availableWallets[wallet.id] || false,
+  }));
 
   const availableWalletsList = wallets.filter((w) => w.available);
 
@@ -46,9 +33,11 @@ const WalletSelectorDialog = ({ isOpen, onClose, onSelectWallet, availableWallet
         style={{
           background: 'var(--mw-bg-primary, #0f1419)',
           borderRadius: 20,
-          maxWidth: 440,
+          maxWidth: 480,
           width: '100%',
-          padding: '32px 28px',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
           border: '1px solid var(--mw-border, #2a3441)',
         }}
@@ -57,164 +46,201 @@ const WalletSelectorDialog = ({ isOpen, onClose, onSelectWallet, availableWallet
         {/* Header */}
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 24,
+            padding: '28px 28px 20px',
+            borderBottom: '1px solid var(--mw-border, #2a3441)',
+            flexShrink: 0,
           }}
         >
-          <h2
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 12,
+            }}
+          >
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 22,
+                fontWeight: 600,
+                color: 'var(--mw-text-primary, #e4e7eb)',
+              }}
+            >
+              Connect Wallet
+            </h2>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 8,
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--mw-bg-secondary, #1a2028)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--mw-text-secondary, #9ca3af)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Description */}
+          <p
             style={{
               margin: 0,
-              fontSize: 22,
-              fontWeight: 600,
-              color: 'var(--mw-text-primary, #e4e7eb)',
+              fontSize: 14,
+              color: 'var(--mw-text-secondary, #9ca3af)',
+              lineHeight: 1.5,
             }}
           >
-            Connect Wallet
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 8,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 8,
-              transition: 'background 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--mw-bg-secondary, #1a2028)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--mw-text-secondary, #9ca3af)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
+            Choose a wallet to connect to your account
+          </p>
         </div>
 
-        {/* Description */}
-        <p
+        {/* Scrollable Wallet List */}
+        <div
           style={{
-            margin: '0 0 20px 0',
-            fontSize: 14,
-            color: 'var(--mw-text-secondary, #9ca3af)',
-            lineHeight: 1.5,
+            flex: 1,
+            overflowY: 'auto',
+            padding: '20px 28px 28px',
+            minHeight: 0,
           }}
         >
-          Choose a wallet to connect to your account
-        </p>
-
-        {/* Wallet Options */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {availableWalletsList.length === 0 ? (
             <div
               style={{
-                padding: '24px',
+                padding: '32px 24px',
                 textAlign: 'center',
                 color: 'var(--mw-text-secondary, #9ca3af)',
                 background: 'var(--mw-bg-secondary, #1a2028)',
                 borderRadius: 12,
               }}
             >
-              <p style={{ margin: '0 0 12px 0', fontSize: 15 }}>No wallet extension detected</p>
-              <p style={{ margin: 0, fontSize: 13 }}>
-                Please install MetaMask or Phantom to continue
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  margin: '0 auto 16px',
+                  borderRadius: '50%',
+                  background: 'var(--mw-border, #2a3441)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 24,
+                }}
+              >
+                🔌
+              </div>
+              <p style={{ margin: '0 0 8px 0', fontSize: 15, fontWeight: 600 }}>
+                No wallet extension detected
+              </p>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
+                Please install any supported wallet to continue
               </p>
             </div>
           ) : (
-            availableWalletsList.map((wallet) => (
-              <button
-                key={wallet.id}
-                onClick={() => onSelectWallet(wallet.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 16,
-                  padding: '16px 18px',
-                  background: 'var(--mw-bg-secondary, #1a2028)',
-                  border: '1px solid var(--mw-border, #2a3441)',
-                  borderRadius: 12,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  width: '100%',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.borderColor = wallet.color;
-                  e.currentTarget.style.boxShadow = `0 4px 12px ${wallet.color}33`;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.borderColor = 'var(--mw-border, #2a3441)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <div
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {availableWalletsList.map((wallet) => (
+                <button
+                  key={wallet.id}
+                  onClick={() => onSelectWallet(wallet.id)}
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 12,
-                    background: wallet.color,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 24,
-                    flexShrink: 0,
+                    gap: 14,
+                    padding: '14px 16px',
+                    background: 'var(--mw-bg-secondary, #1a2028)',
+                    border: '1px solid var(--mw-border, #2a3441)',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    width: '100%',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateX(4px)';
+                    e.currentTarget.style.borderColor = wallet.color;
+                    e.currentTarget.style.background = `${wallet.color}08`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateX(0)';
+                    e.currentTarget.style.borderColor = 'var(--mw-border, #2a3441)';
+                    e.currentTarget.style.background = 'var(--mw-bg-secondary, #1a2028)';
                   }}
                 >
-                  {wallet.icon}
-                </div>
-                <div style={{ textAlign: 'left', flex: 1 }}>
                   <div
                     style={{
-                      fontSize: 16,
-                      fontWeight: 600,
-                      color: 'var(--mw-text-primary, #e4e7eb)',
-                      marginBottom: 2,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: wallet.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 22,
+                      flexShrink: 0,
                     }}
                   >
-                    {wallet.name}
+                    {wallet.icon}
                   </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: 'var(--mw-text-secondary, #9ca3af)',
-                    }}
+                  <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: 'var(--mw-text-primary, #e4e7eb)',
+                        marginBottom: 2,
+                      }}
+                    >
+                      {wallet.name}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--mw-text-secondary, #9ca3af)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {wallet.description}
+                    </div>
+                  </div>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--mw-text-secondary, #9ca3af)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ flexShrink: 0 }}
                   >
-                    {wallet.description}
-                  </div>
-                </div>
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--mw-text-secondary, #9ca3af)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ flexShrink: 0 }}
-                >
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              </button>
-            ))
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>

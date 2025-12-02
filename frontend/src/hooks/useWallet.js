@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 import { api } from '../config/api';
 import { STORAGE_KEY, EXPIRY_HOURS, API_BASE } from '../constants/config';
+import { WALLETS, detectAvailableWallets, hasAnyWallet, getWalletNames, getWalletById } from '../constants/wallets';
 
 // Custom hook for wallet connection and account management
 export function useWalletConnection() {
@@ -11,7 +12,8 @@ export function useWalletConnection() {
   const [chainsLoading, setChainsLoading] = useState(false);
   const chainsFetchedRef = useRef(false);
   const [showWalletSelector, setShowWalletSelector] = useState(false);
-  const [availableWallets, setAvailableWallets] = useState({ metamask: false, phantom: false });
+  const [availableWallets, setAvailableWallets] = useState({});
+  const [pendingConnection, setPendingConnection] = useState(null); // { walletName, walletIcon, walletColor }
 
   const fetchSupportedChains = useCallback(async ({ force } = {}) => {
     if (chainsFetchedRef.current && !force) return;
@@ -78,20 +80,14 @@ export function useWalletConnection() {
 
   // Connect to wallet - opens dialog for user to choose
   async function connectWallet() {
-    const hasPhantom = window.solana && window.solana.isPhantom;
-    const hasMetaMask = window.ethereum;
-
     // No wallet installed
-    if (!hasPhantom && !hasMetaMask) {
-      alert('No wallet found. Please install MetaMask (Ethereum) or Phantom (Solana).');
+    if (!hasAnyWallet()) {
+      alert(`No wallet found. Please install ${getWalletNames()}.`);
       return;
     }
 
     // Set available wallets and show selector
-    setAvailableWallets({
-      metamask: hasMetaMask,
-      phantom: hasPhantom,
-    });
+    setAvailableWallets(detectAvailableWallets());
     setShowWalletSelector(true);
   }
 
@@ -99,27 +95,58 @@ export function useWalletConnection() {
   async function connectToWallet(walletType) {
     setShowWalletSelector(false);
 
-    if (walletType === 'phantom') {
-      try {
+    const wallet = getWalletById(walletType);
+    if (!wallet) {
+      console.error(`Unknown wallet type: ${walletType}`);
+      return;
+    }
+
+    console.log(`[Connect] Starting connection to ${wallet.name}`);
+    
+    // Show pending connection screen
+    const startTime = Date.now();
+    setPendingConnection({
+      walletName: wallet.name,
+      walletIcon: wallet.icon,
+      walletColor: wallet.color,
+    });
+
+    try {
+      if (wallet.type === 'solana') {
+        console.log('[Connect] Requesting Solana connection...');
         const response = await window.solana.connect({ onlyIfTrusted: false });
         const publicKey = response.publicKey.toString();
+        console.log('[Connect] Solana connected:', publicKey);
         saveAccount(publicKey);
-      } catch (error) {
-        console.error('Error connecting Phantom wallet:', error);
-        if (!error.message?.includes('User rejected')) {
-          alert('Failed to connect Phantom. Please try again.');
-        }
-      }
-    } else if (walletType === 'metamask') {
-      try {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      } else if (wallet.type === 'evm') {
+        // Se for Rabby, usa window.rabby, senão usa window.ethereum
+        const provider = walletType === 'rabby' && window.rabby ? window.rabby : window.ethereum;
+        console.log(`[Connect] Requesting EVM accounts from ${walletType}...`);
+        const accounts = await provider.request({ method: 'eth_requestAccounts' });
         const acc = accounts[0];
+        console.log('[Connect] EVM connected:', acc);
         saveAccount(acc);
-      } catch (error) {
-        console.error('Error connecting MetaMask wallet:', error);
-        if (error.code !== 4001) {
-          alert('Failed to connect MetaMask. Please try again.');
-        }
+      }
+      
+      // Minimum display time of 500ms so user sees the screen
+      const elapsed = Date.now() - startTime;
+      const minDelay = Math.max(0, 500 - elapsed);
+      if (minDelay > 0) {
+        console.log(`[Connect] Waiting ${minDelay}ms before closing...`);
+        await new Promise(resolve => setTimeout(resolve, minDelay));
+      }
+      
+      console.log('[Connect] Success - closing pending screen');
+      setPendingConnection(null);
+    } catch (error) {
+      console.error(`[Connect] Error connecting ${wallet.name}:`, error);
+      setPendingConnection(null);
+      
+      const isUserRejection = error.code === 4001 || error.message?.includes('User rejected');
+      if (!isUserRejection) {
+        alert(`Failed to connect ${wallet.name}. Please try again.`);
+      } else {
+        console.log('[Connect] User rejected the connection');
       }
     }
   }
@@ -227,6 +254,8 @@ export function useWalletConnection() {
     showWalletSelector,
     setShowWalletSelector,
     availableWallets,
+    pendingConnection,
+    setPendingConnection,
     copyAddress,
     disconnect,
     getRebalances,

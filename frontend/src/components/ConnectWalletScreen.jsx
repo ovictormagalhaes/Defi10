@@ -1,4 +1,5 @@
 import React from 'react';
+import { WALLETS } from '../constants/wallets';
 
 const ConnectWalletScreen = ({ theme, onConnect, onManageGroups }) => {
   return (
@@ -36,21 +37,18 @@ const ConnectWalletScreen = ({ theme, onConnect, onManageGroups }) => {
             alignItems: 'center',
             justifyContent: 'center',
             boxShadow: '0 8px 24px rgba(53, 247, 165, 0.25)',
+            padding: '12px',
           }}
         >
-          <svg
-            width="40"
-            height="40"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
-            <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
-          </svg>
+          <img
+            src="/logo_white_border.svg"
+            alt="DeFi10"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+            }}
+          />
         </div>
 
         {/* Title */}
@@ -63,7 +61,7 @@ const ConnectWalletScreen = ({ theme, onConnect, onManageGroups }) => {
             letterSpacing: '0.5px',
           }}
         >
-          Welcome to MyWebWallet
+          Welcome to DeFi10
         </h1>
 
         {/* Description */}
@@ -232,44 +230,29 @@ const ConnectWalletScreen = ({ theme, onConnect, onManageGroups }) => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 16,
+              flexWrap: 'wrap',
             }}
           >
-            <div style={{ textAlign: 'center' }}>
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  margin: '0 auto 4px',
-                  borderRadius: 8,
-                  background: '#F6851B',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 20,
-                }}
-              >
-                🦊
+            {WALLETS.map((wallet) => (
+              <div key={wallet.id} style={{ textAlign: 'center' }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    margin: '0 auto 4px',
+                    borderRadius: 8,
+                    background: wallet.color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 20,
+                  }}
+                >
+                  {wallet.icon}
+                </div>
+                <span style={{ fontSize: 11, color: theme.textSecondary }}>{wallet.name}</span>
               </div>
-              <span style={{ fontSize: 11, color: theme.textSecondary }}>MetaMask</span>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  margin: '0 auto 4px',
-                  borderRadius: 8,
-                  background: '#AB9FF2',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 20,
-                }}
-              >
-                👻
-              </div>
-              <span style={{ fontSize: 11, color: theme.textSecondary }}>Phantom</span>
-            </div>
+            ))}
           </div>
         </div>
 
