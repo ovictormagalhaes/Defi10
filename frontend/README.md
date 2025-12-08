@@ -1,4 +1,4 @@
-# MyWebWallet Frontend
+# DeFi10 Frontend
 
 Minimal Vite + React frontend that connects to an Ethereum-compatible wallet (for example MetaMask) using ethers.js.
 

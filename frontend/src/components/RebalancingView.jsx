@@ -1051,7 +1051,7 @@ export default function RebalancingView({
         WalletGroupId: selectedWalletGroupId || undefined,
         Items: items,
       };
-      const res = await fetch(`${config.API_BASE_URL}/api/v1/rebalances`, {
+      const res = await fetch(`${config.API_BASE_URL}/api/v1/strategies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

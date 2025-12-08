@@ -444,16 +444,27 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       
       // Check if group already exists locally
       const existingGroup = groups.find(g => g.id === group.id);
+      
+      let updatedGroups: WalletGroup[];
       if (existingGroup) {
-        setGroupError('This group is already in your list');
-        return;
+        // If reconnecting (initialGroupId present), update existing group data
+        if (initialGroupId) {
+          console.log('[WalletGroup] Reconnected - updating existing group');
+          updatedGroups = groups.map(g => g.id === group.id ? group : g);
+        } else {
+          // If not reconnecting, show error (group already exists)
+          setGroupError('This group is already in your list');
+          return;
+        }
+      } else {
+        // Add new group
+        updatedGroups = [...groups, group];
       }
 
-      // Add group to local storage
-      const updatedGroups = [...groups, group];
+      // Save to local storage
       localStorage.setItem('defi10_wallet_groups', JSON.stringify(updatedGroups));
       
-      console.log('[WalletGroup] Group connected and added to local storage');
+      console.log('[WalletGroup] Group connected and saved to local storage');
 
       // Trigger selection if callback provided
       if (onGroupSelected) {
@@ -1015,6 +1026,28 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
             <>
               {/* Connect to Existing Group Form */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Show reconnection message if initialGroupId is provided */}
+                {initialGroupId && (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: theme.warning ? `${theme.warning}15` : '#f59e0b15',
+                      border: `1px solid ${theme.warning || '#f59e0b'}`,
+                      borderRadius: 8,
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                      color: theme.textPrimary,
+                    }}
+                  >
+                    <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: theme.warning || '#f59e0b' }}>
+                      🔐 Session Expired
+                    </p>
+                    <p style={{ margin: 0, color: theme.textSecondary }}>
+                      Your authentication session has expired. Please enter your password to reconnect to this wallet group.
+                    </p>
+                  </div>
+                )}
+                
                 <div>
                   <label
                     htmlFor="group-id"
@@ -1033,25 +1066,30 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                     type="text"
                     placeholder="Enter the wallet group ID"
                     value={connectGroupId}
+                    readOnly={!!initialGroupId}
                     onChange={(e) => {
-                      setConnectGroupId(e.target.value);
-                      setGroupError(null);
+                      if (!initialGroupId) {
+                        setConnectGroupId(e.target.value);
+                        setGroupError(null);
+                      }
                     }}
                     style={{
                       width: '100%',
                       padding: '12px 14px',
                       borderRadius: 10,
                       border: `1px solid ${groupError ? theme.danger || '#ef4444' : theme.border}`,
-                      background: theme.bgApp,
+                      background: initialGroupId ? theme.bgElevated || theme.bgPanel : theme.bgApp,
                       color: theme.textPrimary,
                       fontSize: 14,
                       fontFamily: 'monospace',
                       outline: 'none',
                       transition: 'border-color 0.15s',
                       boxSizing: 'border-box',
+                      cursor: initialGroupId ? 'not-allowed' : 'text',
+                      opacity: initialGroupId ? 0.7 : 1,
                     }}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = groupError ? theme.danger || '#ef4444' : theme.primary)}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = groupError ? theme.danger || '#ef4444' : theme.border)}
+                    onFocus={(e) => !initialGroupId && (e.currentTarget.style.borderColor = groupError ? theme.danger || '#ef4444' : theme.primary)}
+                    onBlur={(e) => !initialGroupId && (e.currentTarget.style.borderColor = groupError ? theme.danger || '#ef4444' : theme.border)}
                   />
                 </div>
 

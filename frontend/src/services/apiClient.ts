@@ -63,6 +63,30 @@ function removeToken(walletGroupId: string): void {
   localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(filtered));
 }
 
+// Event emitter for 401 errors
+type TokenExpiredListener = (walletGroupId: string) => void;
+const tokenExpiredListeners: TokenExpiredListener[] = [];
+
+export function onTokenExpired(callback: TokenExpiredListener): () => void {
+  tokenExpiredListeners.push(callback);
+  return () => {
+    const index = tokenExpiredListeners.indexOf(callback);
+    if (index > -1) {
+      tokenExpiredListeners.splice(index, 1);
+    }
+  };
+}
+
+function notifyTokenExpired(walletGroupId: string): void {
+  tokenExpiredListeners.forEach(listener => {
+    try {
+      listener(walletGroupId);
+    } catch (err) {
+      console.error('[apiClient] Error in token expired listener:', err);
+    }
+  });
+}
+
 // Configure axios interceptor to add Bearer token
 axios.interceptors.request.use((config) => {
   // Extract wallet group ID from URL if present
@@ -78,6 +102,44 @@ axios.interceptors.request.use((config) => {
   
   return config;
 });
+
+// Configure axios response interceptor to handle 401 errors
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Check if error is 401 Unauthorized
+    if (error.response?.status === 401) {
+      // Try to extract wallet group ID from the request URL
+      const match = error.config?.url?.match(/\/wallet-groups\/([^\/]+)/);
+      if (match && match[1] && match[1] !== 'challenge' && match[1] !== 'connect') {
+        const walletGroupId = decodeURIComponent(match[1]);
+        console.warn('[apiClient] Token expired for wallet group:', walletGroupId);
+        
+        // Remove expired token
+        removeToken(walletGroupId);
+        
+        // Notify listeners (App component will open reconnect modal)
+        notifyTokenExpired(walletGroupId);
+      }
+      
+      // Also check if walletGroupId is in aggregation request body
+      if (error.config?.data && error.config.method === 'post') {
+        try {
+          const body = JSON.parse(error.config.data);
+          if (body.walletGroupId) {
+            console.warn('[apiClient] Token expired for wallet group in aggregation:', body.walletGroupId);
+            removeToken(body.walletGroupId);
+            notifyTokenExpired(body.walletGroupId);
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Generic GET helper with simple error normalization
 async function getJSON<T>(url: string): Promise<T> {

@@ -26,6 +26,7 @@ import { MaskValuesProvider } from './context/MaskValuesContext';
 import { useTheme } from './context/ThemeProvider.tsx';
 import { useAggregationJob } from './hooks/useAggregationJob';
 import { useWalletConnection, useTooltip } from './hooks/useWallet';
+import { onTokenExpired } from './services/apiClient';
 import {
   getLiquidityPoolItems,
   getLendingItems,
@@ -156,33 +157,64 @@ function App() {
   // Detect wallet group from URL on mount
   useEffect(() => {
     const pathname = window.location.pathname;
-    // Remove leading/trailing slashes and check if it's a GUID
-    const path = pathname.replace(/^\/|\/$/g, '');
-    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-    if (path && guidRegex.test(path)) {
-      // It's a wallet group GUID - check if we have it locally
+    // Check for /portfolio/{guid} pattern
+    const portfolioMatch = pathname.match(/^\/portfolio\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i);
+    
+    if (portfolioMatch) {
+      const groupId = portfolioMatch[1];
+      console.log('[App] Detected wallet group from URL:', groupId);
+      
+      // Check if we have the group locally AND have a valid token
       try {
         const storedGroups = localStorage.getItem('defi10_wallet_groups');
         const groups = storedGroups ? JSON.parse(storedGroups) : [];
-        const existingGroup = groups.find(g => g.id === path);
+        const existingGroup = groups.find(g => g.id === groupId);
         
-        if (existingGroup) {
-          // Group exists locally, use it
-          setSelectedWalletGroupId(path);
+        // Also check if we have a valid token for this group
+        const tokenStorage = localStorage.getItem('defi10_wallet_group_tokens');
+        const tokens = tokenStorage ? JSON.parse(tokenStorage) : [];
+        const tokenEntry = tokens.find(t => t.walletGroupId === groupId);
+        const hasValidToken = tokenEntry && new Date(tokenEntry.expiresAt) > new Date();
+        
+        if (existingGroup && hasValidToken) {
+          // Group exists locally with valid token, use it
+          console.log('[App] Group found with valid token, connecting...');
+          setSelectedWalletGroupId(groupId);
+        } else if (existingGroup && !hasValidToken) {
+          // Group exists but token expired, need to reconnect
+          console.log('[App] Group found but token expired, opening connect modal...');
+          setPendingWalletGroupId(groupId);
+          setIsWalletGroupModalOpen(true);
         } else {
           // Group doesn't exist locally, open connect modal with ID pre-filled
-          console.log('[App] Wallet group not found locally, opening connect modal for:', path);
-          setPendingWalletGroupId(path);
+          console.log('[App] Group not found locally, opening connect modal for:', groupId);
+          setPendingWalletGroupId(groupId);
           setIsWalletGroupModalOpen(true);
         }
       } catch (err) {
         console.error('[App] Error checking local wallet groups:', err);
-        // On error, try to set it anyway
-        setSelectedWalletGroupId(path);
+        // On error, open connect modal to be safe
+        setPendingWalletGroupId(groupId);
+        setIsWalletGroupModalOpen(true);
       }
     }
   }, []);
+
+  // Listen for token expired events (401 errors)
+  useEffect(() => {
+    const unsubscribe = onTokenExpired((walletGroupId) => {
+      console.log('[App] Token expired for wallet group:', walletGroupId);
+      
+      // If this is the currently selected group, open reconnect modal
+      if (walletGroupId === selectedWalletGroupId) {
+        console.log('[App] Opening reconnect modal for expired token');
+        setPendingWalletGroupId(walletGroupId);
+        setIsWalletGroupModalOpen(true);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [selectedWalletGroupId]);
 
   useEffect(() => {
     if (account && !hasPulsedRef.current) {
@@ -192,6 +224,14 @@ function App() {
       return () => clearTimeout(t);
     }
   }, [account]);
+
+  // Navigate to /portfolio when wallet connects (if not already there)
+  useEffect(() => {
+    if (account && window.location.pathname === '/') {
+      window.history.pushState({}, '', '/portfolio');
+    }
+  }, [account]);
+
   // Wallet data derivado da agregação (substitui fluxo legacy /wallets/accounts)
   const [walletData, setWalletData] = useState(null);
   const callAccountAPI = () => {};
@@ -206,8 +246,8 @@ function App() {
     }
     try {
       const url = groupId 
-        ? api.getRebalancesByGroup(groupId)
-        : api.getRebalances(addr);
+        ? api.getStrategiesByGroup(groupId)
+        : api.getStrategies(addr);
       
       const res = await fetch(url);
       if (!res.ok) {
@@ -1255,7 +1295,7 @@ function App() {
               onSelectWalletGroup={(groupId) => {
                 setSelectedWalletGroupId(groupId);
                 // Update URL
-                window.history.pushState({}, '', groupId ? `/${groupId}` : '/');
+                window.history.pushState({}, '', groupId ? `/portfolio/${groupId}` : '/portfolio');
               }}
               copyToClipboard={(val) => {
                 try {
@@ -1937,30 +1977,6 @@ function App() {
                 </div>
               </div>
             )}
-
-            {/* Wallet Group Modal */}
-            <WalletGroupModal
-              isOpen={isWalletGroupModalOpen}
-              onClose={() => {
-                setIsWalletGroupModalOpen(false);
-                setPendingWalletGroupId(null);
-              }}
-              initialGroupId={pendingWalletGroupId}
-              onGroupCreated={(groupId) => {
-                // Auto-select the created group
-                setSelectedWalletGroupId(groupId);
-                window.history.pushState({}, '', `/${groupId}`);
-                setIsWalletGroupModalOpen(false);
-                setPendingWalletGroupId(null);
-              }}
-              onGroupSelected={(groupId) => {
-                // Select existing group
-                setSelectedWalletGroupId(groupId);
-                window.history.pushState({}, '', `/${groupId}`);
-                setIsWalletGroupModalOpen(false);
-                setPendingWalletGroupId(null);
-              }}
-            />
           </>
         )}
 
@@ -1975,14 +1991,14 @@ function App() {
           onGroupCreated={(groupId) => {
             // Auto-select the created group
             setSelectedWalletGroupId(groupId);
-            window.history.pushState({}, '', `/${groupId}`);
+            window.history.pushState({}, '', `/portfolio/${groupId}`);
             setIsWalletGroupModalOpen(false);
             setPendingWalletGroupId(null);
           }}
           onGroupSelected={(groupId) => {
             // Select existing group
             setSelectedWalletGroupId(groupId);
-            window.history.pushState({}, '', `/${groupId}`);
+            window.history.pushState({}, '', `/portfolio/${groupId}`);
             setIsWalletGroupModalOpen(false);
             setPendingWalletGroupId(null);
           }}

@@ -110,7 +110,7 @@ export const config = {
     TOKENS: '/api/v1/tokens',
     CACHE: '/api/v1/cache',
     SUPPORTED_CHAINS: '/api/v1/wallets/supported-chains',
-    REBALANCES: '/api/v1/rebalances',
+    STRATEGIES: '/api/v1/strategies',
     AGGREGATIONS: '/api/v1/aggregations',
     WALLET_GROUPS: '/api/v1/wallet-groups',
     PROTOCOLS_STATUS: '/api/v1/protocols/status',
@@ -184,11 +184,17 @@ export const api = {
   // Supported chains
   getSupportedChains: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.SUPPORTED_CHAINS}`,
 
-  // Rebalances
+  // Strategies (Rebalancing)
+  getStrategies: (accountId: string) => 
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${accountId}`,
+  getStrategiesByGroup: (walletGroupId: string) => 
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/group/${walletGroupId}`,
+  
+  // Legacy aliases (deprecated)
   getRebalances: (accountId: string) => 
-    `${config.API_BASE_URL}${config.API_ENDPOINTS.REBALANCES}/${accountId}`,
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${accountId}`,
   getRebalancesByGroup: (walletGroupId: string) => 
-    `${config.API_BASE_URL}${config.API_ENDPOINTS.REBALANCES}/group/${walletGroupId}`,
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/group/${walletGroupId}`,
 
   // Wallet Groups CRUD
   getChallenge: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/challenge`,

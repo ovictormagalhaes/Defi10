@@ -9,17 +9,17 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 # Copy csproj and restore as distinct layers
-COPY ["MyWebWallet.API/MyWebWallet.API.csproj", "MyWebWallet.API/"]
-RUN dotnet restore "MyWebWallet.API/MyWebWallet.API.csproj"
+COPY ["DeFi10.API/DeFi10.API.csproj", "DeFi10.API/"]
+RUN dotnet restore "DeFi10.API/DeFi10.API.csproj"
 
 # Copy everything else and build
-COPY MyWebWallet.API/ MyWebWallet.API/
-WORKDIR "/src/MyWebWallet.API"
-RUN dotnet build "MyWebWallet.API.csproj" -c Release -o /app/build
+COPY DeFi10.API/ DeFi10.API/
+WORKDIR "/src/DeFi10.API"
+RUN dotnet build "DeFi10.API.csproj" -c Release -o /app/build
 
 # Publish the application
 FROM build AS publish
-RUN dotnet publish "MyWebWallet.API.csproj" -c Release -o /app/publish --no-restore
+RUN dotnet publish "DeFi10.API.csproj" -c Release -o /app/publish --no-restore
 
 # Final stage/image
 FROM base AS final
@@ -30,4 +30,4 @@ COPY --from=publish /app/publish .
 RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
 USER appuser
 
-ENTRYPOINT ["dotnet", "MyWebWallet.API.dll"]
+ENTRYPOINT ["dotnet", "DeFi10.API.dll"]
