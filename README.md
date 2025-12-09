@@ -86,17 +86,6 @@ Configuration is done via `appsettings.json` and environment variables.
 See [appsettings.json](backend/DeFi10.API/appsettings.json) for full configuration structure.
 
 
-## Development
-
-### Adding a New Protocol
-
-1. Create service implementing `I{Protocol}Service`
-2. Register in DI (`ServiceCollectionExtensions.cs`)
-3. Add config to `appsettings.json`
-4. Create worker extending `BaseConsumer`
-5. Create mapper for data transformation
-6. Register worker as hosted service
-
 ### Testing
 
 ```bash
