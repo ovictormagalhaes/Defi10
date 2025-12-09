@@ -106,14 +106,6 @@ See [docker-compose.yml](docker-compose.yml) for full setup.
 
 ---
 
-## Documentation
-
-- **[Swagger UI](http://localhost:10000/swagger)** - API reference
-- **[RETRY_IMPROVEMENTS.md](RETRY_IMPROVEMENTS.md)** - Retry system details
-- **[FIXES_SUMMARY.md](FIXES_SUMMARY.md)** - Bug fixes and patches
-
----
-
 ## Support
 
 - **Issues:** [GitHub Issues](https://github.com/ovictormagalhaes/Defi10/issues)
@@ -123,7 +115,7 @@ See [docker-compose.yml](docker-compose.yml) for full setup.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+MIT License - [LICENSE](LICENSE)
 
 ---
 
