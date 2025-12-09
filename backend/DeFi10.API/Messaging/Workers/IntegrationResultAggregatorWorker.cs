@@ -774,6 +774,22 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                 }
                             }
 
+                            // Mark as completed BEFORE writing wallet to prevent race condition
+                            if (!finalAlready)
+                            {
+                                AggregationStatus aggStatus;
+                                if (succeeded == expectedTotal && failed == 0) aggStatus = AggregationStatus.Completed;
+                                else if (timedOut > 0 && succeeded == 0 && failed == 0) aggStatus = AggregationStatus.TimedOut;
+                                else if (failed == 0 && timedOut == 0) aggStatus = AggregationStatus.Completed;
+                                else if (timedOut > 0) aggStatus = AggregationStatus.TimedOut;
+                                else aggStatus = AggregationStatus.CompletedWithErrors;
+
+                                var tran2 = db.CreateTransaction();
+                                tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
+                                await tran2.ExecuteAsync();
+                                _logger.LogInformation("Job {JobId} marked as {Status}, final_emitted=1 BEFORE writing wallet", jobId, aggStatus);
+                            }
+
                             await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(consolidatedWallet, _jsonOptions), ttl);
                             _logger.LogInformation("Multi-wallet job {JobId} final consolidation complete: {Total} items", jobId, consolidatedWallet.Items.Count);
                         }
@@ -878,13 +894,29 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     _logger.LogWarning(finalPxEx, "Final price hydration failed (single wallet) jobId={JobId}", jobId);
                                 }
                                 
+                                // Mark as completed BEFORE writing wallet to prevent race condition
+                                if (!finalAlready)
+                                {
+                                    AggregationStatus aggStatus;
+                                    if (succeeded == expectedTotal && failed == 0) aggStatus = AggregationStatus.Completed;
+                                    else if (timedOut > 0 && succeeded == 0 && failed == 0) aggStatus = AggregationStatus.TimedOut;
+                                    else if (failed == 0 && timedOut == 0) aggStatus = AggregationStatus.Completed;
+                                    else if (timedOut > 0) aggStatus = AggregationStatus.TimedOut;
+                                    else aggStatus = AggregationStatus.CompletedWithErrors;
+
+                                    var tran2 = db.CreateTransaction();
+                                    tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
+                                    await tran2.ExecuteAsync();
+                                    _logger.LogInformation("Job {JobId} marked as {Status}, final_emitted=1 BEFORE writing wallet", jobId, aggStatus);
+                                }
+                                
                                 // Salvar wallet consolidado atualizado
                                 await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(wallet, _jsonOptions), ttl);
                             }
                         }
                     }
 
-                    _logger.LogInformation("Consolidation data written to Redis for job {JobId}, now marking as completed", jobId);
+                    _logger.LogInformation("Consolidation data written to Redis for job {JobId}", jobId);
                 }
                 catch (Exception ex)
                 {
@@ -893,18 +925,13 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
                 if (!finalAlready)
                 {
+                    // Status already updated before wallet write (above), now publish events
                     AggregationStatus aggStatus;
                     if (succeeded == expectedTotal && failed == 0) aggStatus = AggregationStatus.Completed;
                     else if (timedOut > 0 && succeeded == 0 && failed == 0) aggStatus = AggregationStatus.TimedOut;
                     else if (failed == 0 && timedOut == 0) aggStatus = AggregationStatus.Completed;
                     else if (timedOut > 0) aggStatus = AggregationStatus.TimedOut;
                     else aggStatus = AggregationStatus.CompletedWithErrors;
-
-                    var tran2 = db.CreateTransaction();
-                    tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
-                    await tran2.ExecuteAsync();
-
-                    _logger.LogInformation("Job {JobId} marked as {Status}, final_emitted=1", jobId, aggStatus);
 
                     var accountVal = await db.HashGetAsync(metaKey, "account");
                     var chainsVal = await db.HashGetAsync(metaKey, "chains");

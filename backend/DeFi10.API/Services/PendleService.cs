@@ -301,13 +301,7 @@ public class PendleService : IPendleService
 
     private string? ResolveBaseRpc()
     { 
-        if (!string.IsNullOrWhiteSpace(_alchemyOptions.ApiKey)) 
-            return $"https://base-mainnet.g.alchemy.com/v2/{_alchemyOptions.ApiKey.Trim()}";
-        
-        if (!string.IsNullOrWhiteSpace(_alchemyOptions.BaseRpcUrl)) 
-            return _alchemyOptions.BaseRpcUrl;
-        
-        return null; 
+        return _alchemyOptions.GetBaseRpcUrl();
     }
 
     private static string Format(BigInteger raw) => ConvertToDecimal(raw, PENDLE_DECIMALS).ToString(System.Globalization.CultureInfo.InvariantCulture);

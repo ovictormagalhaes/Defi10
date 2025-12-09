@@ -2,6 +2,7 @@ using DeFi10.API.Models;
 using DeFi10.API.Services.Interfaces;
 using DeFi10.API.Services.Models;
 using DeFi10.API.Services.DTOs.UniswapV3;
+using DeFi10.API.Configuration;
 using Nethereum.ABI;
 using Nethereum.Contracts;
 using Nethereum.Util;
@@ -21,20 +22,10 @@ namespace DeFi10.API.Services
         {
             try
             {
-
-                string configured = _configuration[$"Chainlink:{ctx.Chain}:EthUsd"]
-                                     ?? _configuration[$"Chainlink:{ctx.Chain}:ETHUSD"]
-                                     ?? _configuration[$"Chainlink:{ctx.Chain}:EthUSD:Aggregator"];
-
-                string aggregator = configured ?? ctx.Chain switch
-                {
-
-                    ChainEnum.Arbitrum => "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",
-
-
-                    ChainEnum.Base => string.Empty,
-                    _ => string.Empty
-                };
+                // Get Chainlink aggregator from ChainConfiguration
+                var chainConfig = _chainConfigService.GetChainConfig(ctx.Chain);
+                string aggregator = chainConfig?.PriceFeeds?.Chainlink?.NativeUsdAggregator ?? string.Empty;
+                int decimals = chainConfig?.PriceFeeds?.Chainlink?.Decimals ?? 8;
 
                 if (string.IsNullOrWhiteSpace(aggregator))
                 {
@@ -56,8 +47,8 @@ namespace DeFi10.API.Services
                     return null;
                 }
 
-                double val = (double)answer / Math.Pow(10, 8);
-                _logger.LogInformation("CHAINLINK_NATIVE_PRICE: chain={Chain} priceUSD={Price:G17} source={Source}", ctx.Chain, val, configured != null ? "config" : "default");
+                double val = (double)answer / Math.Pow(10, decimals);
+                _logger.LogInformation("CHAINLINK_NATIVE_PRICE: chain={Chain} priceUSD={Price:G17} aggregator={Aggregator}", ctx.Chain, val, aggregator);
                 return val;
             }
             catch (Exception ex)
@@ -68,6 +59,7 @@ namespace DeFi10.API.Services
         }
 
         private readonly IConfiguration _configuration;
+        private readonly IChainConfigurationService _chainConfigService;
         private readonly ILogger<UniswapV3OnChainService> _logger;
         private const string BASE_FACTORY_ADDRESS = "0x33128a8fC17869897dcE68Ed026d694621f6FDfD";
         private const string BASE_POSITION_MANAGER_ADDRESS = "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1";
@@ -77,9 +69,10 @@ namespace DeFi10.API.Services
         private sealed record ChainContext(ChainEnum Chain, Web3 Web3, string PositionManager, string Factory, string PoolInitCodeHash);
         private readonly ConcurrentDictionary<ChainEnum, ChainContext> _contexts = new();
 
-        public UniswapV3OnChainService(IConfiguration configuration, ILogger<UniswapV3OnChainService> logger)
+        public UniswapV3OnChainService(IConfiguration configuration, IChainConfigurationService chainConfigService, ILogger<UniswapV3OnChainService> logger)
         {
             _configuration = configuration;
+            _chainConfigService = chainConfigService;
             _logger = logger;
         }
 

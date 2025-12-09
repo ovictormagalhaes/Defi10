@@ -1,294 +1,61 @@
-using DeFi10.API.Aggregation;
-using DeFi10.API.Configuration;
-using DeFi10.API.Infrastructure;
-using DeFi10.API.Infrastructure.MongoDB;
-using DeFi10.API.Infrastructure.Redis;
-using DeFi10.API.Messaging.Rabbit;
-using DeFi10.API.Messaging.Workers;
-using DeFi10.API.Messaging.Workers.TriggerRules;
-using DeFi10.API.Middleware;
-using DeFi10.API.Repositories;
-using DeFi10.API.Services;
-using DeFi10.API.Services.Interfaces;
-using DeFi10.API.Services.Mappers;
-using DeFi10.API.Services.Models;
-using DeFi10.API.Services.Models.Aave.Supplies;
-using DeFi10.API.Services.Models.Solana.Common;
-using DeFi10.API.Services.Models.Solana.Kamino;
-using DeFi10.API.Services.Models.Solana.Raydium;
-using DeFi10.API.Services.Solana;
-using DeFi10.API.Services.Solana.Raydium;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using StackExchange.Redis;
-using Solnet.Rpc;
-using System.Text;
-using System.IdentityModel.Tokens.Jwt;
+using DeFi10.API.Extensions;
+using DeFi10.API.Services.Helpers;
 
-var builder = WebApplication.CreateBuilder(args);
-var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
-builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
-
-builder.Services.Configure<CoinMarketCapOptions>(builder.Configuration.GetSection("CoinMarketCap"));
-builder.Services.Configure<RedisOptions>(builder.Configuration.GetSection("Redis"));
-builder.Services.Configure<MongoDBOptions>(builder.Configuration.GetSection("MongoDB"));
-builder.Services.Configure<AggregationOptions>(builder.Configuration.GetSection("Aggregation"));
-builder.Services.Configure<UniswapV3WorkerOptions>(builder.Configuration.GetSection("UniswapV3Workers"));
-builder.Services.Configure<ProtocolConfigurationOptions>(builder.Configuration.GetSection("ProtocolConfiguration"));
-builder.Services.Configure<ChainConfiguration>(builder.Configuration.GetSection("ChainConfiguration"));
-builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMQ"));
-builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection("RateLimiting"));
-builder.Services.Configure<MoralisOptions>(builder.Configuration.GetSection("Moralis"));
-builder.Services.Configure<AaveOptions>(builder.Configuration.GetSection("Aave"));
-builder.Services.Configure<PendleOptions>(builder.Configuration.GetSection("Pendle"));
-builder.Services.Configure<KaminoOptions>(builder.Configuration.GetSection("Kamino"));
-builder.Services.Configure<SolanaOptions>(builder.Configuration.GetSection("Solana"));
-builder.Services.Configure<AlchemyOptions>(builder.Configuration.GetSection("Alchemy"));
-builder.Services.Configure<ProofOfWorkOptions>(builder.Configuration.GetSection("ProofOfWork"));
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
-
-builder.Services.AddSingleton<IValidateOptions<MoralisOptions>, MoralisOptions>();
-builder.Services.AddSingleton<IValidateOptions<RedisOptions>, RedisOptions>();
-builder.Services.AddSingleton<IValidateOptions<MongoDBOptions>, MongoDBOptions>();
-builder.Services.AddSingleton<IValidateOptions<AggregationOptions>, AggregationOptions>();
-builder.Services.AddSingleton<IValidateOptions<AaveOptions>, AaveOptions>();
-builder.Services.AddSingleton<IValidateOptions<SolanaOptions>, SolanaOptions>();
-builder.Services.AddSingleton<IValidateOptions<AlchemyOptions>, AlchemyOptions>();
-builder.Services.AddSingleton<IValidateOptions<ProofOfWorkOptions>, ProofOfWorkOptions>();
-builder.Services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptions>();
-
-builder.Services.AddSingleton<IChainConfigurationService, ChainConfigurationService>();
-
-builder.Services.AddSingleton<IProtocolConfigurationService, ProtocolConfigurationService>();
-
-builder.Services.AddSingleton<ISystemClock, SystemClock>();
-builder.Services.AddSingleton<IRedisDatabase, RedisDatabaseWrapper>();
-builder.Services.AddSingleton<IMongoDBContext, MongoDBContext>();
-builder.Services.AddScoped<IWalletGroupRepository, MongoWalletGroupRepository>();
-builder.Services.AddScoped<IStrategyRepository, MongoStrategyRepository>();
-builder.Services.AddScoped<IWalletGroupService, WalletGroupService>();
-builder.Services.AddSingleton<IProofOfWorkService, ProofOfWorkService>();
-builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
-
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
-
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
+#if DEBUG
+// Load .env file BEFORE creating builder (for local development)
+var envPath = Path.Combine(Directory.GetCurrentDirectory(), "..", ".env");
+if (File.Exists(envPath))
+{
+    foreach (var line in File.ReadAllLines(envPath))
     {
-        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-    });
-builder.Services.AddEndpointsApiExplorer();
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new() { Title = "DeFi10 API", Version = "v1" }));
-}
+        var trimmedLine = line.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedLine) || trimmedLine.StartsWith("#"))
+            continue;
 
-var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
-if (jwtOptions == null)
-{
-    throw new InvalidOperationException("JWT configuration is required");
-}
-
-JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtOptions.Issuer,
-        ValidAudience = jwtOptions.Audience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret)),
-        ClockSkew = TimeSpan.Zero
-    };
-
-    // Adiciona eventos para debug
-    options.Events = new JwtBearerEvents
-    {
-        OnAuthenticationFailed = context =>
+        var parts = trimmedLine.Split('=', 2);
+        if (parts.Length == 2)
         {
-            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning("JWT Authentication failed: {Exception}", context.Exception.Message);
-            return Task.CompletedTask;
-        },
-        OnTokenValidated = context =>
-        {
-            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            logger.LogInformation("JWT Token validated successfully for user {User}", context.Principal?.Identity?.Name);
-            return Task.CompletedTask;
-        }
-    };
-});
-
-builder.Services.AddAuthorization();
-
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        if (allowedOrigins.Length > 0)
-            policy.WithOrigins(allowedOrigins);
-        else
-        {
-            policy.WithOrigins("http://localhost:10002", "https://localhost:10002");
-        }
-        policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
-    });
-});
-
-builder.Services.AddHealthChecks();
-
-builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-{
-    var cfg = sp.GetRequiredService<IConfiguration>();
-    var optCfg = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
-    var cs = optCfg.ConnectionString ?? cfg["Redis:ConnectionString"];
-    if (string.IsNullOrEmpty(cs)) throw new InvalidOperationException("Redis connection string is required");
-    var opt = ConfigurationOptions.Parse(cs);
-    if (!string.IsNullOrEmpty(optCfg.User)) opt.User = optCfg.User;
-    if (!string.IsNullOrEmpty(optCfg.Password)) opt.Password = optCfg.Password;
-    opt.AbortOnConnectFail = false; opt.ConnectRetry = optCfg.ConnectRetry; opt.ConnectTimeout = optCfg.ConnectTimeoutMs; opt.SyncTimeout = optCfg.SyncTimeoutMs;
-    return ConnectionMultiplexer.Connect(opt);
-});
-
-builder.Services.AddScoped<ICacheService, RedisCacheService>();
-builder.Services.AddScoped<DeFi10.API.Services.Helpers.TokenHydrationHelper>();
-
-builder.Services.AddSingleton<IRpcClient>(sp =>
-{
-    var cfg = sp.GetRequiredService<IConfiguration>();
-    var rpcUrl = "https://api.mainnet-beta.solana.com";// cfg["Solana:RpcUrl"]
-
-    var rpcClient = ClientFactory.GetClient(rpcUrl);
-    return rpcClient;
-});
-
-builder.Services.AddScoped<IWalletAggregationService, WalletAggregationService>();
-builder.Services.AddScoped<IMoralisService, MoralisEVMService>();
-builder.Services.AddScoped<IAaveeService, AaveeService>();
-builder.Services.AddScoped<IUniswapV3Service, UniswapV3Service>();
-builder.Services.AddSingleton<IUniswapV3OnChainService, UniswapV3OnChainService>();
-builder.Services.AddScoped<IAlchemyNftService, AlchemyNftService>();
-builder.Services.AddScoped<IPendleService, PendleService>();
-builder.Services.AddScoped<ISolanaService, KaminoService>();
-builder.Services.AddScoped<IMoralisSolanaService, MoralisSolanaService>();
-builder.Services.AddScoped<IRaydiumOnChainService, RaydiumOnChainService>();
-builder.Services.AddScoped<ITokenMetadataService, TokenMetadataService>();
-builder.Services.AddScoped<WalletItemLabelEnricher>();
-
-builder.Services.AddHttpClient<KaminoService>();
-builder.Services.AddHttpClient<MoralisSolanaService>();
-builder.Services.AddHttpClient<WalletAggregationService>();
-builder.Services.AddHttpClient<MoralisEVMService>();
-builder.Services.AddHttpClient<ICoinMarketCapService, CoinMarketCapService>();
-builder.Services.AddHttpClient<PendleService>();
-builder.Services.AddHttpClient<UniswapV3OnChainService>();
-
-builder.Services.AddScoped<IWalletItemMapper<IEnumerable<TokenDetail>>, MoralisTokenMapper>();
-builder.Services.AddScoped<IWalletItemMapper<AaveGetUserSuppliesResponse>, AaveSuppliesMapper>();
-builder.Services.AddScoped<IWalletItemMapper<AaveGetUserBorrowsResponse>, AaveBorrowsMapper>();
-builder.Services.AddScoped<IWalletItemMapper<UniswapV3GetActivePoolsResponse>, UniswapV3Mapper>();
-builder.Services.AddScoped<IWalletItemMapper<PendleVePositionsResponse>, PendleVeMapper>();
-builder.Services.AddScoped<IWalletItemMapper<PendleDepositsResponse>, PendleDepositsMapper>();
-builder.Services.AddScoped<IWalletItemMapper<SolanaTokenResponse>, SolanaTokenMapper>();
-builder.Services.AddScoped<IWalletItemMapper<IEnumerable<KaminoPosition>>, SolanaKaminoMapper>();
-builder.Services.AddScoped<IWalletItemMapper<IEnumerable<RaydiumPosition>>, SolanaRaydiumMapper>();
-
-builder.Services.AddScoped<IWalletItemMapperFactory, WalletItemMapperFactory>();
-
-builder.Services.AddScoped<IStrategyService, StrategyService>();
-
-builder.Services.AddSingleton<IAggregationJobStore, AggregationJobStore>();
-builder.Services.AddSingleton<ITokenFactory, TokenFactory>();
-builder.Services.AddScoped<IPriceService, PriceService>();
-builder.Services.AddScoped<IProtocolStatusService, ProtocolStatusService>();
-
-builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
-builder.Services.AddSingleton<IMessagePublisher, RabbitMqPublisher>();
-
-// Dynamic Job Expansion Services (for event-driven protocol triggering)
-builder.Services.AddSingleton<JobExpansionService>();
-builder.Services.AddSingleton<IProtocolTriggerDetector, UniswapV3NftDetector>();
-builder.Services.AddSingleton<IProtocolTriggerDetector, RaydiumNftDetector>();
-
-builder.Services.AddHostedService<IntegrationRequestWorker>();
-builder.Services.AddHostedService<IntegrationResultAggregatorWorker>();
-builder.Services.AddHostedService<AggregationTimeoutMonitorWorker>();
-
-var app = builder.Build();
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "DeFi10 API v1");
-        c.RoutePrefix = "swagger";
-    });
-}
-
-var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
-
-app.UseCorrelationId();
-app.UseGlobalExceptionHandler();
-app.UseRateLimiting();
-
-try
-{
-    var redis = app.Services.GetRequiredService<IConnectionMultiplexer>();
-    await redis.GetDatabase().PingAsync();
-    logger.LogInformation("Redis connection established successfully");
-}
-catch (Exception ex)
-{
-    logger.LogWarning(ex, "Redis connection failed");
-}
-
-try
-{
-    var chainConfigService = app.Services.GetRequiredService<IChainConfigurationService>();
-    var enabledChains = chainConfigService.GetEnabledChains().ToList();
-    logger.LogInformation("Chain configuration loaded - {Count} enabled chains: {Chains}", enabledChains.Count, string.Join(", ", enabledChains));
-
-    foreach (var chain in enabledChains)
-    {
-        var validation = chainConfigService.ValidateChainConfig(chain);
-        if (validation.IsValid)
-        {
-            logger.LogDebug("Chain {Chain} configuration is valid", chain);
-        }
-        else
-        {
-            logger.LogWarning("Chain {Chain} configuration has issues - Errors: {Errors}, Warnings: {Warnings}", chain, string.Join(", ", validation.Errors), string.Join(", ", validation.Warnings));
+            var key = parts[0].Trim();
+            var value = parts[1].Trim();
+            Environment.SetEnvironmentVariable(key, value);
         }
     }
 }
-catch (Exception ex)
-{
-    logger.LogError(ex, "Failed to validate chain configurations");
-}
+#endif
 
-var uniV3Options = builder.Configuration.GetSection("UniswapV3Workers").Get<UniswapV3WorkerOptions>();
-if (uniV3Options != null)
-{
-    logger.LogInformation("Uniswap V3 granular processing configured - Enabled: {Enabled}, Timeout: {Timeout}s, MaxRetry: {MaxRetry}, MinSuccess: {MinSuccess}%", uniV3Options.EnableGranularProcessing, uniV3Options.GranularOperationTimeout.TotalSeconds, uniV3Options.MaxRetryAttempts, uniV3Options.MinSuccessRate * 100);
-}
+var builder = WebApplication.CreateBuilder(args);
 
-app.MapHealthChecks("/health");
-app.UseCors();
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
-logger.LogInformation("DeFi10 API starting env={Env} port={Port} cors={Cors}", app.Environment.EnvironmentName, port, allowedOrigins.Length > 0 ? string.Join(',', allowedOrigins) : "(fallback localhost)");
+// Configure services
+builder.Services.AddApplicationOptions(builder.Configuration);
+builder.Services.AddOptionsValidation();
+builder.Services.AddInfrastructureServices();
+builder.Services.AddApplicationServices();
+builder.Services.AddProtocolServices();
+builder.Services.AddMappers();
+builder.Services.AddAggregationServices();
+builder.Services.AddMessaging();
+
+builder.AddCorsConfiguration();
+builder.AddJwtAuthentication();
+builder.AddControllersWithOptions();
+builder.AddRateLimiting();
+builder.AddHealthChecksConfiguration();
+
+var app = builder.Build();
+
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+
+app.UseMiddlewarePipeline();
+await app.ValidateStartupAsync();
+app.ConfigureEndpoints();
+
+logger.LogInformation("DeFi10 API starting env={Env} port={Port} cors={Cors}", 
+    app.Environment.EnvironmentName, 
+    port, 
+    allowedOrigins.Length > 0 ? string.Join(',', allowedOrigins) : "(fallback localhost)");
 
 app.Run();

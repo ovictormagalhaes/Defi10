@@ -14,7 +14,7 @@ namespace DeFi10.API.Services
         public AlchemyNftService(IOptions<AlchemyOptions> options)
         {
             _httpClient = new HttpClient();
-            var nftUrl = options.Value.NftUrl;
+            var nftUrl = options.Value.GetNftUrl();
             _alchemyNftBaseUrl = nftUrl.EndsWith("/") ? nftUrl : nftUrl + "/";
         }
 

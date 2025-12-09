@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '../config/api';
-import { getToken } from '../services/apiClient';
+import { getToken, notifyTokenExpired } from '../services/apiClient';
 
 /**
  * Hook para gerenciar ciclo de vida de um job de agregação.
@@ -84,6 +84,13 @@ export function useAggregationJob() {
           headers,
           body,
         });
+        
+        if (res.status === 401 && isGroup) {
+          console.warn('[useAggregationJob] Token expired for wallet group:', accountOrGroupId);
+          notifyTokenExpired(accountOrGroupId);
+          throw new Error('Authentication required');
+        }
+        
         if (!res.ok) throw new Error(`Start failed: ${res.status}`);
         const data = await res.json();
         // Novo formato: { account, jobs: [ { chain, jobId }, ... ] }
@@ -151,6 +158,13 @@ export function useAggregationJob() {
           headers,
           body,
         });
+        
+        if (res.status === 401 && isGroup) {
+          console.warn('[useAggregationJob] Token expired for wallet group:', accountOrGroupId);
+          notifyTokenExpired(accountOrGroupId);
+          throw new Error('Authentication required');
+        }
+        
         if (!res.ok) throw new Error(`Start failed: ${res.status}`);
         const data = await res.json();
         let pickedJobId = data.jobId;
