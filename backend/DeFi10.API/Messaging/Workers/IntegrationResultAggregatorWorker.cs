@@ -477,7 +477,8 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Mapping payload failed JobId={JobId} Provider={Provider} Chain={Chain} Account={Account}", jobId, result.Provider, chainEnum, account);
+                        _logger.LogWarning(ex, "Mapping payload failed JobId={JobId} Provider={Provider} Chain={Chain} Account={Account}", 
+                            jobId, result.Provider, chainEnum, account);
                     }
                     foreach (var item in newlyMapped)
                     {
@@ -636,8 +637,10 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             {
                 if (succeeded == expectedTotal && failed == 0)
                 {
+                    // Status is being upgraded to Completed - clear pending list to maintain consistency
+                    await db.KeyDeleteAsync(pendingKey);
                     await db.HashSetAsync(metaKey, new HashEntry[] { new("status", AggregationStatus.Completed.ToString()) });
-                    _logger.LogInformation("Upgraded status to Completed after late successes jobId={JobId}", jobId);
+                    _logger.LogInformation("Upgraded status to Completed after late successes jobId={JobId}, cleared pending list", jobId);
                 }
             }
         }
